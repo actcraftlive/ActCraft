@@ -1,0 +1,42 @@
+[package]
+name = "actcraft-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Run with cargo-fuzz (nightly): `cargo +nightly fuzz run show_file`.
+# The stable fuzz sweeps in each crate's tests/it/main.rs run in `cargo xtask ci`.
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+actcraft-show = { path = "../crates/actcraft-show" }
+actcraft-library = { path = "../crates/actcraft-library" }
+actcraft-audio = { path = "../crates/actcraft-audio" }
+
+[[bin]]
+name = "show_file"
+path = "fuzz_targets/show_file.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "search_query"
+path = "fuzz_targets/search_query.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "filename_format"
+path = "fuzz_targets/filename_format.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "audio_decode"
+path = "fuzz_targets/audio_decode.rs"
+test = false
+doc = false

@@ -1,0 +1,17 @@
+[package]
+name = "actcraft-control"
+description = "Remote control for ActCraft: a JSON control channel on localhost and an MCP server, both dispatching engine commands by id."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+actcraft-engine = { workspace = true }
+craft-jsonrpc = { workspace = true }
+craft-mcp = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

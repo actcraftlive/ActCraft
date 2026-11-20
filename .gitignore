@@ -5,3 +5,15 @@
 # Evidence notebook about the reference apps: never committed.
 /plan/
 *.actcraft.tmp
+# Records a local build tool writes when this folder is opened as its project.
+/craft.json
+/feed.json
+/usage.json
+/build-activity.log
+/inbox/
+/investigation.cany/
+/checks/
+/capture/
+/reference/
+/attachments/
+/pinned/

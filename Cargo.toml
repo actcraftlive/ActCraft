@@ -1,0 +1,56 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+default-members = ["crates/*"]
+# cargo-fuzz targets build on nightly on their own.
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+repository = "https://github.com/actcraftlive/ActCraft"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+
+[workspace.dependencies]
+actcraft-command = { path = "crates/actcraft-command" }
+actcraft-show = { path = "crates/actcraft-show" }
+actcraft-library = { path = "crates/actcraft-library" }
+actcraft-audio = { path = "crates/actcraft-audio" }
+actcraft-engine = { path = "crates/actcraft-engine" }
+actcraft-platform = { path = "crates/actcraft-platform" }
+actcraft-control = { path = "crates/actcraft-control" }
+actcraft-ui = { path = "crates/actcraft-ui" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+rtrb = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+
+# Shared Craft libraries: every craft-libs crate stays on one merged `main` rev (AGENTS.md rule 10).
+craft-xtask = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-jsonrpc = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-mcp = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-audio = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", default-features = false, features = ["decode-native"] }
+
+eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "wayland", "x11"] }
+egui = "0.37"
+cpal = "0.18"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

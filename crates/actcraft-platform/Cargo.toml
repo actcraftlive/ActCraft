@@ -1,0 +1,18 @@
+[package]
+name = "actcraft-platform"
+description = "Desktop platform services for ActCraft: files, clock, folder-restricted access and audio output."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+actcraft-engine = { workspace = true }
+actcraft-audio = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
+craft-atomic = { workspace = true }
+cpal = { workspace = true }
+
+[lints]
+workspace = true

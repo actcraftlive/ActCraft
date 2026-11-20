@@ -1,0 +1,15 @@
+[package]
+name = "actcraft-library"
+description = "Song library logic for ActCraft: search, smart playlists, queue, history, filename tags, duplicates."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+actcraft-show = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true
