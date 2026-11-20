@@ -19,6 +19,7 @@ use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
 pub mod flows;
+mod lyrics_view;
 mod settings;
 pub mod shortcuts;
 pub mod theme;
@@ -102,6 +103,19 @@ pub struct ActCraftApp {
     device_request: Option<Option<String>>,
     /// Tap-tempo times (seconds of app time).
     taps: Vec<f64>,
+    centre_tab: CentreTab,
+    lyrics_edit: Option<lyrics_view::LyricsEdit>,
+    lyrics_show_chords: bool,
+    lyrics_follow: bool,
+    lyrics_size: f32,
+    lyrics_last_line: Option<usize>,
+}
+
+/// What the main area shows for the current song.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CentreTab {
+    Mixer,
+    Lyrics,
 }
 
 impl ActCraftApp {
@@ -127,7 +141,18 @@ impl ActCraftApp {
             settings_tab: settings::Tab::default(),
             device_request: None,
             taps: Vec::new(),
+            centre_tab: CentreTab::Mixer,
+            lyrics_edit: None,
+            lyrics_show_chords: true,
+            lyrics_follow: true,
+            lyrics_size: 28.0,
+            lyrics_last_line: None,
         }
+    }
+
+    /// Shows the Lyrics tab (also used by `--lyrics` for screenshots).
+    pub fn show_lyrics(&mut self) {
+        self.centre_tab = CentreTab::Lyrics;
     }
 
     /// Opens the Settings window (also used by `--open-settings` for screenshots).
@@ -611,6 +636,20 @@ impl ActCraftApp {
         };
         self.song_details(ui, e, &song);
         ui.separator();
+        ui.horizontal(|ui| {
+            let big = |text: &str| RichText::new(text).size(17.0);
+            ui.selectable_value(&mut self.centre_tab, CentreTab::Mixer, big(tr("Mixer")));
+            let lyrics_label = if song.lyrics.trim().is_empty() { tr("Lyrics") } else { tr("Lyrics \u{2022}") };
+            ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
+        });
+        if self.centre_tab == CentreTab::Lyrics {
+            self.lyrics_tab(ui, e, &song);
+            return;
+        }
+        // Leaving the Lyrics tab keeps what was typed.
+        if self.lyrics_edit.is_some() {
+            self.finish_lyrics_edit_pub(e);
+        }
         ui.horizontal(|ui| {
             ui.heading(tr("Mixer"));
             if ui

@@ -31,6 +31,7 @@ pub mod services;
 
 pub use actcraft_audio::tempo;
 pub use actcraft_command::{CommandError, CommandSpec, guard};
+pub use actcraft_lyrics as lyrics;
 pub use services::{MemoryServices, Services};
 
 /// Messages kept for the status line and screen readers.

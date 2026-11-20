@@ -12,6 +12,7 @@ actcraft-command = { workspace = true }
 actcraft-show = { workspace = true }
 actcraft-library = { workspace = true }
 actcraft-audio = { workspace = true }
+actcraft-lyrics = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

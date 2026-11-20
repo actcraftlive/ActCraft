@@ -201,6 +201,7 @@ fn main() {
     }
 
     let open_settings = args.iter().any(|a| a == "--open-settings");
+    let show_lyrics = args.iter().any(|a| a == "--lyrics");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
         started: std::time::Instant::now(),
@@ -234,6 +235,9 @@ fn main() {
             let mut app = ActCraftApp::new(&cc.egui_ctx, engine, platform);
             if open_settings {
                 app.open_settings();
+            }
+            if show_lyrics {
+                app.show_lyrics();
             }
             Ok(Box::new(Host { app, _audio: audio, screenshot, dialogs, prefs }))
         }),

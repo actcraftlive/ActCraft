@@ -159,6 +159,7 @@ dependencies = [
  "actcraft-audio",
  "actcraft-command",
  "actcraft-library",
+ "actcraft-lyrics",
  "actcraft-show",
  "chrono",
  "serde",
@@ -172,6 +173,10 @@ dependencies = [
  "actcraft-show",
  "chrono",
 ]
+
+[[package]]
+name = "actcraft-lyrics"
+version = "0.1.0"
 
 [[package]]
 name = "actcraft-platform"

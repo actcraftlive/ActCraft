@@ -100,6 +100,22 @@ pub fn all() -> Vec<Command<Engine>> {
             song_import_files,
         ),
         cmd("song.duplicates", "Find duplicate songs", "Song/Find Duplicates", None, "none", song_duplicates),
+        with_songs(cmd(
+            "lyrics.import",
+            "Import lyrics",
+            "Song/Import Lyrics…",
+            None,
+            "{song?: id, path: text} (.txt, .cho/.chopro/.chordpro/.crd/.pro, .lrc)",
+            lyrics_import,
+        )),
+        with_songs(cmd(
+            "lyrics.stamp_line",
+            "Set line timecode",
+            "",
+            None,
+            "{song?: id, line: index, seconds?: number (default: the playback time)}",
+            lyrics_stamp_line,
+        )),
         with_songs(cmd("song.detect_bpm", "Detect tempo", "Song/Detect Tempo", None, "{song?: id}", song_detect_bpm)),
         cmd(
             "library.set_filename_format",
@@ -698,6 +714,50 @@ fn song_detect_bpm(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_param(e, prm)?;
     e.queue_tempo_detection([id]);
     Ok(json!({"song": id, "bpm": e.show.song(id).map(|s| s.bpm)}))
+}
+
+/// Lyrics file types `lyrics.import` reads.
+pub const LYRICS_EXTENSIONS: &[&str] = &["txt", "cho", "chopro", "chordpro", "crd", "pro", "lrc"];
+
+fn lyrics_import(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_param(e, prm)?;
+    let path = p::str_max(prm, "path", MAX_TEXT)?.to_owned();
+    let ext = services::extension(&path).unwrap_or_default();
+    if !LYRICS_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(invalid(format!("ActCraft reads lyrics from {} files", LYRICS_EXTENSIONS.join(", "))));
+    }
+    let bytes = e.services().read_file(&path).map_err(failed)?;
+    if bytes.len() > actcraft_show::limits::MAX_LYRICS {
+        return Err(failed("that lyrics file is too large"));
+    }
+    let text = actcraft_lyrics::decode_text(&bytes);
+    let parsed = actcraft_lyrics::parse(&text);
+    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
+    // ChordPro files may name the song; fill in only what's still empty.
+    for (field, slot) in [("title", &mut song.title), ("artist", &mut song.artist), ("key", &mut song.key)] {
+        if let Some(v) = parsed.directive(field)
+            && (slot.trim().is_empty() || (field == "title" && slot.starts_with("Song ")))
+        {
+            *slot = v.to_owned();
+        }
+    }
+    song.lyrics = text;
+    let lines = parsed.lines.len();
+    e.mark_changed();
+    e.say(format!("Imported lyrics: {lines} lines"));
+    Ok(json!({"lines": lines, "timecodes": parsed.has_timecodes()}))
+}
+
+fn lyrics_stamp_line(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_param(e, prm)?;
+    let line = usize::try_from(p::i64_in(prm, "line", 0, actcraft_lyrics::MAX_LINES as i64)?).unwrap_or(0);
+    let seconds = p::opt_f64_in(prm, "seconds", 0.0, 86_399.0)?.unwrap_or(e.status.time.max(0.0));
+    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
+    let updated = actcraft_lyrics::stamp_line(&song.lyrics, line, seconds)
+        .ok_or_else(|| invalid("the lyrics have no such line"))?;
+    song.lyrics = updated;
+    e.mark_changed();
+    Ok(json!({"line": line, "seconds": seconds}))
 }
 
 fn library_set_filename_format(e: &mut Engine, prm: &Value) -> CommandResult {

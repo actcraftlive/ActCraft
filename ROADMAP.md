@@ -9,7 +9,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 |---|---|---|
 | M0 | Foundation: commands, CLI, control channel, MCP, build gate | ✅ |
 | M1 | Audio engine, mixer, outputs, metronome, library, playlists, queue | 🔶 |
-| M2 | Regions, lyrics and chords, sheet music (PDF), lyrics editor, second screen | ⬜ next |
+| M2 | Regions, lyrics and chords, sheet music (PDF), lyrics editor, second screen | 🔶 in progress |
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ⬜ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ⬜ |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | ⬜ |
@@ -48,13 +48,16 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ⬜ Export a song, playlist or archive; backup and restore
 - ⬜ Drag-and-drop reorder in sets (buttons work today)
 
-## M2 Lyrics, regions, sheet music ⬜ next
+## M2 Lyrics, regions, sheet music 🔶 in progress
 
-- ⬜ Lyrics per song with headings, bold/italic/underline, fonts and colours
-- ⬜ Chords in ChordPro syntax: transpose, capo, chord style, hide chords; directives
-- ⬜ Timecoded lines with smooth scrolling, constant-speed scroll, manual override
-- ⬜ Lyrics editor: formatting buttons, search and replace, undo, insert timecode at playback
-- ⬜ Import text, ChordPro, LRC, lyrics in audio tags, DOCX text
+- ✅ Lyrics per song (Lyrics tab) with headings, bold/italic/underline and colours
+- 🔶 Font tags (sans, mono work; serif and script wait for fonts from the shared font store)
+- ✅ Chords in ChordPro syntax above the words; transpose, capo, hide chords; directives, chorus
+- 🔶 Timecoded lines: the playing line is highlighted and scrolled to; smooth and constant-speed
+  scrolling still to do
+- 🔶 Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
+  position; search and replace and timecode-aware undo still to do
+- 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
 - ⬜ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
 - ⬜ Markers from audio files become regions
 - ⬜ PDF lyrics and sheet music with annotations, scaling, inverted colours, autoscroll

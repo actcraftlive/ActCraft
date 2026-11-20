@@ -1,0 +1,13 @@
+[package]
+name = "actcraft-lyrics"
+description = "Lyrics for ActCraft: markup, inline chords in ChordPro syntax, directives, timecodes and transposing."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
