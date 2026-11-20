@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ActCraft – show control for live musicians</title>
+<link rel="icon" type="image/png" href="/actcraft-logo.png">
+<meta name="description" content="ActCraft plays your backing tracks and runs your lights from one show file. Open source, native on Windows, macOS and Linux.">
+<style>
+  /* Colours and sizes match the app's dark stage theme tokens (crates/actcraft-ui/src/theme.rs). */
+  :root {
+    --bg: #121316; --panel: #1a1c21; --surface: #24272e; --text: #e8eaee; --dim: #a4abb8;
+    --accent: #4f9cf0; --accent-text: #0b0c0e; --playing: #3dc97a; --warning: #f2b43c;
+    --stroke: #5a616e; --radius: 6px; --gap: 8px; --pad: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Ubuntu, Roboto, sans-serif; }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid #8cc4ff; outline-offset: 2px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  header { border-bottom: 1px solid var(--surface); background: var(--panel); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text); text-decoration: none; }
+  .brand img { width: 32px; height: 32px; border-radius: 6px; }
+  nav { display: flex; gap: 18px; flex-wrap: wrap; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--text); }
+  .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; padding: 64px 0 48px; }
+  .hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 16px; }
+  .hero p { color: var(--dim); font-size: 18px; margin: 0 0 24px; }
+  .hero img { width: 100%; max-width: 400px; justify-self: center; border-radius: 12px; }
+  .buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 10px 18px; border-radius: var(--radius); text-decoration: none; font-weight: 600; border: 1px solid var(--stroke); color: var(--text); background: var(--surface); }
+  .btn.primary { background: var(--playing); border-color: var(--playing); color: var(--accent-text); }
+  h2 { font-size: 28px; margin: 0 0 20px; }
+  section { padding: 40px 0; border-top: 1px solid var(--surface); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--surface); border-radius: 10px; padding: 18px; }
+  .card h3 { margin: 0 0 8px; font-size: 18px; }
+  .card p { margin: 0; color: var(--dim); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--surface); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .done { background: var(--playing); color: var(--accent-text); }
+  .progress { background: var(--warning); color: var(--accent-text); }
+  .planned { background: var(--surface); color: var(--dim); border: 1px solid var(--stroke); }
+  pre { background: var(--panel); border: 1px solid var(--surface); border-radius: var(--radius); padding: 14px; overflow-x: auto; }
+  code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 14px; }
+  footer { padding: 32px 0 48px; color: var(--dim); border-top: 1px solid var(--surface); font-size: 14px; }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 700px) {
+    .hero { grid-template-columns: 1fr; padding: 40px 0 32px; text-align: left; }
+    .hero h1 { font-size: 32px; }
+    .hero img { max-width: 260px; }
+    .grid { grid-template-columns: 1fr; }
+    nav { gap: 12px; }
+    th:nth-child(3), td:nth-child(3) { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="/actcraft-logo.png" alt="">ActCraft</a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#status">Status</a>
+      <a href="#build">Build</a>
+      <a href="https://github.com/actcraftlive/ActCraft">Source code</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top" class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Backing tracks and lights, one show.</h1>
+      <p>ActCraft plays your multitrack backing tracks and runs your stage lighting from a single show file, on one shared clock. Open source, native on Windows, macOS and Linux.</p>
+      <div class="buttons">
+        <a class="btn primary" href="#build">Build it</a>
+        <a class="btn" href="#status">See what works today</a>
+      </div>
+    </div>
+    <img src="/actcraft-logo.png" alt="ActCraft logo: a drawn octopus" width="400" height="400">
+  </div>
+
+  <section id="features" aria-labelledby="features-h">
+    <h2 id="features-h">What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>Multitrack playback</h3><p>Up to 64 tracks per song with volume, pan, 4-band EQ, mute and 16 output buses. Tracks stay sample-locked for the whole song.</p></div>
+      <div class="card"><h3>Metronome</h3><p>Click on its own bus, count-in per song, start on the beat, visual-only mode for silent stages.</p></div>
+      <div class="card"><h3>Setlists</h3><p>Playlists split into sets, smart playlists by rules, a play queue, history and quick search with AND, OR and NOT.</p></div>
+      <div class="card"><h3>Mute groups</h3><p>Six labelled groups to drop whole parts of the arrangement live, from the window or by remote.</p></div>
+      <div class="card"><h3>Remote control</h3><p>Every action is a command: run it from the window, the command line, a local JSON channel or an AI assistant over MCP.</p></div>
+      <div class="card"><h3>Lighting (coming)</h3><p>DMX over Art-Net, sACN and USB, fixtures, effects and cues that follow the song's tempo.</p></div>
+    </div>
+  </section>
+
+  <section id="status" aria-labelledby="status-h">
+    <h2 id="status-h">Status</h2>
+    <table>
+      <thead><tr><th>Milestone</th><th>State</th><th>Scope</th></tr></thead>
+      <tbody>
+        <tr><td>M0 Foundation</td><td><span class="tag done">Done</span></td><td>Commands, CLI, control channel, MCP server, build gate</td></tr>
+        <tr><td>M1 Audio and library</td><td><span class="tag progress">In progress</span></td><td>Engine, mixer, metronome, playlists, queue</td></tr>
+        <tr><td>M2 Lyrics and regions</td><td><span class="tag planned">Planned</span></td><td>Regions, lyrics, chords, PDF, second screen</td></tr>
+        <tr><td>M3 MIDI</td><td><span class="tag planned">Planned</span></td><td>MIDI in, out and sync, macros, remote actions</td></tr>
+        <tr><td>M4–M6 Lighting</td><td><span class="tag planned">Planned</span></td><td>DMX output, fixtures, effects, cues, control pages</td></tr>
+        <tr><td>M7–M9 One show</td><td><span class="tag planned">Planned</span></td><td>Lighting lane, band network, packaging</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="build" aria-labelledby="build-h">
+    <h2 id="build-h">Build and run</h2>
+    <p>You need a Rust toolchain. Then:</p>
+<pre><code>cargo run -p actcraft --bin actcraft          # the window
+cargo run -p actcraft --bin actcraft-cli -- commands
+cargo xtask ci                                # checks before every commit</code></pre>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">ActCraft is licensed MIT OR Apache-2.0.</div>
+</footer>
+</body>
+</html>

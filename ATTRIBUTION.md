@@ -8,6 +8,7 @@ OFL-1.1, Ubuntu-font-1.0 and MIT/Apache-2.0).
 | Path | Author / source | Licence | Notes |
 |---|---|---|---|
 | `assets/logo/actcraft-logo.png` | ActCraft project owner; generated with Google Gemini from the owner's own prompt (2026) | MIT OR Apache-2.0 | ActCraft logo (octopus drawing), scaled to 512 px by `cargo xtask icon` |
+| `dist/actcraft-logo.png` | Same source as the logo (copy of `assets/logo/actcraft-logo.png`) | MIT OR Apache-2.0 | Logo on the static project page `dist/index.html` |
 | `assets/logo/actcraft-icon-256.png` | Same source as the logo | MIT OR Apache-2.0 | Window icon, 256 px, embedded in the `actcraft` binary |
 
 ## Dependencies taken under one option of a dual licence
