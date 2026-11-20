@@ -18,9 +18,10 @@ Each milestone ends green on `cargo xtask ci` with `docs/parity.md` updated.
 ## Open items in M1
 
 - Background loading of audio files (decoding now runs on the command thread).
-- Native open/save dialogs (craft-dialogs); paths are typed into a dialog for now.
+- Done: native open/save/add-files pickers (craft-dialogs), drop files on the window, "save
+  changes?" before replacing or closing a show, song details and track file/colour/EQ in the window.
 - Export, backup and restore of songs and playlists.
-- Track colour picker and EQ panel in the mixer; drag-and-drop reorder in sets.
+- Drag-and-drop reorder in sets (buttons work today).
 - Effect plugin hosting: choose a plugin format whose SDK licence passes the allowlist.
 - Translation catalogs (English and German) through craft-i18n.
 - Keyboard-driven accessibility tests (egui kittest) for the window.

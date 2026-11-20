@@ -23,6 +23,7 @@ actcraft-control = { workspace = true }
 actcraft-ui = { workspace = true }
 eframe = { workspace = true }
 serde_json = { workspace = true }
+craft-dialogs = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [lints]

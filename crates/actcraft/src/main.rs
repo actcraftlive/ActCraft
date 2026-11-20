@@ -15,7 +15,8 @@ use std::sync::{Arc, Mutex};
 use actcraft_control::channel;
 use actcraft_engine::Engine;
 use actcraft_platform::{AudioOutput, NativeServices};
-use actcraft_ui::{ActCraftApp, PlatformInfo};
+use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
+use craft_dialogs::{Answer, Dialogs, FileDialog};
 use serde_json::json;
 
 /// `--screenshot FILE`: save a PNG of the window after it settles, then close (for docs and
@@ -32,12 +33,47 @@ struct Host {
     // Kept alive for the lifetime of the window: dropping it stops the sound.
     _audio: Option<AudioOutput>,
     screenshot: Option<Screenshot>,
+    /// Native file pickers, shown without blocking the event loop.
+    dialogs: Dialogs<FileAsk>,
+}
+
+/// Turns the window's request into a native file picker.
+fn to_dialog(req: &FileRequest) -> FileDialog {
+    let mut d = match req.kind {
+        FileKind::Open => FileDialog::open(),
+        FileKind::OpenMany => FileDialog::open_many(),
+        FileKind::Save => FileDialog::save(),
+    }
+    .title(req.title);
+    for (name, exts) in &req.filters {
+        d = d.filter(*name, exts);
+    }
+    if let Some(dir) = &req.directory {
+        d = d.directory(dir.clone());
+    }
+    if let Some(name) = &req.file_name {
+        d = d.file_name(name.clone());
+    }
+    d
 }
 
 impl eframe::App for Host {
-    fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut eframe::egui::Ui, frame: &mut eframe::Frame) {
         self.app.platform.time_of_day = chrono_now();
+        // Answers first, then draw, then show what the window asked for.
+        for (ask, answer) in self.dialogs.take_answers() {
+            match answer {
+                Answer::Paths(paths) => self.app.file_chosen(ask, paths),
+                Answer::Unavailable(why) => self.app.file_dialog_failed(why),
+                Answer::Cancelled | Answer::Message(_) => self.app.file_cancelled(ask),
+            }
+        }
         self.app.ui(ui);
+        for req in self.app.take_file_requests() {
+            let dialog = to_dialog(&req);
+            self.dialogs.ask(dialog, req.ask);
+        }
+        self.dialogs.show_pending(Some(&*frame));
         if let Some(shot) = &mut self.screenshot {
             let ctx = ui.ctx().clone();
             if !shot.requested && shot.started.elapsed() > std::time::Duration::from_secs(2) {
@@ -132,7 +168,14 @@ fn main() {
         "ActCraft",
         options,
         Box::new(move |cc| {
-            Ok(Box::new(Host { app: ActCraftApp::new(&cc.egui_ctx, engine, platform), _audio: audio, screenshot }))
+            let ctx = cc.egui_ctx.clone();
+            let dialogs = Dialogs::new(Arc::new(move || ctx.request_repaint()));
+            Ok(Box::new(Host {
+                app: ActCraftApp::new(&cc.egui_ctx, engine, platform),
+                _audio: audio,
+                screenshot,
+                dialogs,
+            }))
         }),
     );
     if let Err(e) = result {

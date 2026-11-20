@@ -18,8 +18,11 @@ use actcraft_engine::{Engine, registry};
 use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
+pub mod flows;
 pub mod shortcuts;
 pub mod theme;
+
+pub use flows::{FileAsk, FileKind, FileRequest};
 
 use theme::Tokens;
 
@@ -58,16 +61,6 @@ impl ClockMode {
     }
 }
 
-/// A command waiting for params the person types (menu items whose command takes params).
-struct Pending {
-    id: &'static str,
-    label: &'static str,
-    params_doc: &'static str,
-    path: String,
-    json: String,
-    error: Option<String>,
-}
-
 /// Facts about the platform for the status line.
 #[derive(Debug, Clone, Default)]
 pub struct PlatformInfo {
@@ -89,10 +82,13 @@ pub struct ActCraftApp {
     selected_track: usize,
     clock_mode: ClockMode,
     zoom: f32,
-    pending: Option<Pending>,
     last_announced: usize,
     new_playlist: String,
     logo: Option<egui::TextureHandle>,
+    file_requests: Vec<FileRequest>,
+    modal: Option<flows::Modal>,
+    /// Set once the person agreed to close (changes saved or discarded).
+    allow_close: bool,
 }
 
 impl ActCraftApp {
@@ -108,10 +104,12 @@ impl ActCraftApp {
             selected_track: 0,
             clock_mode: ClockMode::Elapsed,
             zoom: 1.0,
-            pending: None,
             last_announced: 0,
             new_playlist: String::new(),
             logo: None,
+            file_requests: Vec::new(),
+            modal: None,
+            allow_close: false,
         }
     }
 
@@ -132,7 +130,12 @@ impl ActCraftApp {
         };
         let e: &mut Engine = &mut guard;
         e.tick();
-        self.handle_shortcuts(ui.ctx(), e);
+        let ctx = ui.ctx().clone();
+        self.handle_close(&ctx, e);
+        self.handle_drops(&ctx, e);
+        if self.modal.is_none() {
+            self.handle_shortcuts(&ctx, e);
+        }
         let t = self.tokens;
 
         egui::Panel::top("menu")
@@ -154,7 +157,8 @@ impl ActCraftApp {
         egui::CentralPanel::default_margins().frame(egui::Frame::new().fill(t.bg).inner_margin(t.pad)).show(ui, |ui| {
             egui::ScrollArea::vertical().id_salt("centre").auto_shrink([false, false]).show(ui, |ui| self.centre(ui, e))
         });
-        self.params_dialog(ui.ctx(), e);
+        self.modal_ui(&ctx, e);
+        self.drop_hint(&ctx);
         drop(guard);
         // Playback needs steady redraws for the clock and meters.
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
@@ -180,30 +184,14 @@ impl ActCraftApp {
         }
     }
 
-    /// Runs a command from a menu or shortcut: directly when it needs no params, otherwise
-    /// through the params dialog.
-    fn activate(&mut self, e: &mut Engine, id: &'static str) {
-        let Some(c) = registry().get(id) else { return };
-        let spec = c.spec;
-        if spec.params == "none" || spec.params.starts_with("{discard") || spec.params.starts_with("{path?") {
-            self.run(e, spec.id, Value::Null);
-        } else {
-            self.pending = Some(Pending {
-                id: spec.id,
-                label: spec.label,
-                params_doc: spec.params,
-                path: e.show_path.clone().unwrap_or_default(),
-                json: "{}".to_owned(),
-                error: None,
-            });
-        }
-    }
-
     fn menu_bar(&mut self, ui: &mut Ui, e: &mut Engine) {
         egui::MenuBar::new().ui(ui, |ui| {
             for top in shortcuts::menu_roots() {
                 ui.menu_button(tr(top), |ui| {
-                    for c in registry().iter().filter(|c| c.spec.menu.split('/').next() == Some(top)) {
+                    for c in registry()
+                        .iter()
+                        .filter(|c| c.spec.menu.split('/').next() == Some(top) && flows::offered_in_menu(c.spec.id))
+                    {
                         let item = c.spec.menu.split('/').nth(1).unwrap_or(c.spec.label);
                         let enabled = e.enabled(c.spec.id);
                         let mut button = egui::Button::new(tr(item));
@@ -218,58 +206,6 @@ impl ActCraftApp {
                 });
             }
         });
-    }
-
-    fn params_dialog(&mut self, ctx: &egui::Context, e: &mut Engine) {
-        let Some(p) = &mut self.pending else { return };
-        let mut open = true;
-        let mut run = false;
-        let wants_path = p.params_doc.starts_with("{path") || p.params_doc.starts_with("{paths");
-        egui::Window::new(tr(p.label)).collapsible(false).open(&mut open).show(ctx, |ui| {
-            if wants_path {
-                ui.label(if p.params_doc.starts_with("{paths") {
-                    tr("Audio files (one path per line)")
-                } else {
-                    tr("File path")
-                });
-                let edit = if p.params_doc.starts_with("{paths") {
-                    egui::TextEdit::multiline(&mut p.path).desired_width(420.0)
-                } else {
-                    egui::TextEdit::singleline(&mut p.path).desired_width(420.0)
-                };
-                ui.add(edit);
-            } else {
-                ui.label(RichText::new(p.params_doc).small());
-                ui.add(egui::TextEdit::multiline(&mut p.json).code_editor().desired_width(420.0));
-            }
-            if let Some(err) = &p.error {
-                ui.colored_label(self.tokens.danger, err);
-            }
-            run = ui.button(tr("Run")).clicked();
-        });
-        if run {
-            let params = if wants_path {
-                if p.params_doc.starts_with("{paths") {
-                    json!({"paths": p.path.lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>()})
-                } else {
-                    json!({"path": p.path.trim()})
-                }
-            } else {
-                match serde_json::from_str::<Value>(&p.json) {
-                    Ok(v) => v,
-                    Err(err) => {
-                        p.error = Some(err.to_string());
-                        return;
-                    }
-                }
-            };
-            match e.run(p.id, &params) {
-                Ok(_) => self.pending = None,
-                Err(err) => p.error = Some(err.to_string()),
-            }
-        } else if !open {
-            self.pending = None;
-        }
     }
 
     fn transport(&mut self, ui: &mut Ui, e: &mut Engine) {
@@ -312,7 +248,11 @@ impl ActCraftApp {
             let s = e.status;
             let phase = s.beat - s.beat.floor();
             let flash = s.playing && phase < 0.15 || (!s.playing && e.show.metronome.enabled && phase < 0.15);
-            let beat_text = format!("{}.{}", s.bar + 1, s.beat_in_bar + 1);
+            let beat_text = if s.playing || e.show.metronome.enabled {
+                format!("{}.{}", s.bar + 1, s.beat_in_bar + 1)
+            } else {
+                "\u{2013}.\u{2013}".to_owned()
+            };
             let beat_fill = if flash { if s.beat_in_bar == 0 { t.warning } else { t.accent } } else { t.surface };
             egui::Frame::new().fill(beat_fill).corner_radius(t.radius).inner_margin(t.pad).show(ui, |ui| {
                 ui.label(RichText::new(beat_text).size(22.0).monospace().color(if flash {
@@ -398,7 +338,13 @@ impl ActCraftApp {
 
     fn sidebar(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.heading(tr("Library"));
+        ui.horizontal(|ui| {
+            ui.heading(tr("Library"));
+            if ui.button(tr("Add songs\u{2026}")).on_hover_text(tr("Choose audio files; each becomes a song")).clicked()
+            {
+                self.ask_add_songs(e);
+            }
+        });
         let search = ui.add(
             egui::TextEdit::singleline(&mut self.search)
                 .hint_text(tr("Search: title:, artist:, -word, OR"))
@@ -424,7 +370,8 @@ impl ActCraftApp {
             .show(ui, |ui| {
                 if ids.is_empty() {
                     ui.label(
-                        RichText::new(tr("No songs yet. Use Song > Add Songs from Audio Files.")).color(t.text_dim),
+                        RichText::new(tr("No songs yet. Click \u{201c}Add songs\u{2026}\u{201d} or drag audio files onto the window."))
+                            .color(t.text_dim),
                     );
                 }
                 for id in ids {
@@ -451,6 +398,18 @@ impl ActCraftApp {
                                 let _ = e.run("playlist.add_songs", &json!({"playlist": i, "songs": [id]}));
                                 ui.close();
                             }
+                        }
+                        ui.separator();
+                        if ui.button(tr("Delete song\u{2026}")).clicked() {
+                            let title = e.show.song(id).map_or_else(String::new, |s| s.title.clone());
+                            self.modal = Some(flows::Modal::Confirm {
+                                title: tr("Delete song"),
+                                text: format!("{} \u{201c}{title}\u{201d}? {}", tr("Delete"), tr("This removes it from every playlist.")),
+                                button: tr("Delete"),
+                                command: "song.remove",
+                                params: json!({"song": id, "confirm": true}),
+                            });
+                            ui.close();
                         }
                     });
                 }
@@ -507,7 +466,7 @@ impl ActCraftApp {
                                     ui.horizontal(|ui| {
                                         ui.label(format!("{}. {title}", k + 1));
                                         // Move buttons: reordering works without dragging.
-                                        if k > 0 && ui.small_button("↑").on_hover_text(tr("Move up")).clicked() {
+                                        if k > 0 && ui.small_button(tr("Up")).on_hover_text(tr("Move up")).clicked() {
                                             self.run(
                                                 e,
                                                 "playlist.move_songs",
@@ -515,7 +474,7 @@ impl ActCraftApp {
                                             );
                                         }
                                         if k + 1 < set.songs.len()
-                                            && ui.small_button("↓").on_hover_text(tr("Move down")).clicked()
+                                            && ui.small_button(tr("Down")).on_hover_text(tr("Move down")).clicked()
                                         {
                                             self.run(
                                                 e,
@@ -523,7 +482,8 @@ impl ActCraftApp {
                                                 json!({"playlist": i, "set": si, "indexes": [k], "to": k + 2}),
                                             );
                                         }
-                                        if ui.small_button("✕").on_hover_text(tr("Remove from set")).clicked() {
+                                        if ui.small_button(tr("Remove")).on_hover_text(tr("Remove from set")).clicked()
+                                        {
                                             self.run(
                                                 e,
                                                 "playlist.remove_songs",
@@ -552,7 +512,7 @@ impl ActCraftApp {
             let title = e.show.song(*id).map_or("?", |s| s.title.as_str()).to_owned();
             ui.horizontal(|ui| {
                 ui.label(format!("{}. {title}", k + 1));
-                if ui.small_button("✕").on_hover_text(tr("Remove from queue")).clicked() {
+                if ui.small_button(tr("Remove")).on_hover_text(tr("Remove from queue")).clicked() {
                     self.run(e, "queue.remove", json!({"index": k}));
                 }
             });
@@ -578,24 +538,40 @@ impl ActCraftApp {
                 ui.heading(tr("Welcome to ActCraft"));
                 ui.label(
                     RichText::new(tr(
-                        "Add songs from audio files (Song menu), build a playlist, then press Play or Space.",
+                        "Add your backing tracks, or drag audio files onto this window. Then press Play or Space.",
                     ))
                     .color(t.text_dim),
                 );
-                if ui.button(tr("Add a song")).clicked() {
-                    self.run(e, "song.add", Value::Null);
-                }
+                ui.add_space(12.0);
+                ui.scope(|ui| {
+                    ui.set_max_width(380.0);
+                    self.welcome_buttons(ui, e);
+                });
             });
             return;
         };
+        self.song_details(ui, e, &song);
+        ui.separator();
         ui.horizontal(|ui| {
             ui.heading(tr("Mixer"));
-            if ui.button(tr("Add track")).clicked() {
-                self.run(e, "track.add", json!({"song": song.id}));
+            if ui
+                .button(tr("Add tracks\u{2026}"))
+                .on_hover_text(tr("Choose audio files; each becomes a track"))
+                .clicked()
+            {
+                self.ask_track_file(e, FileAsk::AddTrack { song: song.id });
             }
             ui.label(RichText::new(format!("{} {}", song.tracks.len(), tr("tracks"))).color(t.text_dim));
         });
-        egui::ScrollArea::horizontal().id_salt("strips").max_height(330.0).show(ui, |ui| {
+        if song.tracks.is_empty() {
+            ui.label(
+                RichText::new(tr(
+                    "This song has no tracks yet. Use \u{201c}Add tracks\u{2026}\u{201d} or drop audio files here.",
+                ))
+                .color(t.text_dim),
+            );
+        }
+        egui::ScrollArea::horizontal().id_salt("strips").max_height(460.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 for (i, tr_) in song.tracks.iter().enumerate() {
                     self.track_strip(ui, e, song.id, i, tr_);
@@ -620,6 +596,58 @@ impl ActCraftApp {
         self.waveform(ui, e, &song);
     }
 
+    /// Song details, edited in place: name fields save when you leave them, numbers and switches
+    /// at once.
+    fn song_details(&mut self, ui: &mut Ui, e: &mut Engine, song: &actcraft_show::Song) {
+        let id = song.id;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("Title"));
+            if let Some(v) = edit_text(ui, egui::Id::unique(("song-title", id)), &song.title, 220.0) {
+                self.run(e, "song.set", json!({"song": id, "title": v}));
+            }
+            ui.label(tr("Artist"));
+            if let Some(v) = edit_text(ui, egui::Id::unique(("song-artist", id)), &song.artist, 180.0) {
+                self.run(e, "song.set", json!({"song": id, "artist": v}));
+            }
+            ui.label(tr("Key"));
+            if let Some(v) = edit_text(ui, egui::Id::unique(("song-key", id)), &song.key, 60.0) {
+                self.run(e, "song.set", json!({"song": id, "key": v}));
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("Tempo"));
+            let mut bpm = song.bpm;
+            if ui.add(egui::DragValue::new(&mut bpm).range(20.0..=400.0).speed(0.5).suffix(" BPM")).changed() {
+                self.run(e, "song.set", json!({"song": id, "bpm": bpm}));
+            }
+            ui.label(tr("Beats per bar"));
+            let mut bpb = u32::from(song.beats_per_bar);
+            if ui.add(egui::DragValue::new(&mut bpb).range(1..=16)).changed() {
+                self.run(e, "song.set", json!({"song": id, "beats_per_bar": bpb}));
+            }
+            ui.label(tr("Count-in"));
+            let mut ci = u32::from(song.count_in_bars);
+            let unit = if ci == 1 { tr(" bar") } else { tr(" bars") };
+            if ui.add(egui::DragValue::new(&mut ci).range(0..=8).suffix(unit)).changed() {
+                self.run(e, "song.set", json!({"song": id, "count_in_bars": ci}));
+            }
+            ui.separator();
+            ui.label(tr("Fade-out"));
+            let mut fade = song.fade_out;
+            if ui.add(egui::DragValue::new(&mut fade).range(0.0..=60.0).speed(0.1).suffix(" s")).changed() {
+                self.run(e, "song.set", json!({"song": id, "fade_out": fade}));
+            }
+            let mut autoplay = song.autoplay;
+            if ui.checkbox(&mut autoplay, tr("Play next song automatically")).changed() {
+                self.run(e, "song.set", json!({"song": id, "autoplay": autoplay}));
+            }
+            let mut looped = song.loop_song;
+            if ui.checkbox(&mut looped, tr("Loop this song")).changed() {
+                self.run(e, "song.set", json!({"song": id, "loop_song": looped}));
+            }
+        });
+    }
+
     fn track_strip(&mut self, ui: &mut Ui, e: &mut Engine, song: u64, i: usize, track: &actcraft_show::Track) {
         let t = self.tokens;
         let selected = self.selected_track == i;
@@ -628,15 +656,47 @@ impl ActCraftApp {
             ui.set_width(t.strip_width);
             ui.vertical(|ui| {
                 let colour = theme::colour(&track.colour, t.accent);
-                let (rect, _) = ui.allocate_exact_size(vec2(t.strip_width, 4.0), Sense::hover());
-                ui.painter().rect_filled(rect, 2, colour);
-                let mut name = track.name.clone();
-                let r = ui.add(egui::TextEdit::singleline(&mut name).desired_width(t.strip_width));
-                if r.lost_focus() && name != track.name {
+                ui.horizontal(|ui| {
+                    let mut rgb = colour.to_array();
+                    let mut c3 = [rgb[0], rgb[1], rgb[2]];
+                    if ui.color_edit_button_srgb(&mut c3).on_hover_text(tr("Track colour")).changed() {
+                        rgb = [c3[0], c3[1], c3[2], 255];
+                        let hex = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
+                        self.run(e, "track.set", json!({"song": song, "track": i, "colour": hex}));
+                    }
+                    if ui.small_button("\u{00d7}").on_hover_text(tr("Remove track")).clicked() {
+                        self.modal = Some(flows::Modal::Confirm {
+                            title: tr("Remove track"),
+                            text: format!("{} \u{201c}{}\u{201d}?", tr("Remove the track"), track.name),
+                            button: tr("Remove"),
+                            command: "track.remove",
+                            params: json!({"song": song, "track": i}),
+                        });
+                    }
+                });
+                if let Some(name) = edit_text(ui, egui::Id::unique(("track-name", song, i)), &track.name, t.strip_width)
+                {
                     self.run(e, "track.set", json!({"song": song, "track": i, "name": name}));
                 }
-                if r.clicked() || r.gained_focus() {
+                let file_label = if track.file.is_empty() {
+                    tr("Choose file\u{2026}").to_owned()
+                } else {
+                    std::path::Path::new(&track.file)
+                        .file_name()
+                        .map_or_else(String::new, |f| f.to_string_lossy().into_owned())
+                };
+                let file_button = egui::Button::new(RichText::new(file_label).small()).truncate();
+                if ui
+                    .add_sized([t.strip_width, 22.0], file_button)
+                    .on_hover_text(if track.file.is_empty() {
+                        tr("Choose the audio file for this track")
+                    } else {
+                        track.file.as_str()
+                    })
+                    .clicked()
+                {
                     self.selected_track = i;
+                    self.ask_track_file(e, FileAsk::TrackFile { song, track: i });
                 }
                 let mut vol = track.volume_db;
                 let v = ui.add(egui::Slider::new(&mut vol, -60.0..=12.0).vertical().suffix(" dB").text(tr("Volume")));
@@ -649,11 +709,39 @@ impl ActCraftApp {
                     self.run(e, "track.set", json!({"song": song, "track": i, "pan": pan}));
                 }
                 ui.horizontal(|ui| {
-                    let mute = egui::Button::new(if track.mute { "M ●" } else { "M" }).selected(track.mute);
+                    let mute = egui::Button::new(if track.mute { tr("Muted") } else { "M" }).selected(track.mute);
                     if ui.add(mute).on_hover_text(tr("Mute")).clicked() {
                         self.run(e, "track.set", json!({"song": song, "track": i, "mute": !track.mute}));
                     }
-                    if ui.small_button(tr("Select")).clicked() {
+                    ui.menu_button(tr("EQ"), |ui| {
+                        ui.label(RichText::new(format!("{} \u{2013} {}", tr("EQ"), track.name)).strong());
+                        for (band, label) in [tr("Low"), tr("Low mid"), tr("High mid"), tr("High")].iter().enumerate() {
+                            let Some(b) = track.eq.get(band) else { continue };
+                            let mut gain = b.gain_db;
+                            let r = ui.add(
+                                egui::Slider::new(&mut gain, -24.0..=24.0)
+                                    .suffix(" dB")
+                                    .text(format!("{label} ({:.0} Hz)", b.freq)),
+                            );
+                            if r.changed() {
+                                self.run(
+                                    e,
+                                    "track.set_eq",
+                                    json!({"song": song, "track": i, "band": band, "gain_db": gain}),
+                                );
+                            }
+                        }
+                        if ui.button(tr("Reset EQ")).clicked() {
+                            for band in 0..4 {
+                                self.run(
+                                    e,
+                                    "track.set_eq",
+                                    json!({"song": song, "track": i, "band": band, "gain_db": 0.0}),
+                                );
+                            }
+                        }
+                    });
+                    if ui.small_button(tr("Wave")).on_hover_text(tr("Show this track's waveform")).clicked() {
                         self.selected_track = i;
                     }
                 });
@@ -787,6 +875,25 @@ impl ActCraftApp {
 
 fn actcraft_audio_bucket() -> f64 {
     256.0
+}
+
+/// A one-line text field that keeps what the person types while it has focus and hands the new
+/// text back once they leave it (Enter, Tab or a click elsewhere). Returns `Some` only when the
+/// text changed.
+fn edit_text(ui: &mut Ui, id: egui::Id, current: &str, width: f32) -> Option<String> {
+    let mut buffer: String = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.to_owned());
+    let r = ui.add(egui::TextEdit::singleline(&mut buffer).id(id).desired_width(width));
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove::<String>(id));
+        return (buffer != current).then_some(buffer);
+    }
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(id, buffer));
+    } else {
+        // Not being edited: show the stored value, also after an undo or a remote change.
+        ui.data_mut(|d| d.remove::<String>(id));
+    }
+    None
 }
 
 /// `m:ss` (or `h:mm:ss`).

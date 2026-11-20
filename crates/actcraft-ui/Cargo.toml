@@ -11,6 +11,7 @@ repository.workspace = true
 actcraft-engine = { workspace = true }
 actcraft-command = { workspace = true }
 actcraft-show = { workspace = true }
+actcraft-library = { workspace = true }
 egui = { workspace = true }
 serde_json = { workspace = true }
 

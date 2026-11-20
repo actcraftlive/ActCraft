@@ -68,6 +68,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "{path?: text} (defaults to where it was opened)",
             show_save,
         ),
+        cmd("show.save_as", "Save show as", "File/Save Show As…", Some("Ctrl+Shift+S"), "{path: text}", show_save_as),
         cmd("show.info", "Show details", "", None, "none", show_info),
         cmd("show.rename", "Rename show", "File/Rename Show…", None, "{name: text}", show_rename),
         // Songs
@@ -88,7 +89,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?}",
             song_set,
         ),
-        cmd("song.remove", "Delete song", "Song/Delete Song", None, "{song: id, confirm: true}", song_remove),
+        cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
         cmd("song.load", "Load song", "", None, "{song: id}", song_load),
         cmd(
             "song.import_files",
@@ -103,7 +104,7 @@ pub fn all() -> Vec<Command<Engine>> {
         with_songs(cmd(
             "track.add",
             "Add track",
-            "Song/Add Track",
+            "Song/Add Tracks…",
             None,
             "{song?: id, name?: text, file?: text}",
             track_add,
@@ -147,7 +148,8 @@ pub fn all() -> Vec<Command<Engine>> {
         cmd(
             "mute_group.toggle",
             "Toggle mute group",
-            "Mixer/Toggle Mute Group",
+            // No menu item: the mixer has one button per group.
+            "",
             None,
             "{group: 1..6}",
             mute_group_toggle,
@@ -228,11 +230,11 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         // Playlists
         cmd("playlist.list", "List playlists", "", None, "none", playlist_list),
-        cmd("playlist.create", "New playlist", "Playlist/New Playlist", None, "{name: text}", playlist_create),
+        cmd("playlist.create", "New playlist", "Playlist/New Playlist…", None, "{name: text}", playlist_create),
         cmd(
             "playlist.create_smart",
             "New smart playlist",
-            "Playlist/New Smart Playlist",
+            "Playlist/New Smart Playlist…",
             None,
             "{name: text, match_all: bool, rules: [{field, op, value}]}",
             playlist_create_smart,
@@ -478,6 +480,11 @@ fn show_save(e: &mut Engine, prm: &Value) -> CommandResult {
     e.dirty = false;
     e.say("Show saved");
     Ok(json!({"path": path, "bytes": bytes.len()}))
+}
+
+fn show_save_as(e: &mut Engine, prm: &Value) -> CommandResult {
+    p::str_max(prm, "path", MAX_TEXT)?;
+    show_save(e, prm)
 }
 
 fn show_info(e: &mut Engine, _: &Value) -> CommandResult {

@@ -17,7 +17,7 @@ const ALLOWED: &[(&str, &[&str])] = &[
     ("actcraft-engine", &["actcraft-command", "actcraft-show", "actcraft-library", "actcraft-audio"]),
     ("actcraft-platform", &["actcraft-engine", "actcraft-audio"]),
     ("actcraft-control", &["actcraft-engine"]),
-    ("actcraft-ui", &["actcraft-engine", "actcraft-command", "actcraft-show"]),
+    ("actcraft-ui", &["actcraft-engine", "actcraft-command", "actcraft-show", "actcraft-library"]),
     ("actcraft", &["actcraft-engine", "actcraft-platform", "actcraft-control", "actcraft-ui"]),
 ];
 
