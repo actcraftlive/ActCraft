@@ -1,2 +1,10 @@
 [alias]
 xtask = "run --package xtask --"
+
+# Windows with the gnullvm Rust toolchain but no llvm-mingw installed: link with the rust-lld
+# and MinGW runtime files that rustup ships, and link the C runtime statically so the program
+# doesn't need libunwind.dll next to it. `build-support/gnullvm/libopengl32.a` is an empty
+# archive: winit asks for opengl32, and its symbols come from the windows-targets import library.
+[target.x86_64-pc-windows-gnullvm]
+linker = "rust-lld"
+rustflags = ["-Clinker-flavor=ld.lld", "-Clink-self-contained=yes", "-Ctarget-feature=+crt-static", "-Lnative=build-support/gnullvm"]
