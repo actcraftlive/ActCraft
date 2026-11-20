@@ -11,7 +11,8 @@
     clippy::unreachable
 )]
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, OnceLock};
 
 use actcraft_audio::peaks::Peaks;
@@ -28,6 +29,7 @@ use serde_json::Value;
 pub mod commands;
 pub mod services;
 
+pub use actcraft_audio::tempo;
 pub use actcraft_command::{CommandError, CommandSpec, guard};
 pub use services::{MemoryServices, Services};
 
@@ -41,6 +43,12 @@ pub const MAX_CACHED_CLIPS: usize = 256;
 pub struct Message {
     pub text: String,
     pub error: bool,
+}
+
+/// A file decoded in the background.
+struct LoadResult {
+    path: String,
+    result: Result<(Arc<Clip>, Arc<Peaks>), String>,
 }
 
 /// The engine.
@@ -74,6 +82,16 @@ pub struct Engine {
     clips: BTreeMap<String, Arc<Clip>>,
     peaks: BTreeMap<String, Arc<Peaks>>,
     services: Box<dyn Services>,
+    // Background decoding: files in flight, files that failed, and what waits for them.
+    load_tx: Sender<LoadResult>,
+    load_rx: Receiver<LoadResult>,
+    loading: BTreeSet<String>,
+    failed: BTreeSet<String>,
+    pending_load: Option<u64>,
+    /// Start playback (with or without count-in) once the pending song has loaded.
+    play_after_load: Option<bool>,
+    /// Songs whose tempo is estimated once their first track has decoded.
+    detect_bpm: BTreeSet<u64>,
 }
 
 /// The registry with every engine command, built once.
@@ -85,7 +103,15 @@ pub fn registry() -> &'static Registry<Engine> {
 impl Engine {
     /// An engine with an empty show and no audio device.
     pub fn new(services: Box<dyn Services>) -> Self {
+        let (load_tx, load_rx) = channel();
         Self {
+            load_tx,
+            load_rx,
+            loading: BTreeSet::new(),
+            failed: BTreeSet::new(),
+            pending_load: None,
+            play_after_load: None,
+            detect_bpm: BTreeSet::new(),
             show: Show::default(),
             show_path: None,
             dirty: false,
@@ -140,6 +166,7 @@ impl Engine {
     /// Call regularly (each UI frame, each control-channel poll): reads the audio status and
     /// handles song ends (history, autoplay).
     pub fn tick(&mut self) {
+        self.drain_loads();
         let Some(audio) = &mut self.audio else { return };
         self.status = audio.poll();
         if self.status.ended_count != self.last_ended {
@@ -252,14 +279,8 @@ impl Engine {
         let bytes = self.services.read_file(path)?;
         let ext = services::extension(path);
         let clip = actcraft_audio::clip::decode(&bytes, ext.as_deref())?;
-        if self.clips.len() >= MAX_CACHED_CLIPS {
-            let first = self.clips.keys().next().cloned();
-            if let Some(k) = first {
-                self.clips.remove(&k);
-                self.peaks.remove(&k);
-            }
-        }
-        self.clips.insert(path.to_owned(), Arc::clone(&clip));
+        let peaks = Arc::new(Peaks::of(&clip));
+        self.cache_clip(path.to_owned(), Arc::clone(&clip), peaks);
         Ok(clip)
     }
 
@@ -298,21 +319,15 @@ impl Engine {
         let mut slots = Vec::with_capacity(song.tracks.len());
         let mut problems = Vec::new();
         for t in &song.tracks {
-            let clip = if t.file.is_empty() {
-                None
-            } else {
-                match self.clip(&t.file) {
-                    Ok(c) => Some(c),
-                    Err(e) => {
-                        problems.push(format!("{}: {e}", t.name));
-                        None
-                    }
-                }
-            };
+            // Only decoded audio: files are decoded in the background before a song loads.
+            let clip = if t.file.is_empty() { None } else { self.clips.get(&t.file).cloned() };
+            if clip.is_none() && self.failed.contains(&t.file) {
+                problems.push(t.name.clone());
+            }
             slots.push(TrackSlot::new(clip, self.track_params(t)));
         }
         for p in problems {
-            self.say_error(format!("Track not loaded: {p}"));
+            self.say_error(format!("Track not loaded (its file could not be read): {p}"));
         }
         let mut load =
             SongLoad::new(slots, song.start, song.end, BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor));
@@ -331,15 +346,155 @@ impl Engine {
         Some(load)
     }
 
+    /// Loads a song into the renderer, first decoding its files in the background. The window
+    /// keeps responding meanwhile; the song loads (and plays, if asked) once its files are ready.
     pub(crate) fn load_into_renderer(&mut self, id: u64) {
         if self.audio.is_none() {
             return;
+        }
+        let missing = self.missing_files(id);
+        if missing.is_empty() {
+            self.load_now(id);
+        } else {
+            self.pending_load = Some(id);
+            self.play_after_load = None;
+            self.request_clips(missing);
+        }
+    }
+
+    fn load_now(&mut self, id: u64) {
+        if self.pending_load == Some(id) {
+            self.pending_load = None;
         }
         if let Some(load) = self.song_load(id)
             && self.send(Msg::Load(Box::new(load)))
         {
             self.loaded_song = Some(id);
         }
+    }
+
+    /// Files of a song not decoded yet (files that failed don't hold it up).
+    fn missing_files(&self, id: u64) -> Vec<String> {
+        let Some(song) = self.show.song(id) else { return Vec::new() };
+        let mut out: Vec<String> = song
+            .tracks
+            .iter()
+            .map(|t| t.file.clone())
+            .filter(|f| !f.is_empty() && !self.clips.contains_key(f) && !self.failed.contains(f))
+            .collect();
+        out.dedup();
+        out
+    }
+
+    /// Whether some of a song's files still need decoding.
+    pub(crate) fn missing_files_pub(&self, id: u64) -> bool {
+        !self.missing_files(id).is_empty()
+    }
+
+    /// Whether a song is waiting for its files to decode.
+    pub fn is_loading(&self, id: u64) -> bool {
+        self.pending_load == Some(id)
+    }
+
+    /// How many files are decoding right now.
+    pub fn loading_count(&self) -> usize {
+        self.loading.len()
+    }
+
+    /// Decodes files in the background (inline where there are no threads).
+    pub fn request_clips(&mut self, paths: impl IntoIterator<Item = String>) {
+        for path in paths {
+            if path.is_empty() || self.clips.contains_key(&path) || self.loading.contains(&path) {
+                continue;
+            }
+            self.failed.remove(&path);
+            self.loading.insert(path.clone());
+            let reader = self.services.file_reader();
+            let tx = self.load_tx.clone();
+            self.services.spawn(Box::new(move || {
+                let result = guard(|| {
+                    let bytes = reader(&path)?;
+                    let ext = services::extension(&path);
+                    let clip = actcraft_audio::clip::decode(&bytes, ext.as_deref())?;
+                    let peaks = Arc::new(Peaks::of(&clip));
+                    Ok((clip, peaks))
+                })
+                .unwrap_or_else(|| Err("decoding stopped unexpectedly".to_owned()));
+                // The engine may be gone (app closing); then nobody needs the result.
+                let _ = tx.send(LoadResult { path, result });
+            }));
+        }
+        self.drain_loads();
+    }
+
+    /// Estimates the tempo of these songs once their first track has decoded.
+    pub(crate) fn queue_tempo_detection(&mut self, songs: impl IntoIterator<Item = u64>) {
+        let mut files = Vec::new();
+        for id in songs {
+            if let Some(f) = self.show.song(id).and_then(|s| s.tracks.first()).map(|t| t.file.clone()) {
+                self.detect_bpm.insert(id);
+                files.push(f);
+            }
+        }
+        self.request_clips(files);
+    }
+
+    fn cache_clip(&mut self, path: String, clip: Arc<Clip>, peaks: Arc<Peaks>) {
+        if self.clips.len() >= MAX_CACHED_CLIPS {
+            let first = self.clips.keys().next().cloned();
+            if let Some(k) = first {
+                self.clips.remove(&k);
+                self.peaks.remove(&k);
+            }
+        }
+        self.clips.insert(path.clone(), clip);
+        self.peaks.insert(path, peaks);
+    }
+
+    /// Takes finished background work: caches files, estimates tempos, loads a waiting song.
+    fn drain_loads(&mut self) {
+        while let Ok(done) = self.load_rx.try_recv() {
+            self.loading.remove(&done.path);
+            match done.result {
+                Ok((clip, peaks)) => self.cache_clip(done.path, clip, peaks),
+                Err(e) => {
+                    self.say_error(format!("{}: {e}", services::file_name(&done.path)));
+                    self.failed.insert(done.path);
+                }
+            }
+        }
+        let waiting: Vec<u64> = self.detect_bpm.iter().copied().collect();
+        for id in waiting {
+            let file = self.show.song(id).and_then(|s| s.tracks.first()).map(|t| t.file.clone()).unwrap_or_default();
+            if let Some(clip) = self.clips.get(&file).cloned() {
+                self.detect_bpm.remove(&id);
+                if let Some(bpm) = actcraft_audio::tempo::estimate(&clip)
+                    && let Some(s) = self.show.song_mut(id)
+                {
+                    s.bpm = bpm;
+                    let title = s.title.clone();
+                    self.mark_changed();
+                    self.push_song_settings(id);
+                    self.say(format!("Tempo of {title}: about {bpm:.0} BPM (detected)"));
+                }
+            } else if file.is_empty() || self.failed.contains(&file) {
+                self.detect_bpm.remove(&id);
+            }
+        }
+        if let Some(id) = self.pending_load
+            && self.missing_files(id).is_empty()
+        {
+            self.load_now(id);
+            if let Some(count_in) = self.play_after_load.take() {
+                let quantized = self.show.metronome.quantized_start;
+                self.send(Msg::Play { count_in, quantized });
+            }
+        }
+    }
+
+    /// Plays the pending song as soon as it has loaded.
+    pub(crate) fn play_when_loaded(&mut self, count_in: bool) {
+        self.play_after_load = Some(count_in);
     }
 
     /// Re-sends one track's mix settings when its song is loaded.
@@ -433,6 +588,9 @@ impl Engine {
 
     pub(crate) fn forget_audio_state(&mut self) {
         self.loaded_song = None;
+        self.pending_load = None;
+        self.play_after_load = None;
+        self.detect_bpm.clear();
         self.send(Msg::Unload);
     }
 }

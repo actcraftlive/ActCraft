@@ -637,7 +637,9 @@ impl Show {
                 } else {
                     format!("Bus {}", n + 1)
                 },
-                output: u16::try_from(n * 2).unwrap_or(0),
+                // Every new bus starts on outputs 1/2, so nothing is silent until the person
+                // routes it elsewhere (a click on outputs 3/4 is inaudible on most setups).
+                output: 0,
                 ..Bus::default()
             });
         }

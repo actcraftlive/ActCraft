@@ -19,6 +19,7 @@ use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
 pub mod flows;
+mod settings;
 pub mod shortcuts;
 pub mod theme;
 
@@ -71,6 +72,12 @@ pub struct PlatformInfo {
     pub time_of_day: String,
     /// The ActCraft logo as RGBA pixels (width, height, pixels), when the host has it.
     pub logo: Option<(usize, usize, Vec<u8>)>,
+    /// Output devices (id, name) for the Settings window.
+    pub devices: Vec<(String, String)>,
+    /// The chosen device, `None` for the system default.
+    pub device_id: Option<String>,
+    /// Output channels of the running device.
+    pub output_channels: u16,
 }
 
 pub struct ActCraftApp {
@@ -89,6 +96,12 @@ pub struct ActCraftApp {
     modal: Option<flows::Modal>,
     /// Set once the person agreed to close (changes saved or discarded).
     allow_close: bool,
+    settings_open: bool,
+    settings_tab: settings::Tab,
+    /// A device the person picked in Settings; the host switches to it.
+    device_request: Option<Option<String>>,
+    /// Tap-tempo times (seconds of app time).
+    taps: Vec<f64>,
 }
 
 impl ActCraftApp {
@@ -110,7 +123,22 @@ impl ActCraftApp {
             file_requests: Vec::new(),
             modal: None,
             allow_close: false,
+            settings_open: false,
+            settings_tab: settings::Tab::default(),
+            device_request: None,
+            taps: Vec::new(),
         }
+    }
+
+    /// Opens the Settings window (also used by `--open-settings` for screenshots).
+    pub fn open_settings(&mut self) {
+        self.settings_open = true;
+    }
+
+    /// A device switch the person asked for (`Some(None)`: the system default); the host calls
+    /// this every frame.
+    pub fn take_device_request(&mut self) -> Option<Option<String>> {
+        self.device_request.take()
     }
 
     fn lock(&self) -> MutexGuard<'_, Engine> {
@@ -135,6 +163,13 @@ impl ActCraftApp {
         self.handle_drops(&ctx, e);
         if self.modal.is_none() {
             self.handle_shortcuts(&ctx, e);
+            if !ctx.text_edit_focused()
+                && ctx.input_mut(|i| {
+                    i.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Comma))
+                })
+            {
+                self.settings_open = true;
+            }
         }
         let t = self.tokens;
 
@@ -157,6 +192,7 @@ impl ActCraftApp {
         egui::CentralPanel::default_margins().frame(egui::Frame::new().fill(t.bg).inner_margin(t.pad)).show(ui, |ui| {
             egui::ScrollArea::vertical().id_salt("centre").auto_shrink([false, false]).show(ui, |ui| self.centre(ui, e))
         });
+        self.settings_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);
@@ -200,6 +236,14 @@ impl ActCraftApp {
                         }
                         if ui.add_enabled(enabled, button).clicked() {
                             self.activate(e, c.spec.id);
+                            ui.close();
+                        }
+                    }
+                    if top == "File" {
+                        ui.separator();
+                        let b = egui::Button::new(tr("Settings\u{2026}")).shortcut_text(shortcuts::display("Ctrl+,"));
+                        if ui.add(b).clicked() {
+                            self.settings_open = true;
                             ui.close();
                         }
                     }
@@ -287,6 +331,21 @@ impl ActCraftApp {
                     ui.label(RichText::new(format!("{} {}", tr("Queue:"), e.queue.len())).color(t.text_dim));
                 });
             }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui
+                    .add(egui::Button::new(tr("Settings")).min_size(vec2(0.0, 44.0)))
+                    .on_hover_text(tr("Audio interface, outputs, metronome, playback"))
+                    .clicked()
+                {
+                    self.settings_open = true;
+                }
+                if e.loading_count() > 0 {
+                    ui.spinner();
+                    ui.label(
+                        RichText::new(format!("{} {}", tr("Loading audio:"), e.loading_count())).color(t.text_dim),
+                    );
+                }
+            });
         });
     }
 
@@ -620,6 +679,19 @@ impl ActCraftApp {
             if ui.add(egui::DragValue::new(&mut bpm).range(20.0..=400.0).speed(0.5).suffix(" BPM")).changed() {
                 self.run(e, "song.set", json!({"song": id, "bpm": bpm}));
             }
+            if ui.button(tr("Tap")).on_hover_text(tr("Click in time with the music to set the tempo")).clicked() {
+                let now = ui.input(|i| i.time);
+                if self.taps.last().is_some_and(|last| now - last > 3.0) {
+                    self.taps.clear();
+                }
+                self.taps.push(now);
+                if let Some(b) = actcraft_engine::tempo::from_taps(&self.taps) {
+                    self.run(e, "song.set", json!({"song": id, "bpm": b}));
+                }
+            }
+            if ui.button(tr("Detect")).on_hover_text(tr("Estimate the tempo from the first track")).clicked() {
+                self.run(e, "song.detect_bpm", json!({"song": id}));
+            }
             ui.label(tr("Beats per bar"));
             let mut bpb = u32::from(song.beats_per_bar);
             if ui.add(egui::DragValue::new(&mut bpb).range(1..=16)).changed() {
@@ -829,15 +901,14 @@ impl ActCraftApp {
             ui.label(RichText::new(tr("No audio file on this track.")).color(t.text_dim));
             return;
         }
-        let peaks = match e.cached_peaks(&track.file) {
-            Some(p) => p,
-            None => match e.peaks(&track.file) {
-                Ok(p) => p,
-                Err(err) => {
-                    ui.colored_label(t.danger, err);
-                    return;
-                }
-            },
+        let Some(peaks) = e.cached_peaks(&track.file) else {
+            // Decoded in the background; the window never waits for it.
+            e.request_clips([track.file.clone()]);
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(RichText::new(tr("Loading waveform\u{2026}")).color(t.text_dim));
+            });
+            return;
         };
         let width = ui.available_width().max(100.0);
         let (rect, response) = ui.allocate_exact_size(vec2(width, 120.0), Sense::click());
@@ -882,7 +953,9 @@ fn actcraft_audio_bucket() -> f64 {
 /// text changed.
 fn edit_text(ui: &mut Ui, id: egui::Id, current: &str, width: f32) -> Option<String> {
     let mut buffer: String = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.to_owned());
-    let r = ui.add(egui::TextEdit::singleline(&mut buffer).id(id).desired_width(width));
+    // A fixed size, so grids and wrapping rows can't squeeze the field to a sliver.
+    let height = ui.spacing().interact_size.y;
+    let r = ui.add_sized([width, height], egui::TextEdit::singleline(&mut buffer).id(id));
     if r.lost_focus() {
         ui.data_mut(|d| d.remove::<String>(id));
         return (buffer != current).then_some(buffer);

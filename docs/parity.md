@@ -37,6 +37,9 @@ Statuses describe what ran in tests, not what is designed.
 | A1.14 | MIDI file per song in sync | `song.set {midi_file}` | planned M3 |
 | A1.15 | Autoplay, crossfade (ignores requests while running), fade-out, song loop | `song.set {autoplay, fade_out, loop_song}`, `transport.crossfade_to`, `transport.set_crossfade` | done |
 | A1.16 | Waveform view with zoom | `waveform.peaks` | done |
+| A1.17 | Tempo detection on import, tap tempo | `song.detect_bpm`, `song.set {bpm}` | done |
+| A1.18 | Bus-to-output routing and interface choice in Settings | `bus.set {output}` (interface: window only) | done |
+| A1.19 | Audio decodes in the background; playback starts when ready | engine loader | done |
 
 ## A4 Library, setlists, queue
 

@@ -35,6 +35,8 @@ struct Host {
     screenshot: Option<Screenshot>,
     /// Native file pickers, shown without blocking the event loop.
     dialogs: Dialogs<FileAsk>,
+    /// Settings kept on this computer (the audio interface).
+    prefs: craft_settings::SettingsStore<Prefs>,
 }
 
 /// Turns the window's request into a native file picker.
@@ -69,6 +71,10 @@ impl eframe::App for Host {
             }
         }
         self.app.ui(ui);
+        if let Some(device) = self.app.take_device_request() {
+            self.switch_device(device);
+        }
+        let _ = self.prefs.tick(std::time::Instant::now());
         for req in self.app.take_file_requests() {
             let dialog = to_dialog(&req);
             self.dialogs.ask(dialog, req.ask);
@@ -101,6 +107,49 @@ impl eframe::App for Host {
     }
 }
 
+impl Host {
+    /// Stops the current output and opens another device; the engine gets the new stream.
+    fn switch_device(&mut self, device: Option<String>) {
+        self._audio = None;
+        match AudioOutput::open(device.as_deref()) {
+            Ok((out, controller)) => {
+                let p = &mut self.app.platform;
+                p.audio_device = Some(out.device_name.clone());
+                p.sample_rate = out.sample_rate;
+                p.output_channels = out.channels;
+                p.device_id = device.clone();
+                self.app.engine().attach_audio(controller);
+                self.app.engine().say(format!("Audio: {}", out.device_name));
+                self._audio = Some(out);
+                self.prefs.update(|pr| pr.audio.device = device.unwrap_or_default());
+            }
+            Err(e) => {
+                self.app.platform.audio_device = None;
+                self.app.engine().say_error(format!("Could not open that audio interface: {e}"));
+            }
+        }
+    }
+}
+
+/// What ActCraft remembers on this computer (not in the show file).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct Prefs {
+    audio: AudioPrefs,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct AudioPrefs {
+    /// Output device id; empty for the system default.
+    device: String,
+}
+
+impl craft_settings::Settings for Prefs {
+    const APP_ID: &'static str = "actcraft";
+    const SCHEMA_VERSION: u32 = 1;
+}
+
 fn chrono_now() -> String {
     use actcraft_engine::Services;
     NativeServices.now().format("%H:%M:%S").to_string()
@@ -110,11 +159,22 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).take(16).collect();
     let mut engine = Engine::new(Box::new(NativeServices));
     let mut platform = PlatformInfo::default();
+    let (prefs, _report) = craft_settings::SettingsStore::<Prefs>::open(craft_settings::Location::Auto);
+    platform.devices = actcraft_platform::output_devices().into_iter().map(|d| (d.id, d.name)).collect();
 
-    let audio = match AudioOutput::open(None) {
-        Ok((out, controller)) => {
+    // The interface chosen last time, or the system default when it's gone.
+    let saved = Some(prefs.get().audio.device.clone()).filter(|d| !d.is_empty());
+    let opened = match AudioOutput::open(saved.as_deref()) {
+        Ok(ok) => Ok((ok, saved)),
+        Err(_) if saved.is_some() => AudioOutput::open(None).map(|ok| (ok, None)),
+        Err(e) => Err(e),
+    };
+    let audio = match opened {
+        Ok(((out, controller), device_id)) => {
             platform.audio_device = Some(out.device_name.clone());
             platform.sample_rate = out.sample_rate;
+            platform.output_channels = out.channels;
+            platform.device_id = device_id;
             engine.attach_audio(controller);
             Some(out)
         }
@@ -140,6 +200,7 @@ fn main() {
         }
     }
 
+    let open_settings = args.iter().any(|a| a == "--open-settings");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
         started: std::time::Instant::now(),
@@ -170,12 +231,11 @@ fn main() {
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
             let dialogs = Dialogs::new(Arc::new(move || ctx.request_repaint()));
-            Ok(Box::new(Host {
-                app: ActCraftApp::new(&cc.egui_ctx, engine, platform),
-                _audio: audio,
-                screenshot,
-                dialogs,
-            }))
+            let mut app = ActCraftApp::new(&cc.egui_ctx, engine, platform);
+            if open_settings {
+                app.open_settings();
+            }
+            Ok(Box::new(Host { app, _audio: audio, screenshot, dialogs, prefs }))
         }),
     );
     if let Err(e) = result {

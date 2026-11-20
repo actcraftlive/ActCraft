@@ -194,6 +194,80 @@ fn show_saves_and_reopens() {
     assert_eq!(e.show.songs.first().map(|s| s.keywords.clone()), Some(vec!["Live".to_owned()]));
 }
 
+/// Services whose background jobs wait until the test runs them, like a slow decode.
+struct DeferredServices {
+    inner: MemoryServices,
+    jobs: std::sync::Arc<std::sync::Mutex<Vec<services::Job>>>,
+}
+
+impl Services for DeferredServices {
+    fn read_file(&self, path: &str) -> Result<Vec<u8>, String> {
+        self.inner.read_file(path)
+    }
+    fn write_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), String> {
+        self.inner.write_file(path, bytes)
+    }
+    fn now(&self) -> chrono::DateTime<chrono::FixedOffset> {
+        self.inner.now()
+    }
+    fn file_reader(&self) -> services::FileReader {
+        self.inner.file_reader()
+    }
+    fn spawn(&self, job: services::Job) {
+        if let Ok(mut q) = self.jobs.lock() {
+            q.push(job);
+        }
+    }
+}
+
+fn tone_wav(frames: u32) -> Vec<u8> {
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + frames * 2).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&8000u32.to_le_bytes());
+    wav.extend_from_slice(&16000u32.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&(frames * 2).to_le_bytes());
+    for i in 0..frames {
+        let v: i16 = if i % 20 < 10 { 8000 } else { -8000 };
+        wav.extend_from_slice(&v.to_le_bytes());
+    }
+    wav
+}
+
+#[test]
+fn import_and_play_never_wait_for_decoding() {
+    // Regression: importing and loading decoded audio on the window's thread, so the window
+    // stopped responding until a whole song was decoded.
+    let jobs = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut inner = MemoryServices::default();
+    inner.files.insert("tone.wav".into(), tone_wav(8000));
+    let mut e = Engine::new(Box::new(DeferredServices { inner, jobs: std::sync::Arc::clone(&jobs) }));
+    let (ctl, mut renderer) = actcraft_audio::link(48_000);
+    e.attach_audio(ctl);
+    assert!(e.run("song.import_files", &json!({"paths": ["tone.wav"]})).is_ok());
+    assert_eq!(e.loading_count(), 1, "decoding runs in the background");
+    let started = e.run("transport.play", &json!({"count_in": false}));
+    assert_eq!(started.ok().and_then(|v| v.get("loading").cloned()), Some(json!(true)));
+    // The decode finishes later; playback then starts by itself.
+    let pending: Vec<services::Job> = jobs.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default();
+    for job in pending {
+        job();
+    }
+    e.tick();
+    let mut buf = vec![0.0f32; 2 * 4800];
+    renderer.process(&mut buf, 2);
+    e.tick();
+    assert!(e.status.playing);
+    assert_eq!(e.loading_count(), 0);
+}
+
 #[test]
 fn playback_runs_through_the_renderer() {
     let mut e = engine();

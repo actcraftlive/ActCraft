@@ -3,8 +3,10 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use std::sync::Arc;
+
 use actcraft_engine::Services;
-use actcraft_engine::services::MAX_READ_BYTES;
+use actcraft_engine::services::{FileReader, Job, MAX_READ_BYTES};
 use chrono::{DateTime, FixedOffset, Local};
 
 /// Real files. Writes go through a temporary file and a rename, so a crash never leaves a half
@@ -40,6 +42,31 @@ impl Services for NativeServices {
 
     fn now(&self) -> DateTime<FixedOffset> {
         Local::now().fixed_offset()
+    }
+
+    fn file_reader(&self) -> FileReader {
+        Arc::new(|path: &str| guarded("reading a file", || read_capped(Path::new(path))))
+    }
+
+    fn spawn(&self, job: Job) {
+        spawn_job(job);
+    }
+}
+
+/// Runs a background job on its own thread; if no thread can start, runs it here so the work
+/// still happens.
+fn spawn_job(job: Job) {
+    let slot = Arc::new(std::sync::Mutex::new(Some(job)));
+    let worker = Arc::clone(&slot);
+    let started = std::thread::Builder::new().name("actcraft-decode".into()).spawn(move || {
+        if let Some(job) = worker.lock().ok().and_then(|mut j| j.take()) {
+            job();
+        }
+    });
+    if started.is_err()
+        && let Some(job) = slot.lock().ok().and_then(|mut j| j.take())
+    {
+        job();
     }
 }
 
@@ -103,6 +130,16 @@ impl Services for RootedServices {
 
     fn now(&self) -> DateTime<FixedOffset> {
         self.inner.now()
+    }
+
+    fn file_reader(&self) -> FileReader {
+        // The same folder rules as `read_file`, on any thread.
+        let me = self.clone();
+        Arc::new(move |path: &str| me.read_file(path))
+    }
+
+    fn spawn(&self, job: Job) {
+        spawn_job(job);
     }
 }
 

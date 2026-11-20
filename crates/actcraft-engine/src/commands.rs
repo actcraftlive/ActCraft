@@ -100,6 +100,15 @@ pub fn all() -> Vec<Command<Engine>> {
             song_import_files,
         ),
         cmd("song.duplicates", "Find duplicate songs", "Song/Find Duplicates", None, "none", song_duplicates),
+        with_songs(cmd("song.detect_bpm", "Detect tempo", "Song/Detect Tempo", None, "{song?: id}", song_detect_bpm)),
+        cmd(
+            "library.set_filename_format",
+            "Song details from file names",
+            "",
+            None,
+            "{format: text like \"%artist% - %title%\"}",
+            library_set_filename_format,
+        ),
         // Tracks
         with_songs(cmd(
             "track.add",
@@ -680,7 +689,23 @@ fn song_import_files(e: &mut Engine, prm: &Value) -> CommandResult {
         }
     }
     e.say(format!("Added {} songs, skipped {}", added.len(), skipped.len()));
+    // Decode in the background (the window keeps responding) and estimate each tempo.
+    e.queue_tempo_detection(added.iter().copied());
     Ok(json!({"added": added, "skipped": skipped}))
+}
+
+fn song_detect_bpm(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_param(e, prm)?;
+    e.queue_tempo_detection([id]);
+    Ok(json!({"song": id, "bpm": e.show.song(id).map(|s| s.bpm)}))
+}
+
+fn library_set_filename_format(e: &mut Engine, prm: &Value) -> CommandResult {
+    let format = p::str_max(prm, "format", 256)?;
+    // Check the format on a sample name so a typo is caught now, not at the next import.
+    filename::parse("Artist - Title.wav", format).map_err(invalid)?;
+    e.filename_format = format.to_owned();
+    ok()
 }
 
 fn song_duplicates(e: &mut Engine, _: &Value) -> CommandResult {
@@ -910,11 +935,18 @@ fn start_playback(e: &mut Engine, count_in: bool) -> CommandResult {
     if e.loaded_song() != Some(id) {
         e.load_into_renderer(id);
     }
+    let now = e.services().now();
+    if e.is_loading(id) {
+        // Its files are still decoding: it starts by itself when they are ready.
+        e.play_when_loaded(count_in);
+        history::record(&mut e.show.history, id, now);
+        e.say("Loading audio; playback starts when it is ready");
+        return Ok(json!({"playing": false, "loading": true}));
+    }
     let quantized = e.show.metronome.quantized_start;
     if !e.send(Msg::Play { count_in, quantized }) {
         return Err(failed("the audio output is busy; try again"));
     }
-    let now = e.services().now();
     history::record(&mut e.show.history, id, now);
     Ok(json!({"playing": true}))
 }
@@ -972,6 +1004,12 @@ fn crossfade_to(e: &mut Engine, id: u64, seconds: f64) -> CommandResult {
     need_audio(e)?;
     if e.status.crossfading {
         return Err(failed("a crossfade is already running; request ignored"));
+    }
+    let files: Vec<String> =
+        e.show.song(id).map(|s| s.tracks.iter().map(|t| t.file.clone()).collect()).unwrap_or_default();
+    e.request_clips(files);
+    if e.missing_files_pub(id) {
+        return Err(failed("that song's audio is still loading; try again in a moment"));
     }
     let Some(load) = e.song_load(id) else { return Err(invalid("no such song")) };
     if !e.send(Msg::Crossfade { next: Box::new(load), seconds }) {

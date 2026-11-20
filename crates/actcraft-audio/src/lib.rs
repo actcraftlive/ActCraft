@@ -22,6 +22,7 @@ pub mod dsp;
 pub mod peaks;
 pub mod render;
 pub mod shared;
+pub mod tempo;
 
 pub use clip::Clip;
 pub use clock::BeatClock;

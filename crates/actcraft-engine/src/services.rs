@@ -2,11 +2,18 @@
 //! builds for wasm32; the desktop app passes native services, tests pass [`MemoryServices`].
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, FixedOffset};
 
 /// Largest file the engine asks for (audio files can be big).
 pub const MAX_READ_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Reads a whole file; handed to background jobs.
+pub type FileReader = Arc<dyn Fn(&str) -> Result<Vec<u8>, String> + Send + Sync>;
+
+/// A background job.
+pub type Job = Box<dyn FnOnce() + Send>;
 
 pub trait Services: Send {
     /// Reads a whole file.
@@ -15,6 +22,12 @@ pub trait Services: Send {
     fn write_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), String>;
     /// Local time now.
     fn now(&self) -> DateTime<FixedOffset>;
+    /// A reader background jobs can use, with the same access rules as `read_file`.
+    fn file_reader(&self) -> FileReader;
+    /// Runs a job off the caller's thread where the platform has threads; inline otherwise.
+    fn spawn(&self, job: Job) {
+        job();
+    }
 }
 
 /// Files kept in memory; the clock is fixed unless set.
@@ -39,6 +52,11 @@ impl Services for MemoryServices {
 
     fn now(&self) -> DateTime<FixedOffset> {
         self.now.unwrap_or_default()
+    }
+
+    fn file_reader(&self) -> FileReader {
+        let files = self.files.clone();
+        Arc::new(move |path: &str| files.get(path).cloned().ok_or_else(|| format!("no file {path}")))
     }
 }
 
