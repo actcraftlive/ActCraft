@@ -13,8 +13,12 @@ const ALLOWED: &[(&str, &[&str])] = &[
     ("actcraft-command", &[]),
     ("actcraft-show", &[]),
     ("actcraft-audio", &[]),
+    ("actcraft-lyrics", &[]),
     ("actcraft-library", &["actcraft-show"]),
-    ("actcraft-engine", &["actcraft-command", "actcraft-show", "actcraft-library", "actcraft-audio"]),
+    (
+        "actcraft-engine",
+        &["actcraft-command", "actcraft-show", "actcraft-library", "actcraft-audio", "actcraft-lyrics"],
+    ),
     ("actcraft-platform", &["actcraft-engine", "actcraft-audio"]),
     ("actcraft-control", &["actcraft-engine"]),
     ("actcraft-ui", &["actcraft-engine", "actcraft-command", "actcraft-show", "actcraft-library"]),

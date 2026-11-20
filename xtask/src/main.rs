@@ -26,7 +26,7 @@ use craft_xtask::runner::{self, RunOptions, Step, TestMode};
 
 /// Crates whose code must build for `wasm32-unknown-unknown` (everything below the platform layer).
 pub const WASM_CRATES: &[&str] =
-    &["actcraft-command", "actcraft-show", "actcraft-library", "actcraft-audio", "actcraft-engine"];
+    &["actcraft-command", "actcraft-show", "actcraft-library", "actcraft-audio", "actcraft-lyrics", "actcraft-engine"];
 
 /// Asset policy: every image, sound, document or font in the repository needs an ATTRIBUTION.md
 /// row; font files are not allowed at all (they live in storytold/craft-fonts).

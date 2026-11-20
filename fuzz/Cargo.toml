@@ -16,6 +16,13 @@ libfuzzer-sys = "0.4"
 actcraft-show = { path = "../crates/actcraft-show" }
 actcraft-library = { path = "../crates/actcraft-library" }
 actcraft-audio = { path = "../crates/actcraft-audio" }
+actcraft-lyrics = { path = "../crates/actcraft-lyrics" }
+
+[[bin]]
+name = "lyrics"
+path = "fuzz_targets/lyrics.rs"
+test = false
+doc = false
 
 [[bin]]
 name = "show_file"

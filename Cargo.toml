@@ -27,6 +27,7 @@ unreachable = "deny"
 actcraft-command = { path = "crates/actcraft-command" }
 actcraft-show = { path = "crates/actcraft-show" }
 actcraft-library = { path = "crates/actcraft-library" }
+actcraft-lyrics = { path = "crates/actcraft-lyrics" }
 actcraft-audio = { path = "crates/actcraft-audio" }
 actcraft-engine = { path = "crates/actcraft-engine" }
 actcraft-platform = { path = "crates/actcraft-platform" }

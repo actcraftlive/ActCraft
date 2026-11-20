@@ -26,6 +26,7 @@ pub enum FileAsk {
     AddSongs,
     AddTrack { song: u64 },
     TrackFile { song: u64, track: usize },
+    ImportLyrics { song: u64 },
 }
 
 /// What happens once a save finishes.
@@ -98,6 +99,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "show.save_as"
             | "show.rename"
             | "song.import_files"
+            | "lyrics.import"
             | "song.add"
             | "song.remove"
             | "track.add"
@@ -164,6 +166,11 @@ impl ActCraftApp {
             }
             FileAsk::TrackFile { song, track } => {
                 let _ = e.run("track.set", &json!({"song": song, "track": track, "file": path_string(&first)}));
+            }
+            FileAsk::ImportLyrics { song } => {
+                if e.run("lyrics.import", &json!({"song": song, "path": path_string(&first)})).is_ok() {
+                    self.centre_tab = crate::CentreTab::Lyrics;
+                }
             }
         }
     }
@@ -286,6 +293,18 @@ impl ActCraftApp {
                 });
             }
             "song.import_files" => self.ask_add_songs(e),
+            "lyrics.import" => {
+                if let Some(song) = current {
+                    self.ask_file(FileRequest {
+                        ask: FileAsk::ImportLyrics { song },
+                        kind: FileKind::Open,
+                        title: tr("Import lyrics"),
+                        filters: vec![(tr("Lyrics"), crate::lyrics_view::LYRICS_EXTENSIONS)],
+                        file_name: None,
+                        directory: show_dir(e),
+                    });
+                }
+            }
             "song.add" => {
                 // An empty song, shown at once so its details can be filled in.
                 if let Ok(v) = e.run("song.add", &Value::Null)
