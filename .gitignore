@@ -1,0 +1,7 @@
+/target
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+# Evidence notebook about the reference apps: never committed.
+/plan/
+*.actcraft.tmp

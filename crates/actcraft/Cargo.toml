@@ -1,0 +1,29 @@
+[package]
+name = "actcraft"
+description = "ActCraft: show control for live musicians (backing tracks and lighting in one show)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+default-run = "actcraft"
+
+[[bin]]
+name = "actcraft"
+path = "src/main.rs"
+
+[[bin]]
+name = "actcraft-cli"
+path = "src/cli.rs"
+
+[dependencies]
+actcraft-engine = { workspace = true }
+actcraft-platform = { workspace = true }
+actcraft-control = { workspace = true }
+actcraft-ui = { workspace = true }
+eframe = { workspace = true }
+serde_json = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

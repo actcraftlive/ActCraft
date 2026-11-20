@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+description = "ActCraft's build gate: cargo xtask ci runs fmt, clippy, tests, layers, wasm, licences and assets."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+craft-xtask = { workspace = true }
+serde_json = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

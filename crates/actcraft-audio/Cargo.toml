@@ -1,0 +1,15 @@
+[package]
+name = "actcraft-audio"
+description = "ActCraft's realtime audio renderer: tracks, EQ, buses, mute groups, metronome, transitions, decoding and waveform peaks."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+rtrb = { workspace = true }
+craft-audio = { workspace = true }
+
+[lints]
+workspace = true

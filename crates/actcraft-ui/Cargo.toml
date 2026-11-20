@@ -1,0 +1,18 @@
+[package]
+name = "actcraft-ui"
+description = "ActCraft's window: a thin, data-driven egui interface over engine commands."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+actcraft-engine = { workspace = true }
+actcraft-command = { workspace = true }
+actcraft-show = { workspace = true }
+egui = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
