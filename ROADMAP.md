@@ -62,7 +62,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
   (Parts bar), leave a loop after its pass (L)
 - 🔶 Markers from WAV files become regions (done); markers in other formats to do
 - ⬜ PDF lyrics and sheet music with annotations, scaling, inverted colours, autoscroll
-- ⬜ Second-screen window for lyrics and sheet music
+- 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
+  sheet music follows with PDF
 
 ## M3 MIDI and remote ⬜
 
