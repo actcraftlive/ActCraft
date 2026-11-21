@@ -86,7 +86,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -116,7 +116,14 @@ pub fn all() -> Vec<Command<Engine>> {
             "{song?: id, line: index, seconds?: number (default: the playback time)}",
             lyrics_stamp_line,
         )),
-        with_songs(cmd("song.detect_bpm", "Detect tempo", "Song/Detect Tempo", None, "{song?: id}", song_detect_bpm)),
+        with_songs(cmd(
+            "song.detect_bpm",
+            "Detect tempo and first beat",
+            "Song/Detect Tempo and First Beat",
+            None,
+            "{song?: id}",
+            song_detect_bpm,
+        )),
         cmd(
             "library.set_filename_format",
             "Song details from file names",
@@ -233,7 +240,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Metronome settings",
             "",
             None,
-            "{enabled?, mode?: audible|count_in_only|visual_only, volume_db?, bus?, quantized_start?, latency_offset_ms?}",
+            "{enabled?, mode?: audible|count_in_only|visual_only, volume_db?, bus?, quantized_start?, latency_offset_ms?, run_while_stopped?}",
             metronome_set,
         ),
         with_song(cmd(
@@ -575,6 +582,11 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     }
     if let Some(v) = p::opt_i64_in(prm, "count_in_bars", 0, 8)? {
         next.count_in_bars = u8::try_from(v).unwrap_or(0);
+    }
+    if let Some(v) = p::opt_str_max(prm, "click", 32)? {
+        next.click = actcraft_show::SongClick::parse(v).ok_or_else(|| {
+            invalid(format!("`click` must be off, whole_song, count_in_only or visual_only, not `{v}`"))
+        })?;
     }
     if let Some(v) = p::opt_f64_in(prm, "beat_anchor", -86_400.0, 86_400.0)? {
         next.beat_anchor = v;
@@ -1114,6 +1126,15 @@ fn metronome_toggle(e: &mut Engine, _: &Value) -> CommandResult {
 }
 
 fn metronome_cycle(e: &mut Engine, _: &Value) -> CommandResult {
+    // With a song chosen, its own click setting cycles; otherwise the show's default mode.
+    if let Some(song) = e.current_song.and_then(|id| e.show.song_mut(id)) {
+        song.click = song.click.next();
+        let label = song.click.label();
+        e.mark_changed();
+        e.push_metronome();
+        e.say(format!("Click for this song: {label}"));
+        return Ok(json!({"click": label}));
+    }
     e.show.metronome.mode = e.show.metronome.mode.next();
     let label = e.show.metronome.mode.label();
     e.push_metronome();
@@ -1133,6 +1154,7 @@ fn metronome_set(e: &mut Engine, prm: &Value) -> CommandResult {
     let vol = p::opt_f64_in(prm, "volume_db", -96.0, 12.0)?;
     let bus = p::opt_i64_in(prm, "bus", 0, (BUSES - 1) as i64)?;
     let quant = p::opt_bool(prm, "quantized_start")?;
+    let free = p::opt_bool(prm, "run_while_stopped")?;
     let lat = p::opt_f64_in(prm, "latency_offset_ms", -500.0, 500.0)?;
     let m = &mut e.show.metronome;
     if let Some(v) = enabled {
@@ -1149,6 +1171,9 @@ fn metronome_set(e: &mut Engine, prm: &Value) -> CommandResult {
     }
     if let Some(v) = quant {
         m.quantized_start = v;
+    }
+    if let Some(v) = free {
+        m.run_while_stopped = v;
     }
     if let Some(v) = lat {
         m.latency_offset_ms = v;

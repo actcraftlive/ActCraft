@@ -3,7 +3,6 @@
 
 use actcraft_engine::Engine;
 use actcraft_library::queue::DoubleTap;
-use actcraft_show::MetronomeMode;
 use egui::{RichText, Ui};
 use serde_json::json;
 
@@ -135,19 +134,14 @@ impl ActCraftApp {
         if ui.checkbox(&mut enabled, tr("Metronome on")).changed() {
             let _ = e.run("metronome.set", &json!({"enabled": enabled}));
         }
-        ui.horizontal(|ui| {
-            ui.label(tr("Sound"));
-            for mode in MetronomeMode::ALL {
-                let key = match mode {
-                    MetronomeMode::Audible => "audible",
-                    MetronomeMode::CountInOnly => "count_in_only",
-                    MetronomeMode::VisualOnly => "visual_only",
-                };
-                if ui.radio(m.mode == mode, tr(mode.label())).clicked() {
-                    let _ = e.run("metronome.set", &json!({"mode": key}));
-                }
-            }
-        });
+        ui.label(
+            RichText::new(tr("Each song sets when its click sounds (whole song, count-in only, visual only or off) and how many bars it counts in: see the song details above the mixer."))
+                .color(self.tokens.text_dim),
+        );
+        let mut free = m.run_while_stopped;
+        if ui.checkbox(&mut free, tr("Keep clicking while stopped")).changed() {
+            let _ = e.run("metronome.set", &json!({"run_while_stopped": free}));
+        }
         let mut vol = m.volume_db;
         if ui.add(egui::Slider::new(&mut vol, -60.0..=6.0).suffix(" dB").text(tr("Click volume"))).changed() {
             let _ = e.run("metronome.set", &json!({"volume_db": vol}));
@@ -168,21 +162,23 @@ impl ActCraftApp {
                     .color(self.tokens.text_dim),
             );
         });
+        // Starting on the beat needs a click that's already running.
         let mut quant = m.quantized_start;
-        if ui.checkbox(&mut quant, tr("Start playback on the next beat of the running metronome")).changed() {
+        let check = egui::Checkbox::new(&mut quant, tr("Start playback on the next beat of the running click"));
+        if ui.add_enabled(m.run_while_stopped, check).changed() {
             let _ = e.run("metronome.set", &json!({"quantized_start": quant}));
         }
-        let mut lat = m.latency_offset_ms;
-        if ui
-            .add(egui::DragValue::new(&mut lat).range(-500.0..=500.0).speed(0.5).suffix(" ms"))
-            .on_hover_text(tr("Moves the click earlier to make up for output latency"))
-            .changed()
-        {
-            let _ = e.run("metronome.set", &json!({"latency_offset_ms": lat}));
-        }
-        ui.label(
-            RichText::new(tr("Count-in bars and tempo are set per song, above the mixer.")).color(self.tokens.text_dim),
-        );
+        ui.horizontal(|ui| {
+            ui.label(tr("Click timing offset"));
+            let mut lat = m.latency_offset_ms;
+            if ui
+                .add(egui::DragValue::new(&mut lat).range(-500.0..=500.0).speed(0.5).suffix(" ms"))
+                .on_hover_text(tr("Positive moves every click earlier (to make up for output latency)"))
+                .changed()
+            {
+                let _ = e.run("metronome.set", &json!({"latency_offset_ms": lat}));
+            }
+        });
     }
 
     fn playback_settings(&mut self, ui: &mut Ui, e: &mut Engine) {

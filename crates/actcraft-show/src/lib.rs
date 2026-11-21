@@ -161,6 +161,8 @@ pub struct Song {
     pub end: Option<f64>,
     /// Bars of count-in before the song starts.
     pub count_in_bars: u8,
+    /// When this song's click sounds.
+    pub click: SongClick,
     /// Time of beat one of bar one, seconds, independent of where playback starts.
     pub beat_anchor: f64,
     /// Song volume in dB.
@@ -200,6 +202,7 @@ impl Default for Song {
             start: 0.0,
             end: None,
             count_in_bars: 0,
+            click: SongClick::default(),
             beat_anchor: 0.0,
             volume_db: 0.0,
             tracks: Vec::new(),
@@ -396,6 +399,56 @@ impl MetronomeMode {
     }
 }
 
+/// When a song's click sounds (the toolbar's Metronome switch turns every click on or off).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SongClick {
+    /// No click for this song.
+    Off,
+    /// Click through the whole song (and its count-in).
+    #[default]
+    WholeSong,
+    /// Click only while counting in.
+    CountInOnly,
+    /// No sound; the beat is only shown.
+    VisualOnly,
+}
+
+impl SongClick {
+    pub const ALL: [SongClick; 4] = [Self::WholeSong, Self::CountInOnly, Self::VisualOnly, Self::Off];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::WholeSong => "Whole song",
+            Self::CountInOnly => "Count-in only",
+            Self::VisualOnly => "Visual only",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::WholeSong => "whole_song",
+            Self::CountInOnly => "count_in_only",
+            Self::VisualOnly => "visual_only",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.key() == s)
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::WholeSong => Self::CountInOnly,
+            Self::CountInOnly => Self::VisualOnly,
+            Self::VisualOnly => Self::Off,
+            Self::Off => Self::WholeSong,
+        }
+    }
+}
+
 /// Metronome settings shared by all songs (BPM and count-in are per song).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -407,6 +460,8 @@ pub struct MetronomeSettings {
     pub bus: u8,
     /// Start playback on the next beat of a running metronome.
     pub quantized_start: bool,
+    /// Keep clicking while stopped (off: the click only sounds with a playing song).
+    pub run_while_stopped: bool,
     /// Moves the click earlier (positive) to make up for output latency, milliseconds.
     pub latency_offset_ms: f64,
     #[serde(flatten)]
@@ -421,6 +476,7 @@ impl Default for MetronomeSettings {
             volume_db: -6.0,
             bus: 1,
             quantized_start: false,
+            run_while_stopped: false,
             latency_offset_ms: 0.0,
             extra: Map::new(),
         }

@@ -23,7 +23,7 @@ use actcraft_audio::{
 use actcraft_command::{CommandResult, Registry};
 use actcraft_library::Queue;
 use actcraft_library::queue::DoubleTap;
-use actcraft_show::{MetronomeMode, Show, Song, Track};
+use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
@@ -371,6 +371,7 @@ impl Engine {
             && self.send(Msg::Load(Box::new(load)))
         {
             self.loaded_song = Some(id);
+            self.push_metronome();
         }
     }
 
@@ -469,14 +470,19 @@ impl Engine {
             let file = self.show.song(id).and_then(|s| s.tracks.first()).map(|t| t.file.clone()).unwrap_or_default();
             if let Some(clip) = self.clips.get(&file).cloned() {
                 self.detect_bpm.remove(&id);
-                if let Some(bpm) = actcraft_audio::tempo::estimate(&clip)
+                if let Some(beat) = actcraft_audio::tempo::analyse(&clip)
                     && let Some(s) = self.show.song_mut(id)
                 {
-                    s.bpm = bpm;
+                    // Tempo and the first beat together, so the click lands on the music.
+                    s.bpm = beat.bpm;
+                    s.beat_anchor = beat.anchor;
                     let title = s.title.clone();
                     self.mark_changed();
                     self.push_song_settings(id);
-                    self.say(format!("Tempo of {title}: about {bpm:.0} BPM (detected)"));
+                    self.say(format!(
+                        "{title}: {:.2} BPM, first beat at {:.3} s (detected; adjust under the song details)",
+                        beat.bpm, beat.anchor
+                    ));
                 }
             } else if file.is_empty() || self.failed.contains(&file) {
                 self.detect_bpm.remove(&id);
@@ -520,16 +526,30 @@ impl Engine {
 
     pub(crate) fn push_metronome(&mut self) {
         let m = &self.show.metronome;
+        // The playing (or chosen) song decides when its click sounds; without a song the show's
+        // own mode applies. The toolbar switch (`enabled`) turns every click on or off.
+        let song_click = self.loaded_song.or(self.current_song).and_then(|id| self.show.song(id)).map(|s| s.click);
+        let (enabled, mode) = match song_click {
+            Some(SongClick::Off) => (false, ClickMode::Audible),
+            Some(SongClick::WholeSong) => (m.enabled, ClickMode::Audible),
+            Some(SongClick::CountInOnly) => (m.enabled, ClickMode::CountInOnly),
+            Some(SongClick::VisualOnly) => (m.enabled, ClickMode::VisualOnly),
+            None => (
+                m.enabled,
+                match m.mode {
+                    MetronomeMode::Audible => ClickMode::Audible,
+                    MetronomeMode::CountInOnly => ClickMode::CountInOnly,
+                    MetronomeMode::VisualOnly => ClickMode::VisualOnly,
+                },
+            ),
+        };
         let params = MetronomeParams {
-            enabled: m.enabled,
-            mode: match m.mode {
-                MetronomeMode::Audible => ClickMode::Audible,
-                MetronomeMode::CountInOnly => ClickMode::CountInOnly,
-                MetronomeMode::VisualOnly => ClickMode::VisualOnly,
-            },
+            enabled,
+            mode,
             gain: actcraft_audio::dsp::db_to_gain(m.volume_db),
             bus: m.bus,
             latency: m.latency_offset_ms / 1000.0,
+            free_run: m.run_while_stopped,
         };
         self.send(Msg::Metronome(params));
     }
@@ -562,10 +582,12 @@ impl Engine {
         }
         let Some(s) = self.show.song(id) else { return };
         let clock = BeatClock::new(s.bpm, s.beats_per_bar, s.beat_anchor);
-        let (loop_song, gain) = (s.loop_song, actcraft_audio::dsp::db_to_gain(s.volume_db));
+        let (loop_song, gain, count_in) = (s.loop_song, actcraft_audio::dsp::db_to_gain(s.volume_db), s.count_in_bars);
         self.send(Msg::Clock(clock));
         self.send(Msg::Loop(loop_song));
         self.send(Msg::SongGain(gain));
+        self.send(Msg::CountIn(count_in));
+        self.push_metronome();
     }
 
     /// After a structural change (tracks added or removed, files changed), reload the song.
