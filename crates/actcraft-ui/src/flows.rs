@@ -29,6 +29,7 @@ pub enum FileAsk {
     AddTrack { song: u64 },
     TrackFile { song: u64, track: usize },
     ImportLyrics { song: u64 },
+    AttachPdf { song: u64 },
     ExportPackage,
     OpenPackage,
 }
@@ -162,6 +163,11 @@ impl ActCraftApp {
                     && let AfterSave::Then(next) = then
                 {
                     self.continue_after_discard(e, next);
+                }
+            }
+            FileAsk::AttachPdf { song } => {
+                if e.run("song.set", &json!({"song": song, "pdf_file": path_string(&first)})).is_ok() {
+                    self.centre_tab = crate::CentreTab::Sheet;
                 }
             }
             FileAsk::ExportPackage => {

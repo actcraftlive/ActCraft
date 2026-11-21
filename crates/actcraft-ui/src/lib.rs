@@ -23,6 +23,7 @@ pub mod i18n;
 mod lyrics_view;
 mod regions_view;
 mod settings;
+mod sheet_view;
 pub mod shortcuts;
 pub mod theme;
 
@@ -140,6 +141,9 @@ pub struct ActCraftApp {
     lyrics_follow_state: lyrics_view::LyricsFollow,
     /// The second lyrics window, while open.
     stage: Option<lyrics_view::StageScreen>,
+    /// The open PDF of the Sheet music tab.
+    sheet: Option<sheet_view::SheetDoc>,
+    sheet_view: sheet_view::SheetLook,
 }
 
 /// What the main area shows for the current song.
@@ -147,6 +151,7 @@ pub struct ActCraftApp {
 pub enum CentreTab {
     Mixer,
     Lyrics,
+    Sheet,
 }
 
 impl ActCraftApp {
@@ -181,6 +186,8 @@ impl ActCraftApp {
             lyrics_size: 28.0,
             lyrics_follow_state: lyrics_view::LyricsFollow::default(),
             stage: None,
+            sheet: None,
+            sheet_view: sheet_view::SheetLook::default(),
         }
     }
 
@@ -725,10 +732,19 @@ impl ActCraftApp {
             ui.selectable_value(&mut self.centre_tab, CentreTab::Mixer, big(tr("Mixer")));
             let lyrics_label = if song.lyrics.trim().is_empty() { tr("Lyrics") } else { tr("Lyrics \u{2022}") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
+            let sheet_label = if song.pdf_file.is_some() { tr("Sheet music \u{2022}") } else { tr("Sheet music") };
+            ui.selectable_value(&mut self.centre_tab, CentreTab::Sheet, big(sheet_label));
         });
         self.region_bar(ui, e, &song);
         if self.centre_tab == CentreTab::Lyrics {
             self.lyrics_tab(ui, e, &song);
+            return;
+        }
+        if self.centre_tab == CentreTab::Sheet {
+            if self.lyrics_edit.is_some() {
+                self.finish_lyrics_edit_pub(e);
+            }
+            self.sheet_tab(ui, e, &song);
             return;
         }
         // Leaving the Lyrics tab keeps what was typed.

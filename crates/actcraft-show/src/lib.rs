@@ -175,6 +175,8 @@ pub struct Song {
     pub lyrics_scroll: LyricsScroll,
     /// A MIDI file played in sync with the audio.
     pub midi_file: Option<String>,
+    /// A PDF shown in the Sheet music tab (sheet music, lyrics, notes).
+    pub pdf_file: Option<String>,
     /// Start the next song when this one ends.
     pub autoplay: bool,
     /// Loop the whole song.
@@ -212,6 +214,7 @@ impl Default for Song {
             lyrics: String::new(),
             lyrics_scroll: LyricsScroll::default(),
             midi_file: None,
+            pdf_file: None,
             autoplay: false,
             loop_song: false,
             fade_out: 0.0,
@@ -676,6 +679,9 @@ impl Song {
             r.end = clamp_f(r.end, r.start, MAX_SECONDS, r.start);
         }
         cut(&mut self.lyrics, MAX_LYRICS);
+        if let Some(m) = &mut self.pdf_file {
+            cut(m, MAX_TEXT);
+        }
         if let Some(m) = &mut self.midi_file {
             cut(m, MAX_TEXT);
         }

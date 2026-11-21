@@ -64,7 +64,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
   (Parts bar), leave a loop after its pass (L)
 - 🔶 Markers from WAV files become regions (done); markers in other formats to do
-- ⬜ PDF lyrics and sheet music with annotations, scaling, inverted colours, autoscroll
+- 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
+  colours, scroll with playback (done); annotations to do
 - 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
   sheet music follows with PDF
 
