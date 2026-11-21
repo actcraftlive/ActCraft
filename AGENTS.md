@@ -1,3 +1,4 @@
+<!-- craft-house-rules:start core source=5b1a2b1982fe7c774739d06d4a3818033cf4884c sha256=bee0ffafad196b68c76425770e344e588463bbda685ab41581fcbabb85dfc930 -->
 ## House rules
 
 These apply in every Craft repository. A later rule may be stricter, not weaker. The source is `standards/house-rules-core.md` in `storytold/craft-contrib`. Propose changes there, not in a copy.
@@ -18,7 +19,9 @@ These apply in every Craft repository. A later rule may be stricter, not weaker.
 14. **Keep pull requests moving.** Concurrent pull requests are fine; unanswered actionable feedback is not. Respond in 7 days, a reminder at 14, closure eligible at 30, from when an actionable request waits on the author. Suggestions and unconfirmed bot findings do not start the clock. A fix, explanation or agreed plan resets it; unrelated activity does not. Waiting on a reviewer or maintainer pauses it and does not count against the author. A maintainer decides closure; it is never automatic. Reuse search results, do not poll, and stop at a rate limit.
 15. **No agent attribution.** A pull request does not say an agent wrote it. A repository rule may not require that.
 16. **Shared libraries first for Craft apps.** Before adding or changing reusable file-format, codec, protocol or UI code, check `storytold/craft-libs` and relevant open pull requests. Reuse its public APIs or extend the appropriate shared library instead of duplicating an implementation in an app. Keep app-specific policy and model mapping local; preserve behavior, security and resource limits, attribution, layering and regression coverage. Document API gaps and maintainer-approved exceptions rather than silently dropping behavior. This does not authorize dependencies on sibling application crates or override existing platform, licensing or dependency-source requirements.
+<!-- craft-house-rules:end -->
 
+<!-- craft-house-rules:start rust source=5b1a2b1982fe7c774739d06d4a3818033cf4884c sha256=56ef2b873de68940cf903069bbd0927b119f5c9ec2717f7f627041d2ebe8e4f2 -->
 ## Rust Craft repositories
 
 These apply to native Craft apps and to shared Rust libraries. Select them by repository type. A repository that merely contains some Rust does not take this block. Rules later in a repository's file may be stricter, but not weaker. The source is `standards/house-rules-rust.md` in [storytold/craft-contrib](https://github.com/storytold/craft-contrib).
@@ -59,6 +62,7 @@ Dependencies and assets use SPDX identifiers. An expression is allowed when ever
 `MPL-2.0` is allowed for third-party dependencies used unmodified; vendoring, patching or copying its code needs a maintainer's approval. `MPL-2.0+` counts as `MPL-2.0`.
 
 `LicenseRef-Storyteller-Trademark` is not in this list. It covers Storyteller brand marks only, where a repository already says so.
+<!-- craft-house-rules:end -->
 
 ## Accessibility
 
@@ -104,6 +108,7 @@ Layers 0-3 build for `wasm32-unknown-unknown` and may not depend on native crate
 ### Commands
 
 - Gate before every commit: `cargo xtask ci` (fmt, clippy `-D warnings`, tests, layers, wasm, licences, assets).
+- CI runs the same gate on Linux and Windows through `storytold/craft-common-actions` (`.github/workflows/ci.yml`), and checks the house-rule blocks above (`house-rules.yml`). `main` is protected: changes arrive through pull requests whose checks pass.
 - One step: `cargo xtask layers|wasm|licences|assets`.
 - Run: `cargo run -p actcraft --bin actcraft` (window), `cargo run -p actcraft --bin actcraft-cli -- commands`.
 - Agent entry point: `actcraft-cli mcp --automation-read-root DIR --automation-write-root DIR` refuses to start without both roots and refuses files outside them.

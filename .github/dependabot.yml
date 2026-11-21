@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keep the pinned actions in the workflows current; Cargo updates are done deliberately.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
