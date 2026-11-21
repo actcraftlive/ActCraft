@@ -27,6 +27,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod region_commands;
 pub mod services;
 
 pub use actcraft_audio::tempo;
@@ -93,6 +94,22 @@ pub struct Engine {
     play_after_load: Option<bool>,
     /// Songs whose tempo is estimated once their first track has decoded.
     detect_bpm: BTreeSet<u64>,
+}
+
+/// A song's regions as the renderer's table.
+pub(crate) fn region_table(song: &Song) -> actcraft_audio::regions::RegionTable {
+    use actcraft_audio::regions::{RegionAction, RegionSpan, RegionTable};
+    use actcraft_show::RegionMode;
+    RegionTable::new(song.regions.iter().map(|r| RegionSpan {
+        start: r.start,
+        end: r.end,
+        action: match r.mode {
+            RegionMode::Play => RegionAction::Play,
+            RegionMode::Loop => RegionAction::Loop,
+            RegionMode::Skip => RegionAction::Skip,
+            RegionMode::StopAfter => RegionAction::StopAfter,
+        },
+    }))
 }
 
 /// The registry with every engine command, built once.
@@ -336,6 +353,7 @@ impl Engine {
         load.fade_out = song.fade_out;
         load.song_gain = actcraft_audio::dsp::db_to_gain(song.volume_db);
         load.count_in_bars = song.count_in_bars;
+        load.regions = region_table(&song);
         // Record the real length once audio is known.
         let len = load.length();
         if len > 0.0
@@ -588,6 +606,25 @@ impl Engine {
         self.send(Msg::SongGain(gain));
         self.send(Msg::CountIn(count_in));
         self.push_metronome();
+    }
+
+    /// Sends a song's regions to the renderer when it's loaded.
+    pub(crate) fn push_regions(&mut self, id: u64) {
+        if self.loaded_song != Some(id) {
+            return;
+        }
+        if let Some(s) = self.show.song(id) {
+            let table = Box::new(region_table(s));
+            self.send(Msg::Regions(table));
+        }
+    }
+
+    pub(crate) fn send_msg(&mut self, msg: Msg) -> bool {
+        self.send(msg)
+    }
+
+    pub(crate) fn loaded_song_pub(&self) -> Option<u64> {
+        self.loaded_song
     }
 
     /// After a structural change (tracks added or removed, files changed), reload the song.

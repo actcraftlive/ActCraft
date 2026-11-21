@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 
 pub mod flows;
 mod lyrics_view;
+mod regions_view;
 mod settings;
 pub mod shortcuts;
 pub mod theme;
@@ -647,6 +648,7 @@ impl ActCraftApp {
             let lyrics_label = if song.lyrics.trim().is_empty() { tr("Lyrics") } else { tr("Lyrics \u{2022}") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
         });
+        self.region_bar(ui, e, &song);
         if self.centre_tab == CentreTab::Lyrics {
             self.lyrics_tab(ui, e, &song);
             return;
@@ -697,6 +699,8 @@ impl ActCraftApp {
         });
         ui.separator();
         self.waveform(ui, e, &song);
+        ui.separator();
+        self.region_editor(ui, e, &song);
     }
 
     /// Song details, edited in place: name fields save when you leave them, numbers and switches
@@ -1009,6 +1013,27 @@ impl ActCraftApp {
         let cols = width as usize;
         let mid = rect.center().y;
         let h = rect.height() * 0.48;
+        // Regions behind the waveform, with their names at the top.
+        for r in &song.regions {
+            if r.end < from || r.start > from + span {
+                continue;
+            }
+            let x0 = rect.left() + ((r.start - from).max(0.0) / span * f64::from(width)) as f32;
+            let x1 = rect.left() + ((r.end - from).min(span) / span * f64::from(width)) as f32;
+            let rc = theme::colour(&r.colour, t.accent);
+            let area =
+                egui::Rect::from_min_max(egui::pos2(x0, rect.top()), egui::pos2(x1.max(x0 + 1.0), rect.bottom()));
+            painter.rect_filled(area, 0, rc.gamma_multiply(0.18));
+            painter.line_segment([area.left_top(), area.left_bottom()], Stroke::new(1.5, rc));
+            let label = format!("{} \u{00b7} {}", r.name, tr(regions_view::mode_label(r.mode)));
+            painter.text(
+                area.left_top() + vec2(4.0, 2.0),
+                egui::Align2::LEFT_TOP,
+                label,
+                egui::FontId::proportional(12.0),
+                t.text,
+            );
+        }
         let colour = theme::colour(&track.colour, t.accent);
         for (c, (lo, hi)) in peaks.window(from, from + span, cols).iter().enumerate() {
             let x = rect.left() + c as f32;

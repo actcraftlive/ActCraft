@@ -58,8 +58,9 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - 🔶 Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
   position; search and replace and timecode-aware undo still to do
 - 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
-- ⬜ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
-- ⬜ Markers from audio files become regions
+- ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
+  (Parts bar), leave a loop after its pass (L)
+- 🔶 Markers from WAV files become regions (done); markers in other formats to do
 - ⬜ PDF lyrics and sheet music with annotations, scaling, inverted colours, autoscroll
 - ⬜ Second-screen window for lyrics and sheet music
 

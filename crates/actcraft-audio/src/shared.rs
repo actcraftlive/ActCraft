@@ -23,8 +23,11 @@ impl Default for StatusCell {
 
 fn encode(s: &Status) -> [u64; FIELDS] {
     let mut f = [0u64; FIELDS];
-    let flags =
-        u64::from(s.loaded) | u64::from(s.playing) << 1 | u64::from(s.counting_in) << 2 | u64::from(s.crossfading) << 3;
+    let flags = u64::from(s.loaded)
+        | u64::from(s.playing) << 1
+        | u64::from(s.counting_in) << 2
+        | u64::from(s.crossfading) << 3
+        | u64::from(s.in_loop) << 4;
     f[0] = flags | u64::from(s.beat_in_bar) << 8;
     f[1] = s.time.to_bits();
     f[2] = s.beat.to_bits();
@@ -45,6 +48,7 @@ fn decode(f: &[u64; FIELDS]) -> Status {
         playing: f[0] & 2 != 0,
         counting_in: f[0] & 4 != 0,
         crossfading: f[0] & 8 != 0,
+        in_loop: f[0] & 16 != 0,
         beat_in_bar: ((f[0] >> 8) & 0xff) as u8,
         time: f64::from_bits(f[1]),
         beat: f64::from_bits(f[2]),
