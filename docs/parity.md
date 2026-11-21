@@ -63,7 +63,7 @@ Statuses describe what ran in tests, not what is designed.
 | Area | Status |
 |---|---|
 | A2 Regions | done: 64 per song, play/loop/skip/stop after, cues, live jump, leave loop, WAV markers (`region.*`); markers from other formats open |
-| A3 Lyrics, chords, PDF, editor, second screen | partial: lyrics with markup and ChordPro chords (`song.set {lyrics}`), transpose/capo, playing-line highlight, editor with formatting, time stamps (`lyrics.stamp_line`) and find and replace (`lyrics.replace`), import of text/ChordPro/LRC (`lyrics.import`); PDF and second screen planned |
+| A3 Lyrics, chords, PDF, editor, second screen | partial: lyrics with markup and ChordPro chords (`song.set {lyrics}`), transpose/capo, playing-line highlight, scrolling per song (jump to the line, smooth, constant speed, off: `song.set {lyrics_scroll}`), editor with formatting, time stamps (`lyrics.stamp_line`) and find and replace (`lyrics.replace`), import of text/ChordPro/LRC (`lyrics.import`); PDF and second screen planned |
 | A5 MIDI, macros, sync, remote actions | planned M3 |
 | A6 Stage UI | partial: sidebar hides during playback, clock modes, audio indicator, status messages; rest planned M3 |
 | A7 Band network | planned M8 |

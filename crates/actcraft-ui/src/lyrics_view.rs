@@ -3,7 +3,7 @@
 
 use actcraft_engine::Engine;
 use actcraft_engine::lyrics::{self, Font, LineKind, Span};
-use actcraft_show::Song;
+use actcraft_show::{LyricsScroll, Song};
 use egui::text::LayoutJob;
 use egui::{Color32, FontFamily, FontId, RichText, Stroke, TextFormat, Ui};
 use serde_json::json;
@@ -115,6 +115,17 @@ impl ActCraftApp {
             ui.separator();
             ui.checkbox(&mut self.lyrics_show_chords, tr("Chords"));
             ui.checkbox(&mut self.lyrics_follow, tr("Follow playback"));
+            egui::ComboBox::from_id_salt(("lyrics-scroll", song.id))
+                .selected_text(tr(song.lyrics_scroll.label()))
+                .show_ui(ui, |ui| {
+                    for m in LyricsScroll::ALL {
+                        if ui.selectable_label(song.lyrics_scroll == m, tr(m.label())).clicked() {
+                            self.run(e, "song.set", json!({"song": song.id, "lyrics_scroll": m.key()}));
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(tr("How the lyrics follow playback in this song"));
             ui.add(egui::Slider::new(&mut self.lyrics_size, 14.0..=64.0).show_value(false).text(tr("Size")));
             ui.separator();
             if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro or LRC file")).clicked() {
@@ -274,7 +285,33 @@ impl ActCraftApp {
         let current = if e.status.playing || e.status.time > 0.0 { parsed.line_at(e.status.time) } else { None };
         let size = self.lyrics_size;
         let heading_colours = [t.accent, t.warning, t.playing];
-        egui::ScrollArea::vertical().id_salt("lyrics").auto_shrink([false, false]).show(ui, |ui| {
+        let mut area = egui::ScrollArea::vertical().id_salt("lyrics").auto_shrink([false, false]);
+        // Smooth and constant-speed scrolling steer the view from last frame's layout.
+        let times: Vec<Option<f64>> = parsed.lines.iter().map(|l| l.time).collect();
+        let span = (song.start, song.end.unwrap_or(song.duration));
+        let geometry = &self.lyrics_geometry;
+        let target = if self.lyrics_follow && e.status.playing && geometry.song == song.id {
+            follow_target(
+                song.lyrics_scroll,
+                e.status.time,
+                &times,
+                &geometry.centres,
+                geometry.content,
+                geometry.view,
+                span,
+            )
+        } else {
+            None
+        };
+        if let Some(target) = target {
+            let now = geometry.offset;
+            // Ease towards the target; a big jump (a seek) goes straight there.
+            let next = if (target - now).abs() > geometry.view { target } else { now + (target - now) * 0.2 };
+            area = area.vertical_scroll_offset(next);
+        }
+        let mut centres = Vec::with_capacity(parsed.lines.len());
+        let output = area.show(ui, |ui| {
+            let top = ui.cursor().top();
             for (i, line) in parsed.lines.iter().enumerate() {
                 let is_current = current == Some(i);
                 let fill = if is_current { t.surface_hover } else { Color32::TRANSPARENT };
@@ -335,12 +372,74 @@ impl ActCraftApp {
                     let rect = r.response.rect;
                     ui.painter().line_segment([rect.left_top(), rect.left_bottom()], bar);
                 }
-                if is_current && self.lyrics_follow && self.lyrics_last_line != Some(i) {
+                centres.push(r.response.rect.center().y - top);
+                if is_current
+                    && self.lyrics_follow
+                    && song.lyrics_scroll == LyricsScroll::Line
+                    && self.lyrics_last_line != Some(i)
+                {
                     r.response.scroll_to_me(Some(egui::Align::Center));
                     self.lyrics_last_line = Some(i);
                 }
             }
         });
+        self.lyrics_geometry = LyricsGeometry {
+            song: song.id,
+            centres,
+            content: output.content_size.y,
+            view: output.inner_rect.height(),
+            offset: output.state.clamped_offset().y,
+        };
+        if target.is_some() {
+            ui.ctx().request_repaint();
+        }
+    }
+}
+
+/// Last frame's lyrics layout, for smooth and constant-speed scrolling.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct LyricsGeometry {
+    pub song: u64,
+    /// Each line's vertical centre from the top of the lyrics.
+    pub centres: Vec<f32>,
+    pub content: f32,
+    pub view: f32,
+    pub offset: f32,
+}
+
+/// Where the top of the view should be for `mode` at `time`, or `None` when this mode doesn't
+/// steer the view (jump to the line, off, or nothing to follow yet). `times` are the lines'
+/// timecodes and `centres` their vertical centres; `span` is the song's (start, end) in seconds.
+pub(crate) fn follow_target(
+    mode: LyricsScroll,
+    time: f64,
+    times: &[Option<f64>],
+    centres: &[f32],
+    content: f32,
+    view: f32,
+    span: (f64, f64),
+) -> Option<f32> {
+    let max = (content - view).max(0.0);
+    match mode {
+        LyricsScroll::Line | LyricsScroll::Off => None,
+        LyricsScroll::Constant => {
+            let (start, end) = span;
+            if end <= start {
+                return None;
+            }
+            let frac = ((time - start) / (end - start)).clamp(0.0, 1.0) as f32;
+            Some(frac * max)
+        }
+        LyricsScroll::Smooth => {
+            let timed: Vec<(f64, f32)> = times.iter().zip(centres).filter_map(|(t, &c)| t.map(|t| (t, c))).collect();
+            let i = timed.iter().rposition(|&(t, _)| t <= time)?;
+            let (t0, y0) = *timed.get(i)?;
+            let y = match timed.iter().skip(i + 1).find(|&&(t, _)| t > t0) {
+                Some(&(t1, y1)) => y0 + (y1 - y0) * ((time - t0) / (t1 - t0)).clamp(0.0, 1.0) as f32,
+                None => y0,
+            };
+            Some((y - view / 2.0).clamp(0.0, max))
+        }
     }
 }
 
@@ -437,5 +536,26 @@ mod tests {
         e.match_case = true;
         e.find = "Road".into();
         assert_eq!(next_match(&e), None);
+    }
+
+    #[test]
+    fn smooth_and_constant_scrolling_follow_the_time() {
+        // Lines at 0, 10 and 20 s, 100 points apart; the view is 200 points of 1000.
+        let times = [None, Some(0.0), None, Some(10.0), Some(20.0)];
+        let centres = [10.0, 100.0, 150.0, 200.0, 300.0];
+        let smooth = |t| follow_target(LyricsScroll::Smooth, t, &times, &centres, 1000.0, 200.0, (0.0, 100.0));
+        // Halfway between the lines at 0 s (y 100) and 10 s (y 200): y 150, view top 50.
+        assert_eq!(smooth(5.0), Some(50.0));
+        assert_eq!(smooth(10.0), Some(100.0));
+        // After the last timecode it stays on that line; before the first there's nothing to follow.
+        assert_eq!(smooth(99.0), Some(200.0));
+        assert_eq!(smooth(-1.0), None);
+        let constant = |t| follow_target(LyricsScroll::Constant, t, &times, &centres, 1000.0, 200.0, (10.0, 90.0));
+        assert_eq!(constant(10.0), Some(0.0));
+        assert_eq!(constant(50.0), Some(400.0));
+        assert_eq!(constant(500.0), Some(800.0));
+        assert_eq!(follow_target(LyricsScroll::Constant, 5.0, &times, &centres, 1000.0, 200.0, (5.0, 5.0)), None);
+        assert_eq!(follow_target(LyricsScroll::Line, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
+        assert_eq!(follow_target(LyricsScroll::Off, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
     }
 }
