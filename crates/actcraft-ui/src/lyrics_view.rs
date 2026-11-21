@@ -694,4 +694,17 @@ mod tests {
         assert_eq!(follow_target(LyricsScroll::Line, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
         assert_eq!(follow_target(LyricsScroll::Off, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
     }
+
+    #[test]
+    fn the_lyrics_window_opens_and_closes_with_its_own_settings() {
+        let ctx = egui::Context::default();
+        let engine = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let mut app = ActCraftApp::new(&ctx, std::sync::Arc::new(std::sync::Mutex::new(engine)), Default::default());
+        assert!(app.stage.is_none());
+        app.toggle_stage_screen();
+        let stage = app.stage.clone();
+        assert!(stage.as_ref().is_some_and(|s| s.chords && s.size > app.lyrics_size), "larger than the tab's text");
+        app.toggle_stage_screen();
+        assert!(app.stage.is_none());
+    }
 }
