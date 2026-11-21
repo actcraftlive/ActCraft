@@ -121,6 +121,7 @@ pub struct ActCraftApp {
     lyrics_follow: bool,
     lyrics_size: f32,
     lyrics_last_line: Option<usize>,
+    lyrics_geometry: lyrics_view::LyricsGeometry,
 }
 
 /// What the main area shows for the current song.
@@ -160,6 +161,7 @@ impl ActCraftApp {
             lyrics_follow: true,
             lyrics_size: 28.0,
             lyrics_last_line: None,
+            lyrics_geometry: lyrics_view::LyricsGeometry::default(),
         }
     }
 

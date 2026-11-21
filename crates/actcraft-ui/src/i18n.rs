@@ -158,6 +158,7 @@ mod tests {
         }
         out.extend(MetronomeMode::ALL.iter().map(|m| m.label().to_owned()));
         out.extend(SongClick::ALL.iter().map(|m| m.label().to_owned()));
+        out.extend(actcraft_show::LyricsScroll::ALL.iter().map(|m| m.label().to_owned()));
         for f in actcraft_library::smart::FIELDS {
             out.push(crate::flows::field_label(f).to_owned());
         }

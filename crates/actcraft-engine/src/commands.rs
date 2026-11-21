@@ -86,7 +86,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -638,6 +638,10 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     }
     if let Some(v) = p::opt_i64_in(prm, "count_in_bars", 0, 8)? {
         next.count_in_bars = u8::try_from(v).unwrap_or(0);
+    }
+    if let Some(v) = p::opt_str_max(prm, "lyrics_scroll", 32)? {
+        next.lyrics_scroll = actcraft_show::LyricsScroll::parse(v)
+            .ok_or_else(|| invalid(format!("`lyrics_scroll` must be line, smooth, constant or off, not `{v}`")))?;
     }
     if let Some(v) = p::opt_str_max(prm, "click", 32)? {
         next.click = actcraft_show::SongClick::parse(v).ok_or_else(|| {

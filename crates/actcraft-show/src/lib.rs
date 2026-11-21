@@ -171,6 +171,8 @@ pub struct Song {
     pub regions: Vec<Region>,
     /// Lyrics source text (markup and ChordPro chords).
     pub lyrics: String,
+    /// How the lyrics follow playback.
+    pub lyrics_scroll: LyricsScroll,
     /// A MIDI file played in sync with the audio.
     pub midi_file: Option<String>,
     /// Start the next song when this one ends.
@@ -208,6 +210,7 @@ impl Default for Song {
             tracks: Vec::new(),
             regions: Vec::new(),
             lyrics: String::new(),
+            lyrics_scroll: LyricsScroll::default(),
             midi_file: None,
             autoplay: false,
             loop_song: false,
@@ -446,6 +449,47 @@ impl SongClick {
             Self::VisualOnly => Self::Off,
             Self::Off => Self::WholeSong,
         }
+    }
+}
+
+/// How the lyrics follow playback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LyricsScroll {
+    /// Jump to the playing line (timecoded lyrics).
+    #[default]
+    Line,
+    /// Glide between timecoded lines so the playing words stay in the middle.
+    Smooth,
+    /// Scroll at a constant speed from the song's start to its end (lyrics without timecodes).
+    Constant,
+    /// Don't scroll.
+    Off,
+}
+
+impl LyricsScroll {
+    pub const ALL: [LyricsScroll; 4] = [Self::Line, Self::Smooth, Self::Constant, Self::Off];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Line => "Jump to the line",
+            Self::Smooth => "Smooth",
+            Self::Constant => "Constant speed",
+            Self::Off => "Don't scroll",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Smooth => "smooth",
+            Self::Constant => "constant",
+            Self::Off => "off",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.key() == s)
     }
 }
 

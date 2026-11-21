@@ -53,8 +53,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ✅ Lyrics per song (Lyrics tab) with headings, bold/italic/underline and colours
 - 🔶 Font tags (sans, mono work; serif and script wait for fonts from the shared font store)
 - ✅ Chords in ChordPro syntax above the words; transpose, capo, hide chords; directives, chorus
-- 🔶 Timecoded lines: the playing line is highlighted and scrolled to; smooth and constant-speed
-  scrolling still to do
+- ✅ Timecoded lines: the playing line is highlighted; per song the lyrics jump to the line,
+  glide smoothly between timecodes, scroll at constant speed over the song, or stay put
 - 🔶 Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
   position, find and replace (also `lyrics.replace`); timecode-aware undo still to do
 - 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
