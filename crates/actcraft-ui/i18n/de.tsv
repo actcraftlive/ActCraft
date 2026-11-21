@@ -1,4 +1,5 @@
 # German catalog for the ActCraft window (craft-i18n format: context, English, German; tab separated).
+@id	language.name	Deutsch
 	bar	Takt
 	bars	Takte
 	About ActCraft	Über ActCraft
@@ -72,7 +73,6 @@
 	Detect	Erkennen
 	Detect Tempo and First Beat	Tempo und ersten Schlag erkennen
 	Detect tempo and first beat	Tempo und ersten Schlag erkennen
-	Deutsch	Deutsch
 	Discard changes	Änderungen verwerfen
 	Don't save	Nicht speichern
 	Double-click on a song	Doppelklick auf einen Song
@@ -96,7 +96,6 @@
 	Elapsed	Vergangen
 	End	Ende
 	End at the playback position	An der Abspielposition enden
-	English	English
 	Example:	Beispiel:
 	Fade-out	Ausblenden
 	File	Datei
@@ -349,3 +348,4 @@
 	Language	Sprache
 	smart	intelligent
 	muted	stumm
+	More languages: add a language file (see docs/translating.md)	Weitere Sprachen: eine Sprachdatei hinzufügen (siehe docs/translating.md)
