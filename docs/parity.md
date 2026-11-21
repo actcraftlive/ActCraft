@@ -62,7 +62,7 @@ Statuses describe what ran in tests, not what is designed.
 
 | Area | Status |
 |---|---|
-| A2 Regions | planned M2 (model fields exist in the show file) |
+| A2 Regions | done: 64 per song, play/loop/skip/stop after, cues, live jump, leave loop, WAV markers (`region.*`); markers from other formats open |
 | A3 Lyrics, chords, PDF, editor, second screen | partial: lyrics with markup and ChordPro chords (`song.set {lyrics}`), transpose/capo, playing-line highlight, editor with formatting and time stamps (`lyrics.stamp_line`), import of text/ChordPro/LRC (`lyrics.import`); PDF and second screen planned |
 | A5 MIDI, macros, sync, remote actions | planned M3 |
 | A6 Stage UI | partial: sidebar hides during playback, clock modes, audio indicator, status messages; rest planned M3 |

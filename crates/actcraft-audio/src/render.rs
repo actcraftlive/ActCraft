@@ -11,6 +11,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use crate::clip::Clip;
 use crate::clock::BeatClock;
 use crate::dsp::{BAND_SHAPES, BiquadState, Coeffs, coeffs, db_to_gain, pan_mono, pan_stereo};
+use crate::regions::{Jump, RegionTable};
 use crate::shared::StatusCell;
 
 /// Tracks a song may have.
@@ -155,11 +156,17 @@ pub struct SongLoad {
     pub song_gain: f32,
     pub clock: BeatClock,
     pub count_in_bars: u8,
+    /// Loop, skip and stop-after regions.
+    pub regions: RegionTable,
     // Runtime: song time = origin + elapsed / sample_rate.
     origin: f64,
     elapsed: u64,
     /// Tracks are silent before this song time (during a count-in).
     audible_from: f64,
+    /// Song time of the previous frame, to notice region ends being crossed.
+    last_t: f64,
+    /// Let the current loop play out once and continue.
+    leave_loop: bool,
 }
 
 impl SongLoad {
@@ -175,9 +182,12 @@ impl SongLoad {
             song_gain: 1.0,
             clock,
             count_in_bars: 0,
+            regions: RegionTable::default(),
             origin: start,
             elapsed: 0,
             audible_from: f64::NEG_INFINITY,
+            last_t: start,
+            leave_loop: false,
         }
     }
 
@@ -197,6 +207,8 @@ impl SongLoad {
     fn set_time(&mut self, t: f64) {
         self.origin = if t.is_finite() { t } else { self.start };
         self.elapsed = 0;
+        // A jump isn't a crossing: region ends between the old and new time don't fire.
+        self.last_t = self.origin;
     }
 }
 
@@ -232,6 +244,10 @@ pub enum Msg {
     Loop(bool),
     /// Bars of count-in of the loaded song.
     CountIn(u8),
+    /// New regions for the loaded song; the old table comes back as garbage.
+    Regions(Box<RegionTable>),
+    /// Let the loop that's playing finish its pass and continue after it.
+    LeaveLoop,
     /// Crossfade into another song over `seconds`. Ignored while a crossfade runs.
     Crossfade {
         next: Box<SongLoad>,
@@ -243,6 +259,7 @@ pub enum Msg {
 #[derive(Debug)]
 pub enum Garbage {
     Song(Box<SongLoad>),
+    Regions(Box<RegionTable>),
 }
 
 /// Renderer → engine: playback state, sent after each device buffer.
@@ -258,6 +275,8 @@ pub struct Status {
     pub beat_in_bar: u8,
     pub counting_in: bool,
     pub crossfading: bool,
+    /// Playing inside a loop region (and not leaving it).
+    pub in_loop: bool,
     /// Increments each time a song reaches its end without looping.
     pub ended_count: u32,
     /// Peak level per bus since the last status, linear.
@@ -277,6 +296,7 @@ impl Default for Status {
             beat_in_bar: 0,
             counting_in: false,
             crossfading: false,
+            in_loop: false,
             ended_count: 0,
             bus_peaks: [0.0; BUSES],
             frames: 0,
@@ -404,8 +424,14 @@ impl Renderer {
     /// Hands a song back for freeing. If the ring is full the box is leaked instead of freed here:
     /// a small leak is better than freeing memory on the audio thread.
     fn discard(&mut self, song: Box<SongLoad>) {
-        if let Err(rtrb::PushError::Full(Garbage::Song(s))) = self.garbage_tx.push(Garbage::Song(song)) {
-            std::mem::forget(s);
+        if let Err(rtrb::PushError::Full(g)) = self.garbage_tx.push(Garbage::Song(song)) {
+            std::mem::forget(g);
+        }
+    }
+
+    fn discard_regions(&mut self, table: Box<RegionTable>) {
+        if let Err(rtrb::PushError::Full(g)) = self.garbage_tx.push(Garbage::Regions(table)) {
+            std::mem::forget(g);
         }
     }
 
@@ -489,6 +515,18 @@ impl Renderer {
             Msg::CountIn(bars) => {
                 if let Some(s) = &mut self.song {
                     s.count_in_bars = bars.min(8);
+                }
+            }
+            Msg::Regions(mut table) => {
+                if let Some(s) = &mut self.song {
+                    std::mem::swap(&mut s.regions, &mut table);
+                }
+                // The old table (or the unused new one) is freed off the audio thread.
+                self.discard_regions(table);
+            }
+            Msg::LeaveLoop => {
+                if let Some(s) = &mut self.song {
+                    s.leave_loop = true;
                 }
             }
             Msg::Crossfade { next, seconds } => {
@@ -586,6 +624,8 @@ impl Renderer {
             beat_in_bar,
             counting_in,
             crossfading: self.fade.is_some(),
+            in_loop: self.playing
+                && self.song.as_ref().is_some_and(|s| !s.leave_loop && s.regions.loop_at(time).is_some()),
             ended_count: self.ended_count,
             bus_peaks: self.peaks,
             frames: self.frames,
@@ -621,12 +661,39 @@ impl Renderer {
 
             // Main song.
             let mut song_ended = false;
+            let mut stopped_by_region = false;
             if self.playing
                 && let Some(s) = &mut self.song
             {
-                let t = s.time(sr);
+                let mut t = s.time(sr);
+                // Regions act sample-accurately once the count-in is over.
+                if !s.regions.is_empty() && t >= s.audible_from {
+                    match s.regions.step(s.last_t, t, s.leave_loop) {
+                        Some(Jump::To(to)) => {
+                            if to < t {
+                                // Back to a loop's start: the click grid follows the jump.
+                                self.last_click_beat = i64::MIN;
+                            }
+                            s.set_time(to);
+                            t = to;
+                        }
+                        Some(Jump::Stop(at)) => {
+                            s.set_time(at);
+                            stopped_by_region = true;
+                        }
+                        None => {
+                            // Past a loop's end with "leave" set: the request is used up.
+                            if s.leave_loop && s.regions.loop_at(t).is_none() && s.regions.loop_at(s.last_t).is_some() {
+                                s.leave_loop = false;
+                            }
+                        }
+                    }
+                }
+                s.last_t = t;
                 let end = s.end_time();
-                if t >= end && end > 0.0 {
+                if stopped_by_region {
+                    // Stays at the region's end; Play continues from there.
+                } else if t >= end && end > 0.0 {
                     if s.loop_song {
                         s.set_time(s.start);
                     } else {
@@ -643,6 +710,9 @@ impl Renderer {
                     }
                     s.elapsed += 1;
                 }
+            }
+            if stopped_by_region {
+                self.playing = false;
             }
             if song_ended {
                 self.playing = false;
@@ -963,6 +1033,43 @@ mod tests {
             let expected = k * 24_000;
             assert!(s.abs_diff(expected) < 10, "click {k} at {s}, expected {expected}");
         }
+    }
+
+    #[test]
+    fn regions_loop_skip_and_stop_in_playback() {
+        use crate::regions::{RegionAction, RegionSpan};
+        let (mut ctl, mut r) = link(48_000);
+        let song = SongLoad::new(
+            vec![TrackSlot::new(Some(ramp(48_000, 30.0)), TrackParams::default())],
+            0.0,
+            None,
+            BeatClock::default(),
+        );
+        assert!(ctl.send(Msg::Load(Box::new(song))));
+        let table = RegionTable::new([
+            RegionSpan { start: 0.5, end: 1.0, action: RegionAction::Loop },
+            RegionSpan { start: 1.0, end: 2.0, action: RegionAction::Skip },
+            RegionSpan { start: 2.0, end: 3.0, action: RegionAction::Skip },
+            RegionSpan { start: 3.0, end: 3.5, action: RegionAction::StopAfter },
+        ]);
+        assert!(ctl.send(Msg::Regions(Box::new(table))));
+        assert!(ctl.send(Msg::Play { count_in: false, quantized: false }));
+        let mut buf = vec![0.0f32; 2 * 480];
+        // 2.3 seconds of playback stay inside the 0.5-1.0 loop (not a multiple of its length,
+        // so the check doesn't land on the instant before the jump back).
+        for _ in 0..230 {
+            r.process(&mut buf, 2);
+        }
+        let s = ctl.poll();
+        assert!(s.playing && s.in_loop && (0.5..1.0).contains(&s.time), "looping: {s:?}");
+        // Leaving: the loop plays out, both skip regions are jumped, and playback stops at 3.5.
+        assert!(ctl.send(Msg::LeaveLoop));
+        for _ in 0..200 {
+            r.process(&mut buf, 2);
+        }
+        let s = ctl.poll();
+        assert!(!s.playing, "stopped after the stop region: {s:?}");
+        assert!((s.time - 3.5).abs() < 0.01, "stopped at the region's end: {}", s.time);
     }
 
     #[test]

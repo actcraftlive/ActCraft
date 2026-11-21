@@ -20,6 +20,7 @@ pub mod clip;
 pub mod clock;
 pub mod dsp;
 pub mod peaks;
+pub mod regions;
 pub mod render;
 pub mod shared;
 pub mod tempo;
