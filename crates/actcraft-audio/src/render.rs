@@ -118,11 +118,13 @@ pub struct MetronomeParams {
     pub bus: u8,
     /// Seconds the click is moved earlier to make up for output latency.
     pub latency: f64,
+    /// Click while stopped too (otherwise only with a playing song).
+    pub free_run: bool,
 }
 
 impl Default for MetronomeParams {
     fn default() -> Self {
-        Self { enabled: false, mode: ClickMode::Audible, gain: 0.5, bus: 1, latency: 0.0 }
+        Self { enabled: false, mode: ClickMode::Audible, gain: 0.5, bus: 1, latency: 0.0, free_run: false }
     }
 }
 
@@ -228,6 +230,8 @@ pub enum Msg {
     /// Tempo, meter and anchor of the loaded song.
     Clock(BeatClock),
     Loop(bool),
+    /// Bars of count-in of the loaded song.
+    CountIn(u8),
     /// Crossfade into another song over `seconds`. Ignored while a crossfade runs.
     Crossfade {
         next: Box<SongLoad>,
@@ -482,6 +486,11 @@ impl Renderer {
                     s.loop_song = l;
                 }
             }
+            Msg::CountIn(bars) => {
+                if let Some(s) = &mut self.song {
+                    s.count_in_bars = bars.min(8);
+                }
+            }
             Msg::Crossfade { next, seconds } => {
                 if self.fade.is_some() || !self.playing {
                     // A crossfade is already running (or nothing plays): ignore the request.
@@ -509,15 +518,24 @@ impl Renderer {
             if from >= s.end_time() - 0.001 {
                 from = s.start;
             }
-            if count_in && s.count_in_bars > 0 {
-                s.set_time(from - s.clock.bars_len(s.count_in_bars));
+            let latency = self.metronome.latency;
+            let start_at = if count_in && s.count_in_bars > 0 {
+                // The count-in ends on the song's next beat, so its last click leads straight
+                // into the music's beat (the audio from `from` plays as a pickup).
+                let first_beat = s.clock.next_beat_time(from);
+                let t = first_beat - s.clock.bars_len(s.count_in_bars);
                 s.audible_from = from;
+                t
             } else {
-                s.set_time(from);
                 s.audible_from = f64::NEG_INFINITY;
-            }
+                from
+            };
+            s.set_time(start_at);
+            // A start exactly on a beat clicks that beat (it used to be skipped).
+            let beat = s.clock.beat_at(start_at + latency);
+            let nearest = beat.round();
+            self.last_click_beat = if (beat - nearest).abs() < 1e-6 { nearest as i64 - 1 } else { beat.floor() as i64 };
             self.playing = true;
-            self.last_click_beat = i64::MIN;
         }
     }
 
@@ -717,7 +735,9 @@ impl Renderer {
             Some(s) => (self.free_time, s.clock, false),
             None => (self.free_time, BeatClock::default(), false),
         };
+        // Stopped: silent unless the person wants the click to keep running.
         let sounding = m.enabled
+            && (self.playing || m.free_run)
             && match m.mode {
                 ClickMode::Audible => true,
                 ClickMode::CountInOnly => counting_in,
@@ -896,6 +916,53 @@ mod tests {
             r.process(&mut buf, 2);
         }
         assert!(buf.iter().all(|s| s.abs() < 1e-3), "mute group silences its tracks");
+    }
+
+    /// Sample indexes where a click starts (signal rises above the threshold after silence).
+    fn click_starts(buf: &[f32]) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut quiet = 1000;
+        for (i, frame) in buf.chunks(2).enumerate() {
+            let v = frame.first().copied().unwrap_or(0.0).abs();
+            if v > 0.05 && quiet > 500 {
+                out.push(i);
+            }
+            quiet = if v > 0.01 { 0 } else { quiet + 1 };
+        }
+        out
+    }
+
+    #[test]
+    fn count_in_clicks_land_on_the_beat_grid() {
+        // Regression: the first click after Play was skipped, and the count-in wasn't aligned to
+        // the song's beat anchor, so the click sat between the music's beats.
+        let (mut ctl, mut r) = link(48_000);
+        let silent = Arc::new(Clip { sample_rate: 48_000, channels: 1, data: vec![0.0; 48_000 * 10] });
+        let mut song = SongLoad::new(
+            vec![TrackSlot::new(Some(silent), TrackParams::default())],
+            0.0,
+            None,
+            BeatClock::new(120.0, 4, 0.25),
+        );
+        song.count_in_bars = 1;
+        assert!(ctl.send(Msg::Load(Box::new(song))));
+        let metro = MetronomeParams { enabled: true, bus: 0, gain: 1.0, ..MetronomeParams::default() };
+        assert!(ctl.send(Msg::Metronome(metro)));
+        // Stopped: no click (the metronome doesn't run on its own).
+        let mut idle = vec![0.0f32; 2 * 48_000];
+        r.process(&mut idle, 2);
+        assert!(click_starts(&idle).is_empty(), "silent while stopped");
+        assert!(ctl.send(Msg::Play { count_in: true, quantized: false }));
+        let mut buf = vec![0.0f32; 2 * 48_000 * 3];
+        r.process(&mut buf, 2);
+        let starts = click_starts(&buf);
+        // Count-in starts at 0.25 - 2.0 s: the first click is at once, then every 0.5 s, and the
+        // fifth click is the song's first beat at 0.25 s (2.0 s after the start).
+        assert!(starts.first().is_some_and(|&s| s < 10), "first click at once: {starts:?}");
+        for (k, s) in starts.iter().take(5).enumerate() {
+            let expected = k * 24_000;
+            assert!(s.abs_diff(expected) < 10, "click {k} at {s}, expected {expected}");
+        }
     }
 
     #[test]

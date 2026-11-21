@@ -341,7 +341,12 @@ impl ActCraftApp {
                 if ui.selectable_label(on, label).clicked() {
                     self.run(e, "metronome.toggle", Value::Null);
                 }
-                if ui.button(format!("{}: {}", tr("Mode"), tr(e.show.metronome.mode.label()))).clicked() {
+                let mode = e.current().map_or_else(|| tr(e.show.metronome.mode.label()), |s| tr(s.click.label()));
+                if ui
+                    .button(format!("{}: {}", tr("Click"), mode))
+                    .on_hover_text(tr("When this song's click sounds; click to change"))
+                    .clicked()
+                {
                     self.run(e, "metronome.cycle_mode", Value::Null);
                 }
             });
@@ -728,9 +733,45 @@ impl ActCraftApp {
                     self.run(e, "song.set", json!({"song": id, "bpm": b}));
                 }
             }
-            if ui.button(tr("Detect")).on_hover_text(tr("Estimate the tempo from the first track")).clicked() {
+            if ui.button(tr("Detect")).on_hover_text(tr("Find tempo and first beat from the first track")).clicked() {
                 self.run(e, "song.detect_bpm", json!({"song": id}));
             }
+        });
+        // Where the beat sits in the audio: nudge until the click lands on the music.
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("First beat at"));
+            let mut anchor = song.beat_anchor;
+            if ui
+                .add(egui::DragValue::new(&mut anchor).range(-60.0..=600.0).speed(0.001).fixed_decimals(3).suffix(" s"))
+                .on_hover_text(tr("Time of a beat in the audio; the click grid starts from here"))
+                .changed()
+            {
+                self.run(e, "song.set", json!({"song": id, "beat_anchor": anchor}));
+            }
+            for (label, delta, hint) in
+                [("\u{2212}10 ms", -0.010, tr("Click 10 ms earlier")), ("+10 ms", 0.010, tr("Click 10 ms later"))]
+            {
+                if ui.small_button(label).on_hover_text(hint).clicked() {
+                    self.run(e, "song.set", json!({"song": id, "beat_anchor": song.beat_anchor + delta}));
+                }
+            }
+            let beat_len = 60.0 / song.bpm.max(1.0);
+            if ui
+                .small_button(tr("Downbeat earlier"))
+                .on_hover_text(tr("Move the accented click one beat earlier"))
+                .clicked()
+            {
+                self.run(e, "song.set", json!({"song": id, "beat_anchor": song.beat_anchor - beat_len}));
+            }
+            if ui
+                .small_button(tr("Downbeat later"))
+                .on_hover_text(tr("Move the accented click one beat later"))
+                .clicked()
+            {
+                self.run(e, "song.set", json!({"song": id, "beat_anchor": song.beat_anchor + beat_len}));
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
             ui.label(tr("Beats per bar"));
             let mut bpb = u32::from(song.beats_per_bar);
             if ui.add(egui::DragValue::new(&mut bpb).range(1..=16)).changed() {
@@ -742,6 +783,14 @@ impl ActCraftApp {
             if ui.add(egui::DragValue::new(&mut ci).range(0..=8).suffix(unit)).changed() {
                 self.run(e, "song.set", json!({"song": id, "count_in_bars": ci}));
             }
+            ui.label(tr("Click"));
+            egui::ComboBox::from_id_salt(("song-click", id)).selected_text(tr(song.click.label())).show_ui(ui, |ui| {
+                for c in actcraft_show::SongClick::ALL {
+                    if ui.selectable_label(song.click == c, tr(c.label())).clicked() {
+                        self.run(e, "song.set", json!({"song": id, "click": c.key()}));
+                    }
+                }
+            });
             ui.separator();
             ui.label(tr("Fade-out"));
             let mut fade = song.fade_out;
