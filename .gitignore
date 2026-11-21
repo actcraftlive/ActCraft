@@ -5,6 +5,10 @@
 # Evidence notebook about the reference apps: never committed.
 /plan/
 *.actcraft.tmp
+# Shared checkouts the CI gate puts next to the code (fonts and translations); not part of
+# this repository, and the assets check must not see them as unattributed files.
+/craft-fonts/
+/craft-i18n/
 # Records a local build tool writes when this folder is opened as its project.
 /craft.json
 /feed.json
