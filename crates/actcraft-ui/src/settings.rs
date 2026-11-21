@@ -69,20 +69,28 @@ impl ActCraftApp {
     fn language_row(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(tr("Language")).strong());
+            // Language names are in their own language; only "System language" is translated.
+            let shown = |value: &str, name: &str| {
+                if value == crate::i18n::SYSTEM { tr("System language").to_owned() } else { name.to_owned() }
+            };
             let choices = crate::i18n::choices();
             let current = choices
                 .iter()
                 .find(|(v, _)| *v == self.platform.language)
-                .map_or(tr("System language"), |(_, n)| tr(n));
+                .map_or_else(|| "English".to_owned(), |(v, n)| shown(v, n));
             egui::ComboBox::from_id_salt("language").width(200.0).selected_text(current).show_ui(ui, |ui| {
-                for (value, name) in choices {
-                    if ui.selectable_label(self.platform.language == value, tr(name)).clicked() {
-                        self.platform.language = value.to_owned();
+                for (value, name) in &choices {
+                    if ui.selectable_label(self.platform.language == *value, shown(value, name)).clicked() {
+                        self.platform.language.clone_from(value);
                         crate::i18n::set_language(value);
-                        self.language_request = Some(value.to_owned());
+                        self.language_request = Some(value.clone());
                     }
                 }
             });
+            ui.label(
+                RichText::new(tr("More languages: add a language file (see docs/translating.md)"))
+                    .color(self.tokens.text_dim),
+            );
         });
     }
 

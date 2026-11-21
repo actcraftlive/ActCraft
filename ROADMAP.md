@@ -88,6 +88,8 @@ all platforms.
 
 ## Languages
 
-- ✅ English and German window text (Settings > Language: system language, English or Deutsch;
-  remembered on this computer). A test fails when a window text has no German row.
+- ✅ English built in and the default; every other language is a language file in
+  `crates/actcraft-ui/i18n/` (German today). A new file adds a language with no code change
+  (`docs/translating.md`). Settings > Language picks one, or the system language; remembered on
+  this computer. A test fails when a language file lacks a window text.
 - ⬜ Status messages from the engine and command errors are still English

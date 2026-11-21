@@ -117,7 +117,7 @@ Layers 0-3 build for `wasm32-unknown-unknown` and may not depend on native crate
 
 - Every action is a command in `crates/actcraft-engine/src/commands.rs`; the window, CLI, control channel and MCP dispatch by id. A new feature adds its command first.
 - Every command survives the hostile-params sweep (`every_command_survives_hostile_params`); parsers have a fuzz sweep in `tests/it/main.rs` and a cargo-fuzz target in `fuzz/`.
-- Visible text goes through `tr()` with English as the key (craft-i18n catalogs: English and German).
+- Visible text goes through `tr()` with English as the key. English is built in and the default; every other language is a language file `crates/actcraft-ui/i18n/<code>.tsv` (craft-i18n catalog format), picked up by the build. New window text needs a row in every language file (`docs/translating.md`).
 - `unsafe` is forbidden everywhere; there is no exception module.
 - Dual-licensed dependencies taken under one allowlisted option are listed in `xtask/src/licences.rs` and `docs/licences.md`.
 - `plan/` is a gitignored notebook for evidence about the reference apps; reference product names never appear in UI, docs prose, code identifiers or release text.

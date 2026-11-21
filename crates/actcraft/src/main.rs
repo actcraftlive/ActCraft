@@ -145,7 +145,7 @@ struct Prefs {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 struct WindowPrefs {
-    /// `auto` or empty for the system language, `en` or `de`.
+    /// Empty or `en` for English, `auto` for the system language, or a language file's code.
     language: String,
 }
 
@@ -178,7 +178,8 @@ fn main() {
         .position(|a| a == "--lang")
         .and_then(|i| args.get(i + 1).cloned())
         .unwrap_or_else(|| prefs.get().window.language.clone());
-    platform.language = if language.is_empty() { "auto".to_owned() } else { language };
+    // English unless the person picked another language.
+    platform.language = if language.is_empty() { "en".to_owned() } else { language };
     actcraft_ui::set_language(&platform.language);
 
     // The interface chosen last time, or the system default when it's gone.

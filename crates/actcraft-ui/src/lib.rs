@@ -78,7 +78,8 @@ pub struct PlatformInfo {
     pub device_id: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
-    /// The window's language setting: `auto` (the system's), `en` or `de`.
+    /// The window's language setting: `en` (the default), `auto` (the system's) or a language
+    /// file's code.
     pub language: String,
 }
 

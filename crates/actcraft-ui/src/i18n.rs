@@ -1,18 +1,16 @@
-//! The window's languages: English (the source text) and German, through craft-i18n.
-//!
-//! The German catalog is `i18n/de.tsv` in this crate (craft-i18n's catalog format: context, English,
-//! translation, separated by tabs). A missing row shows the English text.
+//! The window's languages through craft-i18n. English is the source text and the default; every
+//! other language is a language file `i18n/<code>.tsv` in this crate (craft-i18n's catalog
+//! format: context, English, translation, separated by tabs). Adding a file adds the language:
+//! `build.rs` embeds whatever is there, and the file's `@id language.name` row names it in the
+//! picker. A missing row shows the English text. See `docs/translating.md`.
 
 use std::cell::Cell;
 use std::sync::LazyLock;
 
-use craft_i18n::{Embedded, I18n, Lang};
+use craft_i18n::{I18n, Lang};
 
-/// (locale, shared catalog, ActCraft's catalog).
-static CATALOGS: &Embedded = &[("de", "", include_str!("../i18n/de.tsv"))];
-
-/// The languages offered besides English.
-const OFFERED: &[&str] = &["de"];
+// `CATALOGS` and `OFFERED`, one entry per language file.
+include!(concat!(env!("OUT_DIR"), "/languages.rs"));
 
 static I18N: LazyLock<I18n> = LazyLock::new(|| I18n::new(CATALOGS, OFFERED).0);
 
@@ -20,19 +18,31 @@ thread_local! {
     static CURRENT: Cell<Lang> = const { Cell::new(Lang::EN) };
 }
 
-/// The language choices for Settings: (setting value, name shown).
-pub fn choices() -> Vec<(&'static str, &'static str)> {
-    vec![("auto", "System language"), ("en", "English"), ("de", "Deutsch")]
+/// The setting value for following the system's language.
+pub const SYSTEM: &str = "auto";
+
+/// The language choices for Settings: (setting value, name shown). English first, then each
+/// language file by code, then the system's language. Names are in their own language.
+pub fn choices() -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> =
+        I18N.languages().into_iter().map(|l| (I18N.code(l).to_owned(), I18N.name(l).to_owned())).collect();
+    out.push((SYSTEM.to_owned(), "System language".to_owned()));
+    out
 }
 
-/// Switches the window's language: `auto` follows the system, `en` or `de` pick one; anything
-/// else is English.
+/// Switches the window's language: `auto` follows the system, a code picks that language file;
+/// empty or unknown is English (the default).
 pub fn set_language(setting: &str) {
     let lang = match setting {
-        "auto" | "" => I18N.system_lang(),
+        SYSTEM => I18N.system_lang(),
         code => I18N.from_code(code).unwrap_or(Lang::EN),
     };
     CURRENT.with(|c| c.set(lang));
+}
+
+/// The setting value of the language in use (`en` or a language file's code).
+pub fn current_code() -> String {
+    I18N.code(CURRENT.with(Cell::get)).to_owned()
 }
 
 /// Looks English text up in the current language.
@@ -152,40 +162,72 @@ mod tests {
         ] {
             out.push(s.to_owned());
         }
-        out.extend(choices().iter().map(|(_, n)| (*n).to_owned()));
+        out.push("System language".to_owned());
         out
     }
 
+    /// Every language file in `i18n/`.
+    fn files() -> Vec<Lang> {
+        I18N.languages().into_iter().filter(|&l| l != Lang::EN).collect()
+    }
+
     #[test]
-    fn german_catalog_parses_cleanly() {
+    fn language_files_parse_cleanly() {
         let problems = I18N.check_all();
         assert!(problems.is_empty(), "{problems:#?}");
     }
 
     #[test]
-    fn every_window_text_has_a_german_translation() {
-        set_language("de");
-        let mut missing: Vec<String> = literals()
-            .into_iter()
-            .chain(dynamic())
-            .filter(|s| !s.trim().is_empty() && s != "?")
-            // Names that read the same in both languages are listed in the catalog too, so a
-            // missing row is always a gap.
-            .filter(|s| I18N.from_code("de").is_some_and(|de| I18N.get(de, "", s).is_none()))
-            .collect();
-        missing.sort();
-        missing.dedup();
-        set_language("en");
-        assert!(missing.is_empty(), "{} texts have no German row:\n{}", missing.len(), missing.join("\n"));
+    fn every_language_file_is_offered_and_named() {
+        assert_eq!(files().len(), OFFERED.len(), "each i18n/<code>.tsv is a language");
+        for lang in files() {
+            assert_ne!(
+                I18N.name(lang),
+                I18N.code(lang),
+                "i18n/{}.tsv needs an `@id language.name` row",
+                I18N.code(lang)
+            );
+        }
+        let codes: Vec<String> = choices().into_iter().map(|(c, _)| c).collect();
+        assert_eq!(codes.first().map(String::as_str), Some("en"), "English comes first");
+        assert!(codes.iter().any(|c| c == "de"));
+        assert_eq!(codes.last().map(String::as_str), Some(SYSTEM));
     }
 
     #[test]
-    fn switching_language_changes_the_text() {
+    fn every_window_text_is_in_every_language_file() {
+        let texts: Vec<String> =
+            literals().into_iter().chain(dynamic()).filter(|s| !s.trim().is_empty() && s != "?").collect();
+        let mut report = Vec::new();
+        for lang in files() {
+            // Names that read the same in both languages are listed too, so a missing row is a gap.
+            let mut missing: Vec<&str> =
+                texts.iter().map(String::as_str).filter(|s| I18N.get(lang, "", s).is_none()).collect();
+            missing.sort_unstable();
+            missing.dedup();
+            if !missing.is_empty() {
+                report.push(format!(
+                    "i18n/{}.tsv lacks {} rows:\n{}",
+                    I18N.code(lang),
+                    missing.len(),
+                    missing.join("\n")
+                ));
+            }
+        }
+        assert!(report.is_empty(), "{}", report.join("\n\n"));
+    }
+
+    #[test]
+    fn english_is_the_default_and_switching_changes_the_text() {
+        assert_eq!(current_code(), "en");
+        assert_eq!(tr("Play"), "Play");
         set_language("de");
+        assert_eq!(current_code(), "de");
         assert_eq!(tr("Play"), "Abspielen");
-        set_language("en");
+        set_language("");
         assert_eq!(tr("Play"), "Play");
         set_language("xx");
         assert_eq!(tr("Play"), "Play");
+        assert_eq!(current_code(), "en");
     }
 }
