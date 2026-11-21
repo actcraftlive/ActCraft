@@ -98,4 +98,5 @@ all platforms.
   this computer. A test fails when a language file lacks a window text.
 - ✅ Status messages (show opened, songs added, tempo detected, audio errors...) in the window's
   language; the CLI and the control channel keep the English text
-- ⬜ Command error texts (wrong or missing values) are still English
+- 🔶 Command errors show in the window without their kind and translated; errors that carry a
+  value (a file name, a number) are still English

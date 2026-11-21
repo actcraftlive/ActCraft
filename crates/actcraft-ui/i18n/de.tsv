@@ -402,3 +402,43 @@
 	Drag to move it in the set	Ziehen, um ihn im Set zu verschieben
 	Snap to beat	Am Schlag einrasten
 	Clicking the waveform jumps to the nearest beat of the grid	Ein Klick in die Wellenform springt zum nächsten Schlag des Rasters
+	`colour` must look like #rrggbb	`colour` muss wie #rrggbb aussehen
+	`end` must be after `start`	`end` muss nach `start` liegen
+	`find` must not be empty	`find` darf nicht leer sein
+	`path` is required for a show that was never saved	Für eine nie gespeicherte Show ist `path` nötig
+	`rules` must be a list	`rules` muss eine Liste sein
+	`to` must be after `from`	`to` muss nach `from` liegen
+	a crossfade is already running; request ignored	Es läuft schon eine Überblendung; Anfrage ignoriert
+	a region must end after it starts	Eine Region muss nach ihrem Anfang enden
+	a smart playlist has no sets	Eine intelligente Playlist hat keine Sets
+	bad group	Ungültige Gruppe
+	bad song id	Ungültige Song-ID
+	deleting a playlist needs confirm: true	Zum Löschen einer Playlist ist confirm: true nötig
+	deleting a song needs confirm: true	Zum Löschen eines Songs ist confirm: true nötig
+	give 1 to 32 rules	1 bis 32 Regeln angeben
+	load the song first	Erst den Song laden
+	no audio output is running	Kein Audioausgang läuft
+	no song chosen	Kein Song gewählt
+	no song in that direction	In dieser Richtung gibt es keinen Song
+	no such bus	Diesen Bus gibt es nicht
+	no such group	Diese Gruppe gibt es nicht
+	no such playlist	Diese Playlist gibt es nicht
+	no such region	Diese Region gibt es nicht
+	no such set	Dieses Set gibt es nicht
+	no such song	Diesen Song gibt es nicht
+	no such track	Diese Spur gibt es nicht
+	nothing has been played yet	Es wurde noch nichts gespielt
+	stop playback before loading another song	Erst die Wiedergabe stoppen, dann einen anderen Song laden
+	stop playback before loading another song, or crossfade to it	Erst die Wiedergabe stoppen oder zum anderen Song überblenden
+	that lyrics file is too large	Diese Songtext-Datei ist zu groß
+	that song's audio is still loading; try again in a moment	Das Audio dieses Songs lädt noch; gleich noch einmal versuchen
+	the audio output is busy; try again	Der Audioausgang ist beschäftigt; noch einmal versuchen
+	the file has no markers (ActCraft reads markers from WAV files)	Die Datei hat keine Marker (ActCraft liest Marker aus WAV-Dateien)
+	the lyrics have no such line	Diese Zeile gibt es im Songtext nicht
+	the lyrics would get too long	Der Songtext würde zu lang
+	the package has no show in it	Im Paket ist keine Show
+	the package has two files with the same name	Das Paket enthält zwei Dateien mit demselben Namen
+	the playlist has no sets	Die Playlist hat keine Sets
+	the show has unsaved changes; save it first or pass discard: true	Die Show hat ungespeicherte Änderungen; erst speichern oder discard: true angeben
+	the show's files are larger than a package can hold (2 GB)	Die Dateien der Show sind größer, als ein Paket fassen kann (2 GB)
+	the track has no audio file	Die Spur hat keine Audiodatei

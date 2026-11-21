@@ -97,6 +97,8 @@ mod tests {
         ];
         let mut out = scan(&window, &["tr("]);
         out.extend(scan(&engine, &["say(", "say_error(", "say_with(", "say_error_with("]));
+        // Command errors with a fixed text are shown (and translated) without their kind.
+        out.extend(scan(&engine, &["invalid(", "failed("]));
         out
     }
 
@@ -117,6 +119,15 @@ mod tests {
         assert_eq!(mode.as_deref(), Some("Metronom: Nur optisch"));
         // The English text stays for the CLI and the control channel.
         assert_eq!(e.messages.back().map(|m| m.text.as_str()), Some("Metronome: Visual only"));
+        // A command error shows its message alone, translated; the full text stays English.
+        assert!(e.run("region.leave_loop", &serde_json::Value::Null).is_err());
+        let error = e.messages.back().cloned();
+        assert_eq!(error.as_ref().map(|m| m.text.as_str()), Some("failed: no audio output is running"));
+        assert_eq!(error.as_ref().map(crate::message_text).as_deref(), Some("no audio output is running"));
+        set_language("de");
+        let shown = error.as_ref().map(crate::message_text);
+        set_language("en");
+        assert_eq!(shown.as_deref(), Some("Kein Audioausgang läuft"));
     }
 
     /// Reads a Rust string literal body up to its closing quote: (text, bytes used).
