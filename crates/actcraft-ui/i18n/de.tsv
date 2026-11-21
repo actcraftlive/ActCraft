@@ -370,3 +370,13 @@
 	Track not loaded (its file could not be read): {file}	Spur nicht geladen (ihre Datei war nicht lesbar): {file}
 	Add your backing tracks, or drag audio files onto this window. Then press Play or Space.	Füge deine Backing-Tracks hinzu oder ziehe Audiodateien in dieses Fenster. Dann Abspielen oder Leertaste drücken.
 	This song has no tracks yet. Use “Add tracks…” or drop audio files here.	Dieser Song hat noch keine Spuren. „Spuren hinzufügen…“ verwenden oder Audiodateien hier ablegen.
+	Find	Suchen
+	Replace with	Ersetzen durch
+	Match case	Groß/Klein beachten
+	Find next	Weitersuchen
+	Replace	Ersetzen
+	Replace all	Alle ersetzen
+	Replace the selected match and find the next	Markierten Treffer ersetzen und den nächsten suchen
+	{count} found	{count} gefunden
+	Replace in lyrics	Im Songtext ersetzen
+	View	Ansehen

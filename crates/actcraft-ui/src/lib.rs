@@ -168,6 +168,17 @@ impl ActCraftApp {
         self.centre_tab = CentreTab::Lyrics;
     }
 
+    /// Opens the lyrics editor for the current song (`--edit-lyrics`, for screenshots).
+    pub fn edit_lyrics(&mut self) {
+        self.centre_tab = CentreTab::Lyrics;
+        let e = self.lock();
+        let current = e.current().map(|s| (s.id, s.lyrics.clone()));
+        drop(e);
+        if let Some((song, text)) = current {
+            self.lyrics_edit = Some(lyrics_view::LyricsEdit { song, text, ..Default::default() });
+        }
+    }
+
     /// Opens the Settings window (also used by `--open-settings` for screenshots).
     pub fn open_settings(&mut self) {
         self.settings_open = true;

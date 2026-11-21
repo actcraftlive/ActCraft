@@ -165,6 +165,14 @@ pub fn all() -> Vec<Command<Engine>> {
             lyrics_stamp_line,
         )),
         with_songs(cmd(
+            "lyrics.replace",
+            "Replace in lyrics",
+            "",
+            None,
+            "{song?: id, find: text, replace?: text, match_case?: bool}",
+            lyrics_replace,
+        )),
+        with_songs(cmd(
             "song.detect_bpm",
             "Detect tempo and first beat",
             "Song/Detect Tempo and First Beat",
@@ -821,6 +829,29 @@ fn lyrics_stamp_line(e: &mut Engine, prm: &Value) -> CommandResult {
     song.lyrics = updated;
     e.mark_changed();
     Ok(json!({"line": line, "seconds": seconds}))
+}
+
+/// Replaces text everywhere in a song's lyrics.
+fn lyrics_replace(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_param(e, prm)?;
+    let find = p::str_max(prm, "find", MAX_TEXT)?;
+    if find.is_empty() {
+        return Err(invalid("`find` must not be empty"));
+    }
+    let replacement = p::opt_str_max(prm, "replace", MAX_TEXT)?.unwrap_or("");
+    let match_case = p::opt_bool(prm, "match_case")?.unwrap_or(false);
+    let Some(song) = e.show.song(id) else { return Err(invalid("no such song")) };
+    let (updated, count) = actcraft_lyrics::replace_all(&song.lyrics, find, replacement, match_case);
+    if updated.len() > actcraft_show::limits::MAX_LYRICS {
+        return Err(failed("the lyrics would get too long"));
+    }
+    if count > 0 {
+        if let Some(song) = e.show.song_mut(id) {
+            song.lyrics = updated;
+        }
+        e.mark_changed();
+    }
+    Ok(json!({"replaced": count}))
 }
 
 fn library_set_filename_format(e: &mut Engine, prm: &Value) -> CommandResult {

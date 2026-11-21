@@ -15,11 +15,41 @@ use crate::{ActCraftApp, tr};
 pub const LYRICS_EXTENSIONS: &[&str] = &["txt", "cho", "chopro", "chordpro", "crd", "pro", "lrc"];
 
 /// Editing state of the lyrics editor.
+#[derive(Default)]
 pub(crate) struct LyricsEdit {
     pub song: u64,
     pub text: String,
     /// Last known cursor/selection as character indexes (start, end).
     pub selection: (usize, usize),
+    /// Find and replace.
+    pub find: String,
+    pub replace_with: String,
+    pub match_case: bool,
+    /// A selection to put into the text box on the next frame (a found match).
+    pub select: Option<(usize, usize)>,
+}
+
+/// The next match after the selection (wrapping round), as a character range.
+fn next_match(edit: &LyricsEdit) -> Option<(usize, usize)> {
+    let found = lyrics::find_all(&edit.text, &edit.find, edit.match_case);
+    let after = edit.selection.0.max(edit.selection.1);
+    found.iter().copied().find(|&(s, _)| s >= after).or_else(|| found.first().copied())
+}
+
+/// Replaces the selected match (if the selection is one) and selects the next.
+fn replace_current(edit: &mut LyricsEdit) {
+    let (a, b) = (edit.selection.0.min(edit.selection.1), edit.selection.0.max(edit.selection.1));
+    let found = lyrics::find_all(&edit.text, &edit.find, edit.match_case);
+    if found.contains(&(a, b)) {
+        let (ba, bb) = (byte_at(&edit.text, a), byte_at(&edit.text, b));
+        edit.text.replace_range(ba..bb, &edit.replace_with);
+        let end = a + edit.replace_with.chars().count();
+        edit.selection = (end, end);
+    }
+    edit.select = next_match(edit);
+    if let Some(s) = edit.select {
+        edit.selection = s;
+    }
 }
 
 fn byte_at(text: &str, char_index: usize) -> usize {
@@ -57,11 +87,12 @@ impl ActCraftApp {
         let t = self.tokens;
         let editing = self.lyrics_edit.as_ref().is_some_and(|l| l.song == song.id);
         ui.horizontal_wrapped(|ui| {
-            if ui.selectable_label(!editing, tr("Show")).clicked() && editing {
+            if ui.selectable_label(!editing, tr("View")).clicked() && editing {
                 self.finish_lyrics_edit(e);
             }
             if ui.selectable_label(editing, tr("Edit")).clicked() && !editing {
-                self.lyrics_edit = Some(LyricsEdit { song: song.id, text: song.lyrics.clone(), selection: (0, 0) });
+                self.lyrics_edit =
+                    Some(LyricsEdit { song: song.id, text: song.lyrics.clone(), ..LyricsEdit::default() });
             }
             ui.separator();
             ui.label(tr("Transpose"));
@@ -173,6 +204,48 @@ impl ActCraftApp {
             }
         });
         let id = egui::Id::unique(("lyrics-editor", edit.song));
+        // Find and replace.
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("Find"));
+            let find = ui.add(egui::TextEdit::singleline(&mut edit.find).desired_width(160.0));
+            let enter = find.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            ui.label(tr("Replace with"));
+            ui.add(egui::TextEdit::singleline(&mut edit.replace_with).desired_width(160.0));
+            ui.checkbox(&mut edit.match_case, tr("Match case"));
+            let count = lyrics::find_all(&edit.text, &edit.find, edit.match_case).len();
+            let has = count > 0;
+            if (ui.add_enabled(has, egui::Button::new(tr("Find next"))).clicked() || (enter && has))
+                && let Some(s) = next_match(edit)
+            {
+                edit.select = Some(s);
+                edit.selection = s;
+            }
+            if ui
+                .add_enabled(has, egui::Button::new(tr("Replace")))
+                .on_hover_text(tr("Replace the selected match and find the next"))
+                .clicked()
+            {
+                replace_current(edit);
+            }
+            if ui.add_enabled(has, egui::Button::new(tr("Replace all"))).clicked() {
+                let (text, _) = lyrics::replace_all(&edit.text, &edit.find, &edit.replace_with, edit.match_case);
+                edit.text = text;
+                edit.selection = (0, 0);
+            }
+            if !edit.find.is_empty() {
+                let found = actcraft_engine::fill(tr("{count} found"), &[("count", &count.to_string())]);
+                ui.label(RichText::new(found).color(if has { t.text_dim } else { t.warning }));
+            }
+        });
+        if let Some((a, b)) = edit.select.take() {
+            let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                egui::text::CCursor::new(a),
+                egui::text::CCursor::new(b),
+            )));
+            state.store(ui.ctx(), id);
+            ui.ctx().memory_mut(|m| m.request_focus(id));
+        }
         let output = egui::TextEdit::multiline(&mut edit.text)
             .id(id)
             .font(egui::TextStyle::Monospace)
@@ -330,12 +403,39 @@ mod tests {
 
     #[test]
     fn formatting_wraps_the_selection() {
-        let mut e = LyricsEdit { song: 1, text: "The road is long".into(), selection: (4, 8) };
+        let mut e = LyricsEdit { song: 1, text: "The road is long".into(), selection: (4, 8), ..LyricsEdit::default() };
         wrap_selection(&mut e, "**", "**");
         assert_eq!(e.text, "The **road** is long");
-        let mut h = LyricsEdit { song: 1, text: "one\n## two".into(), selection: (6, 6) };
+        let mut h = LyricsEdit { song: 1, text: "one\n## two".into(), selection: (6, 6), ..LyricsEdit::default() };
         prefix_line(&mut h, "# ");
         assert_eq!(h.text, "one\n# two");
         assert_eq!(cursor_line(&h), 1);
+    }
+
+    #[test]
+    fn find_next_wraps_and_replace_moves_on() {
+        let mut e = LyricsEdit {
+            song: 1,
+            text: "road, Road, road".into(),
+            find: "road".into(),
+            replace_with: "way".into(),
+            ..LyricsEdit::default()
+        };
+        assert_eq!(next_match(&e), Some((0, 4)));
+        e.selection = (0, 4);
+        assert_eq!(next_match(&e), Some((6, 10)));
+        e.selection = (16, 16);
+        assert_eq!(next_match(&e), Some((0, 4)), "wraps round to the first");
+        // The selection isn't a match: replace only finds the next one.
+        e.selection = (1, 2);
+        replace_current(&mut e);
+        assert_eq!(e.text, "road, Road, road");
+        assert_eq!(e.selection, (6, 10));
+        replace_current(&mut e);
+        assert_eq!(e.text, "road, way, road");
+        assert_eq!(e.selection, (11, 15));
+        e.match_case = true;
+        e.find = "Road".into();
+        assert_eq!(next_match(&e), None);
     }
 }

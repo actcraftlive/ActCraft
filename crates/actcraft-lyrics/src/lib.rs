@@ -179,6 +179,55 @@ pub fn stamp_line(source: &str, index: usize, seconds: f64) -> Option<String> {
     Some(lines.join("\n"))
 }
 
+/// Most matches [`find_all`] reports (and [`replace_all`] replaces) in one call.
+pub const MAX_MATCHES: usize = 10_000;
+
+fn same_char(a: char, b: char, match_case: bool) -> bool {
+    a == b || (!match_case && a.to_lowercase().eq(b.to_lowercase()))
+}
+
+/// Every place `needle` occurs in `text`, as character ranges `(start, end)`, left to right and
+/// not overlapping; at most [`MAX_MATCHES`]. An empty needle finds nothing.
+pub fn find_all(text: &str, needle: &str, match_case: bool) -> Vec<(usize, usize)> {
+    let hay: Vec<char> = text.chars().collect();
+    let pin: Vec<char> = needle.chars().collect();
+    let mut out = Vec::new();
+    if pin.is_empty() || pin.len() > hay.len() {
+        return out;
+    }
+    let mut i = 0;
+    while i + pin.len() <= hay.len() && out.len() < MAX_MATCHES {
+        let hit =
+            hay.get(i..i + pin.len()).is_some_and(|w| w.iter().zip(&pin).all(|(&a, &b)| same_char(a, b, match_case)));
+        if hit {
+            out.push((i, i + pin.len()));
+            i += pin.len();
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `text` with every occurrence of `needle` replaced by `replacement`, and how many were replaced
+/// (at most [`MAX_MATCHES`]; later ones stay).
+pub fn replace_all(text: &str, needle: &str, replacement: &str, match_case: bool) -> (String, usize) {
+    let found = find_all(text, needle, match_case);
+    if found.is_empty() {
+        return (text.to_owned(), 0);
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    for &(start, end) in &found {
+        out.extend(chars.get(at..start).unwrap_or(&[]));
+        out.push_str(replacement);
+        at = end;
+    }
+    out.extend(chars.get(at..).unwrap_or(&[]));
+    (out, found.len())
+}
+
 /// Removes a leading timecode from a line, if any.
 fn strip_timecode(line: &str) -> &str {
     if let Some(rest) = line.strip_prefix('[')
@@ -446,5 +495,21 @@ mod tests {
         assert_eq!(stamp_line(src, 1, 61.0).as_deref(), Some("one\n[01:01.00]two"));
         assert_eq!(stamp_line(src, 5, 1.0), None);
         assert_eq!(decode_text(b"\xFF\xFEa\0\r\0\n\0b\0"), "a\nb");
+    }
+
+    #[test]
+    fn find_and_replace_by_characters_with_or_without_case() {
+        let text = "Über die Straße, über den Fluss";
+        assert_eq!(find_all(text, "über", false), vec![(0, 4), (17, 21)]);
+        assert_eq!(find_all(text, "über", true), vec![(17, 21)]);
+        assert!(find_all(text, "", false).is_empty());
+        assert_eq!(find_all("aaaa", "aa", true), vec![(0, 2), (2, 4)]);
+        let (out, n) = replace_all("The [Am]road, the road", "road", "way", false);
+        assert_eq!((out.as_str(), n), ("The [Am]way, the way", 2));
+        let (out, n) = replace_all("abc", "x", "y", false);
+        assert_eq!((out.as_str(), n), ("abc", 0));
+        // The replacement is never searched again.
+        let (out, n) = replace_all("a a", "a", "aa", true);
+        assert_eq!((out.as_str(), n), ("aa aa", 2));
     }
 }

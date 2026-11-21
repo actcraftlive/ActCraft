@@ -323,3 +323,18 @@ fn message_templates_fill_once_and_keep_unknown_braces() {
     assert_eq!(m.as_ref().map(|m| m.text.as_str()), Some("Opened show with 2 songs"));
     assert_eq!(m.as_ref().map(|m| m.template.as_str()), Some("Opened show with {count} songs"));
 }
+
+#[test]
+fn lyrics_replace_changes_every_match_and_marks_the_show() {
+    let mut e = engine();
+    let id = e.run("song.add", &json!({"title": "A"})).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    assert!(e.run("song.set", &json!({"song": id, "lyrics": "The [Am]road\nthe Road"})).is_ok());
+    e.dirty = false;
+    let r = e.run("lyrics.replace", &json!({"song": id, "find": "road", "replace": "way"}));
+    assert_eq!(r.ok().map(|v| v["replaced"].clone()), Some(json!(2)));
+    assert_eq!(e.show.song(id).map(|s| s.lyrics.as_str()), Some("The [Am]way\nthe way"));
+    assert!(e.dirty);
+    let r = e.run("lyrics.replace", &json!({"song": id, "find": "WAY", "replace": "x", "match_case": true}));
+    assert_eq!(r.ok().map(|v| v["replaced"].clone()), Some(json!(0)));
+    assert!(e.run("lyrics.replace", &json!({"song": id, "find": ""})).is_err());
+}
