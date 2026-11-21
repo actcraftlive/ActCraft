@@ -69,6 +69,22 @@ pub fn all() -> Vec<Command<Engine>> {
             show_save,
         ),
         cmd("show.save_as", "Save show as", "File/Save Show As…", Some("Ctrl+Shift+S"), "{path: text}", show_save_as),
+        cmd(
+            "show.export_package",
+            "Export show package",
+            "File/Export Show Package…",
+            None,
+            "{path: text} (.actcraftpack: the show and every audio and MIDI file it uses)",
+            crate::package_commands::show_export_package,
+        ),
+        cmd(
+            "show.open_package",
+            "Open show package",
+            "File/Open Show Package…",
+            None,
+            "{path: text, folder?: text (where the files go; default: a folder beside the package), discard?: bool}",
+            crate::package_commands::show_open_package,
+        ),
         cmd("show.info", "Show details", "", None, "none", show_info),
         cmd("show.rename", "Rename show", "File/Rename Show…", None, "{name: text}", show_rename),
         // Songs
@@ -517,14 +533,14 @@ fn app_messages(e: &mut Engine, _: &Value) -> CommandResult {
 
 // ---- Show ----
 
-fn check_discard(e: &Engine, prm: &Value) -> Result<(), CommandError> {
+pub(crate) fn check_discard(e: &Engine, prm: &Value) -> Result<(), CommandError> {
     if e.dirty && !p::opt_bool(prm, "discard")?.unwrap_or(false) {
         return Err(failed("the show has unsaved changes; save it first or pass discard: true"));
     }
     Ok(())
 }
 
-fn replace_show(e: &mut Engine, show: Show, path: Option<String>) {
+pub(crate) fn replace_show(e: &mut Engine, show: Show, path: Option<String>) {
     e.forget_audio_state();
     e.show = show;
     e.show_path = path;

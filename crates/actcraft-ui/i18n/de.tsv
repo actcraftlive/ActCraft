@@ -391,3 +391,11 @@
 	Full screen	Vollbild
 	Leave full screen	Vollbild beenden
 	This song has no lyrics.	Dieser Song hat keinen Songtext.
+	ActCraft show package	ActCraft-Show-Paket
+	Export Show Package…	Show-Paket exportieren…
+	Export show package	Show-Paket exportieren
+	Open Show Package…	Show-Paket öffnen…
+	Open show package	Show-Paket öffnen
+	Packed the show and {count} files into {file}	Show und {count} Dateien in {file} gepackt
+	Packed the show into {file}; {missing} files could not be read and are not in it	Show in {file} gepackt; {missing} Dateien waren nicht lesbar und fehlen darin
+	Opened the package: {songs} songs, files in {folder}	Paket geöffnet: {songs} Songs, Dateien in {folder}

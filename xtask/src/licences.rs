@@ -44,6 +44,8 @@ const ALLOWED: &[&str] = &[
 const ELECTED: &[(&str, &str, &str)] = &[
     // egui's epaint needs it; we use it under Apache-2.0, never GPL-2.0.
     ("self_cell", "Apache-2.0 OR GPL-2.0-only", "Apache-2.0"),
+    // The zip crate (through craft-zip, for show packages) needs it; used under Apache-2.0.
+    ("constant_time_eq", "CC0-1.0 OR MIT-0 OR Apache-2.0", "Apache-2.0"),
 ];
 
 /// Platforms we ship on (and the wasm build of the engine crates).

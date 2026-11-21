@@ -27,6 +27,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod package_commands;
 pub mod region_commands;
 pub mod services;
 

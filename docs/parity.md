@@ -56,7 +56,7 @@ Statuses describe what ran in tests, not what is designed.
 | A4.9 | Configurable double-tap | `queue.set_double_tap`, `queue.double_tap` | done |
 | A4.10 | History of 500 with done marker; playlist from a date | `history.list/mark_done/playlist_from_date` | done |
 | A4.11 | Songs from audio files, filename format, duplicates, alphabetical import | `song.import_files`, `song.duplicates` | done |
-| A4.12 | Export song/playlist/archive, backup and restore | - | planned M1 |
+| A4.12 | Export song/playlist/archive, backup and restore | `show.export_package`, `show.open_package` | partial: whole show with its files as one package (backup, move); single song or playlist export open |
 
 ## Later milestones
 

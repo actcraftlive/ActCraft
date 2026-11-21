@@ -45,7 +45,9 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - 🔶 Beat grid with snap (in the engine, no grid display yet)
 - ⬜ MIDI file per song in sync (with M3)
 - ⬜ Effect plugins per track and bus (format chosen after its licence check)
-- ⬜ Export a song, playlist or archive; backup and restore
+- 🔶 Show package (`.actcraftpack`): the show and all its audio and MIDI files in one file, for
+  backup or another computer; opening it unpacks the files beside it (done). Export of a single
+  song or playlist to do
 - ⬜ Drag-and-drop reorder in sets (buttons work today)
 
 ## M2 Lyrics, regions, sheet music 🔶 in progress

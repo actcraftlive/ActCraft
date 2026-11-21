@@ -24,6 +24,11 @@ pub trait Services: Send {
     fn now(&self) -> DateTime<FixedOffset>;
     /// A reader background jobs can use, with the same access rules as `read_file`.
     fn file_reader(&self) -> FileReader;
+    /// Makes a folder (its parent must exist); an existing folder is fine. Platforms without
+    /// folders (memory) have nothing to do.
+    fn create_folder(&mut self, _path: &str) -> Result<(), String> {
+        Ok(())
+    }
     /// Runs a job off the caller's thread where the platform has threads; inline otherwise.
     fn spawn(&self, job: Job) {
         job();
@@ -58,6 +63,20 @@ impl Services for MemoryServices {
         let files = self.files.clone();
         Arc::new(move |path: &str| files.get(path).cloned().ok_or_else(|| format!("no file {path}")))
     }
+}
+
+/// The folder part of a path (before the last `/` or `\`), empty for a bare file name.
+pub fn parent(path: &str) -> &str {
+    path.rfind(['/', '\\']).map_or("", |i| &path[..i])
+}
+
+/// `name` inside `folder`, joined with the separator `folder` already uses.
+pub fn join(folder: &str, name: &str) -> String {
+    if folder.is_empty() {
+        return name.to_owned();
+    }
+    let sep = if folder.contains('\\') && !folder.contains('/') { '\\' } else { '/' };
+    format!("{}{sep}{name}", folder.trim_end_matches(['/', '\\']))
 }
 
 /// The file name part of a path (after the last `/` or `\`).
