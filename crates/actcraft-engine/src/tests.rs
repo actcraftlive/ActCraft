@@ -310,3 +310,16 @@ fn playback_runs_through_the_renderer() {
     assert!(!e.status.playing, "stops at the song end");
     assert_eq!(e.show.history.len(), 1);
 }
+
+#[test]
+fn message_templates_fill_once_and_keep_unknown_braces() {
+    assert_eq!(crate::fill("Loaded {title}", &[("title", "Night Drive")]), "Loaded Night Drive");
+    // A value is never read again, so braces in it stay as they are.
+    assert_eq!(crate::fill("{a} and {b}", &[("a", "{b}"), ("b", "x")]), "{b} and x");
+    assert_eq!(crate::fill("{unknown} {", &[("a", "1")]), "{unknown} {");
+    let mut e = engine();
+    e.say_with("Opened show with {count} songs", vec![crate::MessageArg::plain("count", 2)]);
+    let m = e.messages.back().cloned();
+    assert_eq!(m.as_ref().map(|m| m.text.as_str()), Some("Opened show with 2 songs"));
+    assert_eq!(m.as_ref().map(|m| m.template.as_str()), Some("Opened show with {count} songs"));
+}

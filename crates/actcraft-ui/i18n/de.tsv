@@ -349,3 +349,24 @@
 	smart	intelligent
 	muted	stumm
 	More languages: add a language file (see docs/translating.md)	Weitere Sprachen: eine Sprachdatei hinzufügen (siehe docs/translating.md)
+	Added {added} songs, skipped {skipped}	{added} Songs hinzugefügt, {skipped} übersprungen
+	Audio: {device}	Audio: {device}
+	Click for this song: {mode}	Klick für diesen Song: {mode}
+	Could not open that audio interface: {error}	Dieses Audio-Interface ließ sich nicht öffnen: {error}
+	Imported lyrics: {lines} lines	Songtext importiert: {lines} Zeilen
+	Imported {count} regions from markers	{count} Regionen aus Markern importiert
+	Loaded an untitled song	Song ohne Titel geladen
+	Loaded {title}	{title} geladen
+	Loading audio; playback starts when it is ready	Audio wird geladen; die Wiedergabe startet, sobald es bereit ist
+	Metronome off	Metronom aus
+	Metronome: {mode}	Metronom: {mode}
+	No audio output: {error}	Kein Audioausgang: {error}
+	Opened show with {count} songs	Show mit {count} Songs geöffnet
+	Remote control is off: {error}	Fernsteuerung ist aus: {error}
+	Show saved	Show gespeichert
+	{group} muted	{group} stumm
+	{group} unmuted	{group} wieder hörbar
+	{title}: {bpm} BPM, first beat at {seconds} s (detected; adjust under the song details)	{title}: {bpm} BPM, erster Schlag bei {seconds} s (erkannt; in den Songdetails anpassbar)
+	Track not loaded (its file could not be read): {file}	Spur nicht geladen (ihre Datei war nicht lesbar): {file}
+	Add your backing tracks, or drag audio files onto this window. Then press Play or Space.	Füge deine Backing-Tracks hinzu oder ziehe Audiodateien in dieses Fenster. Dann Abspielen oder Leertaste drücken.
+	This song has no tracks yet. Use “Add tracks…” or drop audio files here.	Dieser Song hat noch keine Spuren. „Spuren hinzufügen…“ verwenden oder Audiodateien hier ablegen.

@@ -57,26 +57,65 @@ mod tests {
     use actcraft_engine::registry;
     use actcraft_show::{MetronomeMode, SongClick};
 
-    /// The English text of every `tr("…")` call in the window's source.
+    /// Every string literal right after one of `calls` in `sources`.
+    fn scan(sources: &[&str], calls: &[&str]) -> Vec<String> {
+        let mut out = Vec::new();
+        for src in sources {
+            for call in calls {
+                let mut rest = *src;
+                while let Some(at) = rest.find(call) {
+                    let after = rest[at + call.len()..].trim_start();
+                    let Some(body) = after.strip_prefix('"') else {
+                        rest = after;
+                        continue;
+                    };
+                    let (text, used) = read_literal(body);
+                    out.push(text);
+                    rest = &body[used..];
+                }
+            }
+        }
+        out
+    }
+
+    /// The English text of every `tr("…")` call in the window's source, and of every message the
+    /// engine and the host show (`say("…")`, `say_with("…", …)` and the error forms).
     fn literals() -> Vec<String> {
-        let sources = [
+        let window = [
             include_str!("lib.rs"),
             include_str!("flows.rs"),
             include_str!("settings.rs"),
             include_str!("lyrics_view.rs"),
             include_str!("regions_view.rs"),
         ];
-        let mut out = Vec::new();
-        for src in sources {
-            let mut rest = src;
-            while let Some(at) = rest.find("tr(\"") {
-                let after = &rest[at + 4..];
-                let (text, used) = read_literal(after);
-                out.push(text);
-                rest = &after[used..];
-            }
-        }
+        let engine = [
+            include_str!("../../actcraft-engine/src/lib.rs"),
+            include_str!("../../actcraft-engine/src/commands.rs"),
+            include_str!("../../actcraft-engine/src/region_commands.rs"),
+            include_str!("../../actcraft/src/main.rs"),
+        ];
+        let mut out = scan(&window, &["tr("]);
+        out.extend(scan(&engine, &["say(", "say_error(", "say_with(", "say_error_with("]));
         out
+    }
+
+    #[test]
+    fn engine_messages_show_in_the_window_language() {
+        let mut e = actcraft_engine::Engine::new(Box::new(actcraft_engine::services::MemoryServices::default()));
+        e.say_with("Opened show with {count} songs", vec![actcraft_engine::MessageArg::plain("count", 3)]);
+        e.say_with("Metronome: {mode}", vec![actcraft_engine::MessageArg::word("mode", "Visual only")]);
+        let opened = e.messages.get(e.messages.len() - 2).map(crate::message_text);
+        let mode = e.messages.back().map(crate::message_text);
+        assert_eq!(opened.as_deref(), Some("Opened show with 3 songs"));
+        assert_eq!(mode.as_deref(), Some("Metronome: Visual only"));
+        set_language("de");
+        let opened = e.messages.get(e.messages.len() - 2).map(crate::message_text);
+        let mode = e.messages.back().map(crate::message_text);
+        set_language("en");
+        assert_eq!(opened.as_deref(), Some("Show mit 3 Songs geöffnet"));
+        assert_eq!(mode.as_deref(), Some("Metronom: Nur optisch"));
+        // The English text stays for the CLI and the control channel.
+        assert_eq!(e.messages.back().map(|m| m.text.as_str()), Some("Metronome: Visual only"));
     }
 
     /// Reads a Rust string literal body up to its closing quote: (text, bytes used).
@@ -163,6 +202,10 @@ mod tests {
             out.push(s.to_owned());
         }
         out.push("System language".to_owned());
+        // Messages whose template is chosen by an `if`.
+        for s in ["{group} muted", "{group} unmuted", "Metronome on", "Metronome off"] {
+            out.push(s.to_owned());
+        }
         out
     }
 

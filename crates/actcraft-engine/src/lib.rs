@@ -43,8 +43,59 @@ pub const MAX_CACHED_CLIPS: usize = 256;
 /// One message for the person (shown and announced).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
+    /// The message in English, values filled in (for the CLI, logs and the control channel).
     pub text: String,
+    /// The English template with `{name}` placeholders; the window translates it and fills in
+    /// `args`. Equal to `text` for a message without values.
+    pub template: String,
+    pub args: Vec<MessageArg>,
     pub error: bool,
+}
+
+/// A value put into a message's template.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MessageArg {
+    pub name: &'static str,
+    pub value: String,
+    /// The value is English window text (a mode's name) the window translates too; a song title
+    /// or a file name is shown as it is.
+    pub translate: bool,
+}
+
+impl MessageArg {
+    /// A value shown as it is (a title, a file name, a number).
+    pub fn plain(name: &'static str, value: impl ToString) -> Self {
+        Self { name, value: value.to_string(), translate: false }
+    }
+
+    /// A value that is English window text, translated with the message.
+    pub fn word(name: &'static str, value: &str) -> Self {
+        Self { name, value: value.to_owned(), translate: true }
+    }
+}
+
+/// `template` with each `{name}` replaced by its value (one pass; values are never read again).
+pub fn fill(template: &str, args: &[(&str, &str)]) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        match after.find('}').map(|close| (&after[..close], &after[close + 1..])) {
+            Some((name, tail)) if args.iter().any(|(n, _)| *n == name) => {
+                if let Some((_, v)) = args.iter().find(|(n, _)| *n == name) {
+                    out.push_str(v);
+                }
+                rest = tail;
+            }
+            _ => {
+                out.push('{');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// A file decoded in the background.
@@ -202,19 +253,38 @@ impl Engine {
         }
     }
 
+    /// A message without values (English; the window translates it).
     pub fn say(&mut self, text: impl Into<String>) {
-        self.push_message(text.into(), false);
+        let text = text.into();
+        self.push_message(text.clone(), Vec::new(), text, false);
     }
 
     pub fn say_error(&mut self, text: impl Into<String>) {
-        self.push_message(text.into(), true);
+        let text = text.into();
+        self.push_message(text.clone(), Vec::new(), text, true);
     }
 
-    fn push_message(&mut self, text: String, error: bool) {
+    /// A message from an English template with `{name}` placeholders and their values.
+    pub fn say_with(&mut self, template: &'static str, args: Vec<MessageArg>) {
+        let text = Self::english(template, &args);
+        self.push_message(template.to_owned(), args, text, false);
+    }
+
+    pub fn say_error_with(&mut self, template: &'static str, args: Vec<MessageArg>) {
+        let text = Self::english(template, &args);
+        self.push_message(template.to_owned(), args, text, true);
+    }
+
+    fn english(template: &str, args: &[MessageArg]) -> String {
+        let pairs: Vec<(&str, &str)> = args.iter().map(|a| (a.name, a.value.as_str())).collect();
+        fill(template, &pairs)
+    }
+
+    fn push_message(&mut self, template: String, args: Vec<MessageArg>, text: String, error: bool) {
         if self.messages.len() >= MAX_MESSAGES {
             self.messages.pop_front();
         }
-        self.messages.push_back(Message { text, error });
+        self.messages.push_back(Message { text, template, args, error });
     }
 
     pub fn services(&self) -> &dyn Services {
@@ -284,8 +354,12 @@ impl Engine {
         self.current_song = Some(id);
         self.load_into_renderer(id);
         if let Some(s) = self.show.song(id) {
-            let title = if s.title.is_empty() { "Untitled song".to_owned() } else { s.title.clone() };
-            self.say(format!("Loaded {title}"));
+            if s.title.is_empty() {
+                self.say("Loaded an untitled song");
+            } else {
+                let title = s.title.clone();
+                self.say_with("Loaded {title}", vec![MessageArg::plain("title", title)]);
+            }
         }
     }
 
@@ -345,7 +419,10 @@ impl Engine {
             slots.push(TrackSlot::new(clip, self.track_params(t)));
         }
         for p in problems {
-            self.say_error(format!("Track not loaded (its file could not be read): {p}"));
+            self.say_error_with(
+                "Track not loaded (its file could not be read): {file}",
+                vec![MessageArg::plain("file", p)],
+            );
         }
         let mut load =
             SongLoad::new(slots, song.start, song.end, BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor));
@@ -497,10 +574,14 @@ impl Engine {
                     let title = s.title.clone();
                     self.mark_changed();
                     self.push_song_settings(id);
-                    self.say(format!(
-                        "{title}: {:.2} BPM, first beat at {:.3} s (detected; adjust under the song details)",
-                        beat.bpm, beat.anchor
-                    ));
+                    self.say_with(
+                        "{title}: {bpm} BPM, first beat at {seconds} s (detected; adjust under the song details)",
+                        vec![
+                            MessageArg::plain("title", title),
+                            MessageArg::plain("bpm", format!("{:.2}", beat.bpm)),
+                            MessageArg::plain("seconds", format!("{:.3}", beat.anchor)),
+                        ],
+                    );
                 }
             } else if file.is_empty() || self.failed.contains(&file) {
                 self.detect_bpm.remove(&id);

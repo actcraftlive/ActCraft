@@ -33,6 +33,14 @@ use theme::Tokens;
 /// Translation hook: every visible string goes through it with English as the key (see `i18n`).
 pub use i18n::{set_language, tr};
 
+/// An engine message in the window's language: its template translated, values filled in (a
+/// value that is window text, such as a mode's name, translated too).
+pub fn message_text(m: &actcraft_engine::Message) -> String {
+    let values: Vec<(&str, &str)> =
+        m.args.iter().map(|a| (a.name, if a.translate { tr(&a.value) } else { a.value.as_str() })).collect();
+    actcraft_engine::fill(tr(&m.template), &values)
+}
+
 /// What the big clock shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClockMode {
@@ -424,11 +432,12 @@ impl ActCraftApp {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if let Some(m) = e.messages.back() {
                     let colour = if m.error { t.danger } else { t.text };
-                    let label = ui.label(RichText::new(&m.text).color(colour));
+                    let text = message_text(m);
+                    let label = ui.label(RichText::new(&text).color(colour));
                     // New messages are announced to screen readers.
                     if e.messages.len() != self.last_announced {
                         self.last_announced = e.messages.len();
-                        label.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, m.text.clone()));
+                        label.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, text.clone()));
                     }
                 }
             });

@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use actcraft_control::channel;
-use actcraft_engine::Engine;
+use actcraft_engine::{Engine, MessageArg};
 use actcraft_platform::{AudioOutput, NativeServices};
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
@@ -122,13 +122,16 @@ impl Host {
                 p.output_channels = out.channels;
                 p.device_id = device.clone();
                 self.app.engine().attach_audio(controller);
-                self.app.engine().say(format!("Audio: {}", out.device_name));
+                self.app.engine().say_with("Audio: {device}", vec![MessageArg::plain("device", &out.device_name)]);
                 self._audio = Some(out);
                 self.prefs.update(|pr| pr.audio.device = device.unwrap_or_default());
             }
             Err(e) => {
                 self.app.platform.audio_device = None;
-                self.app.engine().say_error(format!("Could not open that audio interface: {e}"));
+                self.app.engine().say_error_with(
+                    "Could not open that audio interface: {error}",
+                    vec![MessageArg::plain("error", e)],
+                );
             }
         }
     }
@@ -199,7 +202,7 @@ fn main() {
             Some(out)
         }
         Err(e) => {
-            engine.say_error(format!("No audio output: {e}"));
+            engine.say_error_with("No audio output: {error}", vec![MessageArg::plain("error", e)]);
             None
         }
     };
@@ -215,7 +218,7 @@ fn main() {
         Ok(a) => platform.control_address = Some(a.to_string()),
         Err(e) => {
             if let Ok(mut en) = engine.lock() {
-                en.say_error(format!("Remote control is off: {e}"));
+                en.say_error_with("Remote control is off: {error}", vec![MessageArg::plain("error", e)]);
             }
         }
     }
