@@ -26,4 +26,5 @@ jobs:
       packages: >-
         libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
         libgtk-3-dev libasound2-dev pkg-config
-      os: '["ubuntu-24.04","windows-latest"]'
+      # ActCraft ships on all three desktop systems, so every pull request builds and tests on each.
+      os: '["ubuntu-24.04","windows-latest","macos-latest"]'
