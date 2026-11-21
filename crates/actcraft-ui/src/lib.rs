@@ -115,6 +115,8 @@ pub struct ActCraftApp {
     selected_track: usize,
     clock_mode: ClockMode,
     zoom: f32,
+    /// Clicking the waveform jumps to the nearest beat.
+    snap_to_beat: bool,
     last_announced: usize,
     new_playlist: String,
     logo: Option<egui::TextureHandle>,
@@ -160,6 +162,7 @@ impl ActCraftApp {
             selected_track: 0,
             clock_mode: ClockMode::Elapsed,
             zoom: 1.0,
+            snap_to_beat: false,
             last_announced: 0,
             new_playlist: String::new(),
             logo: None,
@@ -1067,6 +1070,8 @@ impl ActCraftApp {
         ui.horizontal(|ui| {
             ui.label(format!("{} {}", tr("Waveform:"), track.name));
             ui.add(egui::Slider::new(&mut self.zoom, 1.0..=64.0).logarithmic(true).text(tr("Zoom")));
+            ui.checkbox(&mut self.snap_to_beat, tr("Snap to beat"))
+                .on_hover_text(tr("Clicking the waveform jumps to the nearest beat of the grid"));
         });
         if track.file.is_empty() {
             ui.label(RichText::new(tr("No audio file on this track.")).color(t.text_dim));
@@ -1113,6 +1118,28 @@ impl ActCraftApp {
                 t.text,
             );
         }
+        // The beat grid from the song's tempo and first beat: bars stronger, with numbers.
+        let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
+        let px_beat = (clock.beat_len() / span * f64::from(width)) as f32;
+        let px_bar = px_beat * f32::from(clock.beats_per_bar);
+        if px_bar >= 4.0 {
+            let every = (40.0 / px_bar).ceil().max(1.0) as i64;
+            for line in clock.grid(from, from + span, 8_000) {
+                let x = rect.left() + ((line.time - from) / span * f64::from(width)) as f32;
+                if line.bar_start && line.bar.rem_euclid(every) == 1 % every {
+                    painter.vline(x, rect.y_range(), Stroke::new(1.0, t.text_dim.gamma_multiply(0.7)));
+                    painter.text(
+                        egui::pos2(x + 3.0, rect.bottom() - 2.0),
+                        egui::Align2::LEFT_BOTTOM,
+                        line.bar.to_string(),
+                        egui::FontId::monospace(11.0),
+                        t.text_dim,
+                    );
+                } else if !line.bar_start && px_beat >= 8.0 {
+                    painter.vline(x, rect.y_range(), Stroke::new(1.0, t.text_dim.gamma_multiply(0.25)));
+                }
+            }
+        }
         let colour = theme::colour(&track.colour, t.accent);
         for (c, (lo, hi)) in peaks.window(from, from + span, cols).iter().enumerate() {
             let x = rect.left() + c as f32;
@@ -1123,7 +1150,10 @@ impl ActCraftApp {
         if response.clicked()
             && let Some(pos) = response.interact_pointer_pos()
         {
-            let secs = from + f64::from((pos.x - rect.left()) / width) * span;
+            let mut secs = from + f64::from((pos.x - rect.left()) / width) * span;
+            if self.snap_to_beat {
+                secs = clock.snap(secs, 1).max(0.0);
+            }
             self.run(e, "transport.seek", json!({"seconds": secs}));
         }
         response.on_hover_text(tr("Click to jump to that point"));

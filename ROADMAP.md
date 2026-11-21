@@ -42,7 +42,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ✅ Queue (128), play history (500) with playlist from a date, double-click action
 - ✅ Add songs from files (picker, drag and drop), names read with a pattern, duplicates found
 - ✅ Settings window: interface, outputs, metronome, playback, library
-- 🔶 Beat grid with snap (in the engine, no grid display yet)
+- ✅ Beat grid on the waveform (bars numbered, beats faint) from tempo and first beat; clicks snap
+  to the nearest beat when "Snap to beat" is on
 - ⬜ MIDI file per song in sync (with M3)
 - ⬜ Effect plugins per track and bus (format chosen after its licence check)
 - 🔶 Show package (`.actcraftpack`): the show and all its audio and MIDI files in one file, for

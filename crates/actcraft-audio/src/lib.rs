@@ -26,7 +26,7 @@ pub mod shared;
 pub mod tempo;
 
 pub use clip::Clip;
-pub use clock::BeatClock;
+pub use clock::{BeatClock, GridLine};
 pub use render::{
     BUSES, BusParams, ClickMode, Controller, MAX_TRACKS, MetronomeParams, Msg, Renderer, SongLoad, Status, TrackParams,
     link,

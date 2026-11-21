@@ -2,6 +2,15 @@
 //!
 //! The same clock drives the metronome and (from milestone M7) the lighting effects.
 
+/// One beat of the grid.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GridLine {
+    pub time: f64,
+    pub bar_start: bool,
+    /// Bar number, 1 for the anchor's bar; 0 and below before it.
+    pub bar: i64,
+}
+
 /// Tempo, meter and where beat one of bar one sits.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BeatClock {
@@ -60,6 +69,29 @@ impl BeatClock {
         self.time_of_beat((self.beat_at(t) * div).round() / div)
     }
 
+    /// The grid between `from` and `to` seconds: each beat's time, whether it starts a bar, and
+    /// its bar number (1-based from the anchor). At most `max` lines; an empty list when the
+    /// range is empty or would need more.
+    pub fn grid(&self, from: f64, to: f64, max: usize) -> Vec<GridLine> {
+        if !(from.is_finite() && to.is_finite()) || to <= from {
+            return Vec::new();
+        }
+        let first = self.beat_at(from).ceil();
+        let last = self.beat_at(to).floor();
+        if last < first || last - first >= max as f64 {
+            return Vec::new();
+        }
+        let bpb = i64::from(self.beats_per_bar);
+        let (first, last) = (first as i64, last as i64);
+        (first..=last)
+            .map(|b| GridLine {
+                time: self.time_of_beat(b as f64),
+                bar_start: b.rem_euclid(bpb) == 0,
+                bar: b.div_euclid(bpb) + 1,
+            })
+            .collect()
+    }
+
     /// Length of `bars` bars in seconds.
     pub fn bars_len(&self, bars: u8) -> f64 {
         f64::from(bars) * f64::from(self.beats_per_bar) * self.beat_len()
@@ -77,5 +109,19 @@ mod tests {
         assert!((c.next_beat_time(0.3) - 0.75).abs() < 1e-9);
         assert_eq!(c.bar_beat(0.25 + 2.0), (1, 0));
         assert_eq!(c.bar_beat(0.0).0, -1);
+    }
+
+    #[test]
+    fn grid_marks_beats_and_bars_from_the_anchor() {
+        // 120 BPM (0.5 s a beat), 3/4, beat one at 1.0 s.
+        let c = super::BeatClock::new(120.0, 3, 1.0);
+        let g = c.grid(0.0, 3.0, 100);
+        let times: Vec<f64> = g.iter().map(|l| l.time).collect();
+        assert_eq!(times, [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]);
+        let bars: Vec<(bool, i64)> = g.iter().map(|l| (l.bar_start, l.bar)).collect();
+        assert_eq!(bars, [(false, 0), (false, 0), (true, 1), (false, 1), (false, 1), (true, 2), (false, 2)]);
+        assert!(c.grid(0.0, 3.0, 5).is_empty(), "too many lines for the limit");
+        assert!(c.grid(2.0, 1.0, 100).is_empty());
+        assert!(c.grid(f64::NAN, 1.0, 100).is_empty());
     }
 }

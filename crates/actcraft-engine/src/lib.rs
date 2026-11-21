@@ -17,9 +17,7 @@ use std::sync::{Arc, OnceLock};
 
 use actcraft_audio::peaks::Peaks;
 use actcraft_audio::render::TrackSlot;
-use actcraft_audio::{
-    BeatClock, BusParams, ClickMode, Clip, Controller, MetronomeParams, Msg, SongLoad, Status, TrackParams,
-};
+use actcraft_audio::{BusParams, ClickMode, Clip, Controller, MetronomeParams, Msg, SongLoad, Status, TrackParams};
 use actcraft_command::{CommandResult, Registry};
 use actcraft_library::Queue;
 use actcraft_library::queue::DoubleTap;
@@ -32,6 +30,7 @@ pub mod region_commands;
 pub mod services;
 
 pub use actcraft_audio::tempo;
+pub use actcraft_audio::{BeatClock, GridLine};
 pub use actcraft_command::{CommandError, CommandSpec, guard};
 pub use actcraft_lyrics as lyrics;
 pub use services::{MemoryServices, Services};
