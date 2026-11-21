@@ -70,4 +70,4 @@ Statuses describe what ran in tests, not what is designed.
 | B1-B8 Lighting | planned M4-M8 |
 | C Merge (lighting lane, shared clock) | planned M7 (clock and lane field exist) |
 | D Replacements (CLI, control channel, MCP) | done for automation; rest with their features |
-| Languages EN and DE | partial: all text goes through `tr()`; catalogs not wired yet |
+| Languages EN and DE | partial: window text in English and German through craft-i18n (`crates/actcraft-ui/i18n/de.tsv`, checked by a test); engine status messages still English |

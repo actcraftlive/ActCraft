@@ -41,7 +41,7 @@ impl ActCraftApp {
                 let playing_here = e.current_song == Some(song.id) && r.start <= now && now < r.end;
                 let mut text = r.name.clone();
                 if r.mode != RegionMode::Play {
-                    text = format!("{text} ({})", tr(mode_label(r.mode)).to_lowercase());
+                    text = format!("{text} ({})", tr(mode_label(r.mode)));
                 }
                 if r.cue {
                     text = format!("{}: {text}", tr("Cue"));

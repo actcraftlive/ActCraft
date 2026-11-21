@@ -1,0 +1,351 @@
+# German catalog for the ActCraft window (craft-i18n format: context, English, German; tab separated).
+	bar	Takt
+	bars	Takte
+	About ActCraft	Über ActCraft
+	ActCraft logo: a drawn octopus	ActCraft-Logo: ein gezeichneter Oktopus
+	ActCraft show	ActCraft-Show
+	Add Region at Playhead	Region an Abspielposition hinzufügen
+	Add Songs from Audio Files…	Songs aus Audiodateien hinzufügen…
+	Add Tracks…	Spuren hinzufügen…
+	Add region	Region hinzufügen
+	Add region at playhead	Region an Abspielposition hinzufügen
+	Add rule	Regel hinzufügen
+	Add set	Set hinzufügen
+	Add set to queue	Set zur Warteschlange hinzufügen
+	Add songs from audio files	Songs aus Audiodateien hinzufügen
+	Add songs to playlist	Songs zur Playlist hinzufügen
+	Add songs…	Songs hinzufügen…
+	Add to	Hinzufügen zu
+	Add to Queue	Zur Warteschlange hinzufügen
+	Add to queue	Zur Warteschlange hinzufügen
+	Add track	Spur hinzufügen
+	Add tracks from audio files	Spuren aus Audiodateien hinzufügen
+	Add tracks…	Spuren hinzufügen…
+	All commands	Alle Befehle
+	Artist	Interpret
+	Audible	Hörbar
+	Audio	Audio
+	Audio files	Audiodateien
+	Audio interface	Audio-Interface
+	Audio interface, outputs, metronome, playback	Audio-Interface, Ausgänge, Metronom, Wiedergabe
+	Audio:	Audio:
+	Audio: no output	Audio: kein Ausgang
+	BPM	BPM
+	Backing tracks and lighting in one show.	Backing-Tracks und Licht in einer Show.
+	Beats per bar	Schläge pro Takt
+	Bold	Fett
+	Bus	Bus
+	Cancel	Abbrechen
+	Capo	Kapodaster
+	Choose audio files; each becomes a song	Audiodateien wählen; jede wird ein Song
+	Choose audio files; each becomes a track	Audiodateien wählen; jede wird eine Spur
+	Choose file…	Datei wählen…
+	Choose the audio file for this track	Audiodatei für diese Spur wählen
+	Chord	Akkord
+	Chords	Akkorde
+	Chords are shown as the shapes to play with the capo	Akkorde werden als Griffe mit Kapodaster angezeigt
+	Chords go in square brackets before the syllable: The [Am]road is [F]long.	Akkorde stehen in eckigen Klammern vor der Silbe: Der [Am]Weg ist [F]weit.
+	Clear	Leeren
+	Clear Queue	Warteschlange leeren
+	Clear queue	Warteschlange leeren
+	Click	Klick
+	Click 10 ms earlier	Klick 10 ms früher
+	Click 10 ms later	Klick 10 ms später
+	Click goes to bus	Klick geht auf Bus
+	Click in time with the music to set the tempo	Im Takt der Musik klicken, um das Tempo zu setzen
+	Click timing offset	Klick-Zeitversatz
+	Click to jump to that point	Klicken, um an diese Stelle zu springen
+	Click volume	Klick-Lautstärke
+	Close	Schließen
+	Colour	Farbe
+	Count-in	Einzähler
+	Count-in only	Nur Einzähler
+	Create	Erstellen
+	Crossfade to song	Zu Song überblenden
+	Crossfade when changing songs during playback	Beim Songwechsel während der Wiedergabe überblenden
+	Cue	Cue
+	Delete	Löschen
+	Delete Song…	Song löschen…
+	Delete playlist	Playlist löschen
+	Delete song	Song löschen
+	Delete song…	Song löschen…
+	Detect	Erkennen
+	Detect Tempo and First Beat	Tempo und ersten Schlag erkennen
+	Detect tempo and first beat	Tempo und ersten Schlag erkennen
+	Deutsch	Deutsch
+	Discard changes	Änderungen verwerfen
+	Don't save	Nicht speichern
+	Double-click on a song	Doppelklick auf einen Song
+	Double-tap a song	Song doppelt antippen
+	Double-tap action	Aktion bei Doppeltippen
+	Down	Runter
+	Down a semitone	Einen Halbton tiefer
+	Downbeat earlier	Taktanfang früher
+	Downbeat later	Taktanfang später
+	Drop audio files to add songs, or a show file to open it	Audiodateien ablegen, um Songs hinzuzufügen, oder eine Show-Datei, um sie zu öffnen
+	Duplicate songs	Doppelte Songs
+	EQ	EQ
+	Each song sets when its click sounds (whole song, count-in only, visual only or off) and how many bars it counts in: see the song details above the mixer.	Jeder Song legt fest, wann sein Klick erklingt (ganzer Song, nur Einzähler, nur optisch oder aus) und wie viele Takte er einzählt: siehe Songdetails über dem Mixer.
+	Each track goes to a bus (chosen on its mixer strip); each bus goes to a pair of outputs on the interface.	Jede Spur geht auf einen Bus (im Mixerkanal gewählt); jeder Bus geht auf ein Ausgangspaar des Interfaces.
+	Edit	Bearbeiten
+	Edit mute group	Mute-Gruppe bearbeiten
+	Edit output bus	Ausgangsbus bearbeiten
+	Edit region	Region bearbeiten
+	Edit song details	Songdetails bearbeiten
+	Edit track	Spur bearbeiten
+	Elapsed	Vergangen
+	End	Ende
+	End at the playback position	An der Abspielposition enden
+	English	English
+	Example:	Beispiel:
+	Fade-out	Ausblenden
+	File	Datei
+	Find Duplicates	Duplikate finden
+	Find duplicate songs	Doppelte Songs finden
+	Find tempo and first beat from the first track	Tempo und ersten Schlag aus der ersten Spur ermitteln
+	Finish this pass of the loop and play on (L)	Diesen Schleifendurchlauf beenden und weiterspielen (L)
+	First beat at	Erster Schlag bei
+	Follow playback	Wiedergabe folgen
+	Font	Schrift
+	Go to time	Zu Zeit springen
+	Goes to	Geht auf
+	Heading	Überschrift
+	Help	Hilfe
+	Here	Hier
+	High	Höhen
+	High mid	Hohe Mitten
+	Ignore a second Play/Stop within	Zweites Abspielen/Stoppen ignorieren innerhalb von
+	Import Lyrics…	Songtext importieren…
+	Import lyrics	Songtext importieren
+	Import lyrics…	Songtext importieren…
+	Insert a chord at the cursor	Akkord am Cursor einfügen
+	Italic	Kursiv
+	Jump	Springen
+	Jump to	Springen zu
+	Jump to region	Zu Region springen
+	Keep clicking while stopped	Klick läuft auch im Stopp weiter
+	Key	Tonart
+	Keyword	Stichwort
+	Leave Loop	Schleife verlassen
+	Leave loop	Schleife verlassen
+	Length (s)	Länge (s)
+	Library	Bibliothek
+	Licence: MIT OR Apache-2.0	Lizenz: MIT OR Apache-2.0
+	List Commands	Befehle auflisten
+	List commands	Befehle auflisten
+	List playlists	Playlists auflisten
+	List songs	Songs auflisten
+	Load song	Song laden
+	Loading audio:	Audio wird geladen:
+	Loading waveform…	Wellenform wird geladen…
+	Loop	Schleife
+	Loop this song	Diesen Song wiederholen
+	Low	Tiefen
+	Low mid	Tiefe Mitten
+	Lyrics	Songtext
+	Lyrics •	Songtext •
+	Make this line a heading	Diese Zeile zur Überschrift machen
+	Mark song done	Song als gespielt markieren
+	Markers stored in the first track's WAV file	In der WAV-Datei der ersten Spur gespeicherte Marker
+	Markup: # heading, [Am] chord, **bold**, *italic*, __underline__, {c: comment}, [01:23.45] time stamp	Auszeichnung: # Überschrift, [Am] Akkord, **fett**, *kursiv*, __unterstrichen__, {c: comment} Kommentar, [01:23.45] Zeitstempel
+	Master	Master
+	Master volume	Master-Lautstärke
+	Metronome	Metronom
+	Metronome on	Metronom an
+	Metronome on or off	Metronom an oder aus
+	Metronome settings	Metronom-Einstellungen
+	Mixer	Mixer
+	Move down	Nach unten
+	Move songs in playlist	Songs in der Playlist verschieben
+	Move the accented click one beat earlier	Betonten Klick einen Schlag früher setzen
+	Move the accented click one beat later	Betonten Klick einen Schlag später setzen
+	Move up	Nach oben
+	Mute	Stumm
+	Mute group	Mute-Gruppe
+	Mute groups	Mute-Gruppen
+	Mute this bus	Diesen Bus stummschalten
+	Muted	Stumm
+	My show	Meine Show
+	Name	Name
+	New Playlist…	Neue Playlist…
+	New Show	Neue Show
+	New Smart Playlist…	Neue intelligente Playlist…
+	New Song	Neuer Song
+	New playlist	Neue Playlist
+	New playlist name	Name der neuen Playlist
+	New show	Neue Show
+	New smart playlist	Neue intelligente Playlist
+	New song	Neuer Song
+	Next	Weiter
+	Next Mode	Nächster Modus
+	Next Song	Nächster Song
+	Next metronome mode	Nächster Metronom-Modus
+	Next song	Nächster Song
+	No audio file on this track.	Diese Spur hat keine Audiodatei.
+	No duplicate songs found.	Keine doppelten Songs gefunden.
+	No lyrics yet. Click “Edit” to type or paste them, or “Import lyrics…” for a text, ChordPro or LRC file.	Noch kein Songtext. „Bearbeiten“ klicken, um ihn zu tippen oder einzufügen, oder „Songtext importieren…“ für eine Text-, ChordPro- oder LRC-Datei.
+	No output	Kein Ausgang
+	No song loaded	Kein Song geladen
+	No songs yet. Click “Add songs…” or drag audio files onto the window.	Noch keine Songs. „Songs hinzufügen…“ klicken oder Audiodateien ins Fenster ziehen.
+	None of these files is an audio file ActCraft can play.	Keine dieser Dateien ist eine Audiodatei, die ActCraft abspielen kann.
+	OK	OK
+	Off	Aus
+	On	An
+	On or Off	An oder aus
+	Open Show…	Show öffnen…
+	Open show	Show öffnen
+	Open show…	Show öffnen…
+	Output 1	Ausgang 1
+	Output buses	Ausgangsbusse
+	Outputs	Ausgänge
+	Pan	Panorama
+	Parts	Teile
+	Play	Abspielen
+	Play Next	Als Nächstes spielen
+	Play from here	Ab hier abspielen
+	Play from playlist	Aus Playlist abspielen
+	Play history	Wiedergabeverlauf
+	Play next	Als Nächstes spielen
+	Play next song automatically	Nächsten Song automatisch abspielen
+	Play or Stop	Abspielen oder Stopp
+	Play or stop	Abspielen oder Stopp
+	Play with Count-in	Mit Einzähler abspielen
+	Play with count-in	Mit Einzähler abspielen
+	Playback	Wiedergabe
+	Playlist	Playlist
+	Playlist from a played date	Playlist aus einem Spieltag
+	Playlist name	Name der Playlist
+	Playlists	Playlists
+	Positive moves every click earlier (to make up for output latency)	Positiv setzt jeden Klick früher (gleicht Ausgangslatenz aus)
+	Previous	Zurück
+	Previous Song	Vorheriger Song
+	Previous song	Vorheriger Song
+	Put the current playback time at the start of the cursor's line	Aktuelle Abspielzeit an den Anfang der Cursorzeile setzen
+	Put track in mute group	Spur in Mute-Gruppe legen
+	Queue	Warteschlange
+	Queue all	Alle einreihen
+	Queue ends in	Warteschlange endet in
+	Queue whole playlist	Ganze Playlist einreihen
+	Queue:	Warteschlange:
+	Recent messages	Letzte Meldungen
+	Region colour	Regionsfarbe
+	Regions	Regionen
+	Regions from File Markers	Regionen aus Datei-Markern
+	Regions from file markers	Regionen aus Datei-Markern
+	Regions name the parts of a song (verse, chorus, outro). They can loop, be skipped or stop playback, and you can jump to them live.	Regionen benennen die Teile eines Songs (Strophe, Refrain, Outro). Sie können wiederholt, übersprungen werden oder die Wiedergabe stoppen, und du kannst live zu ihnen springen.
+	Remaining	Verbleibend
+	Remote control:	Fernsteuerung:
+	Remove	Entfernen
+	Remove from queue	Aus Warteschlange entfernen
+	Remove from set	Aus Set entfernen
+	Remove region	Region entfernen
+	Remove rule	Regel entfernen
+	Remove songs from playlist	Songs aus Playlist entfernen
+	Remove the track	Spur entfernen
+	Remove track	Spur entfernen
+	Rename Show…	Show umbenennen…
+	Rename playlist	Playlist umbenennen
+	Rename show	Show umbenennen
+	Reset EQ	EQ zurücksetzen
+	Save	Speichern
+	Save Show	Show speichern
+	Save Show As…	Show speichern unter…
+	Save changes?	Änderungen speichern?
+	Save lyrics	Songtext speichern
+	Save or discard the open show first (File > New Show), then drop it again.	Erst die offene Show speichern oder verwerfen (Datei > Neue Show), dann erneut ablegen.
+	Save show	Show speichern
+	Save show as	Show speichern unter
+	Search songs	Songs suchen
+	Search: title:, artist:, -word, OR	Suche: title:, artist:, -wort, OR
+	Set crossfade length	Überblendlänge setzen
+	Set double-trigger protection	Doppelauslöse-Schutz setzen
+	Set line timecode	Zeilen-Timecode setzen
+	Set track EQ	Spur-EQ setzen
+	Settings	Einstellungen
+	Settings…	Einstellungen…
+	Show	Show
+	Show as a cue for live jumps	Als Cue für Live-Sprünge anzeigen
+	Show details	Show-Details
+	Show name	Show-Name
+	Show queue	Warteschlange anzeigen
+	Show this track's waveform	Wellenform dieser Spur anzeigen
+	Size	Größe
+	Skip	Überspringen
+	Song	Song
+	Song details from file names	Songdetails aus Dateinamen
+	Song volume	Song-Lautstärke
+	Songs must match	Songs müssen erfüllen
+	Songs of a playlist	Songs einer Playlist
+	Sorted view of a set	Sortierte Ansicht eines Sets
+	Start	Start
+	Start at the playback position	An der Abspielposition beginnen
+	Start playback on the next beat of the running click	Wiedergabe auf dem nächsten Schlag des laufenden Klicks starten
+	Stop	Stopp
+	Stop after	Danach stoppen
+	Subtitle	Untertitel
+	System default	Systemstandard
+	System language	Systemsprache
+	Tap	Tippen
+	Tempo	Tempo
+	Text, ChordPro or LRC file	Text-, ChordPro- oder LRC-Datei
+	The file window could not open:	Das Dateifenster konnte nicht öffnen:
+	The show has changes that are not saved yet.	Die Show hat Änderungen, die noch nicht gespeichert sind.
+	This removes it from every playlist.	Das entfernt ihn aus jeder Playlist.
+	This song has no tracks yet.	Dieser Song hat noch keine Spuren.
+	Time	Uhrzeit
+	Time of a beat in the audio; the click grid starts from here	Zeitpunkt eines Schlags im Audio; das Klickraster beginnt hier
+	Time stamp	Zeitstempel
+	Title	Titel
+	Toggle mute group	Mute-Gruppe umschalten
+	Track colour	Spurfarbe
+	Transport	Transport
+	Transpose	Transponieren
+	Two bars from the playback position (R)	Zwei Takte ab der Abspielposition (R)
+	Underline	Unterstrichen
+	Unsaved changes	Ungespeicherte Änderungen
+	Up	Hoch
+	Up a semitone	Einen Halbton höher
+	Visual only	Nur optisch
+	Volume	Lautstärke
+	Wave	Welle
+	Waveform	Wellenform
+	Waveform:	Wellenform:
+	Welcome to ActCraft	Willkommen bei ActCraft
+	What happens	Was passiert
+	When this song's click sounds; click to change	Wann der Klick dieses Songs erklingt; klicken zum Ändern
+	When you add audio files, their names are read with this pattern. Use %title%, %artist%, %key%, %bpm%, %year% and %ignore%.	Beim Hinzufügen von Audiodateien werden ihre Namen mit diesem Muster gelesen. Verwende %title%, %artist%, %key%, %bpm%, %year% und %ignore%.
+	Whole song	Ganzer Song
+	Year	Jahr
+	Zoom	Zoom
+	adds it to the queue	fügt ihn zur Warteschlange hinzu
+	all rules	alle Regeln
+	any rule	eine Regel
+	at least	mindestens
+	at most	höchstens
+	blue	blau
+	click to change	klicken zum Ändern
+	contains	enthält
+	does nothing	tut nichts
+	green	grün
+	grey	grau
+	is	ist
+	is not	ist nicht
+	less than	weniger als
+	loads it	lädt ihn
+	mono	mono
+	more than	mehr als
+	orange	orange
+	output channel	Ausgangskanal
+	output channels	Ausgangskanäle
+	pink	pink
+	plays it next	spielt ihn als Nächstes
+	purple	lila
+	red	rot
+	sans	serifenlos
+	script	Schreibschrift
+	serif	Serifen
+	tracks	Spuren
+	yellow	gelb
+	Language	Sprache
+	smart	intelligent
+	muted	stumm

@@ -46,6 +46,7 @@ craft-mcp = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92
 craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-i18n = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-audio = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", default-features = false, features = ["decode-native"] }
 
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "wayland", "x11"] }

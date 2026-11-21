@@ -622,7 +622,7 @@ impl ActCraftApp {
     }
 }
 
-fn field_label(f: &str) -> &'static str {
+pub(crate) fn field_label(f: &str) -> &'static str {
     match f {
         "title" => "Title",
         "artist" => "Artist",
@@ -635,7 +635,7 @@ fn field_label(f: &str) -> &'static str {
     }
 }
 
-fn op_label(o: &str) -> &'static str {
+pub(crate) fn op_label(o: &str) -> &'static str {
     match o {
         "contains" => "contains",
         "is" => "is",

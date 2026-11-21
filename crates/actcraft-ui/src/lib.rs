@@ -19,6 +19,7 @@ use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
 pub mod flows;
+pub mod i18n;
 mod lyrics_view;
 mod regions_view;
 mod settings;
@@ -29,11 +30,8 @@ pub use flows::{FileAsk, FileKind, FileRequest};
 
 use theme::Tokens;
 
-/// Translation hook. Every visible string goes through it with English as the key; the catalogs
-/// (craft-i18n, English and German) are wired in a later milestone, until then English shows.
-pub fn tr(s: &str) -> &str {
-    s
-}
+/// Translation hook: every visible string goes through it with English as the key (see `i18n`).
+pub use i18n::{set_language, tr};
 
 /// What the big clock shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +78,8 @@ pub struct PlatformInfo {
     pub device_id: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
+    /// The window's language setting: `auto` (the system's), `en` or `de`.
+    pub language: String,
 }
 
 pub struct ActCraftApp {
@@ -102,6 +102,8 @@ pub struct ActCraftApp {
     settings_tab: settings::Tab,
     /// A device the person picked in Settings; the host switches to it.
     device_request: Option<Option<String>>,
+    /// A language the person picked in Settings; the host remembers it.
+    language_request: Option<String>,
     /// Tap-tempo times (seconds of app time).
     taps: Vec<f64>,
     centre_tab: CentreTab,
@@ -141,6 +143,7 @@ impl ActCraftApp {
             settings_open: false,
             settings_tab: settings::Tab::default(),
             device_request: None,
+            language_request: None,
             taps: Vec::new(),
             centre_tab: CentreTab::Mixer,
             lyrics_edit: None,
@@ -165,6 +168,11 @@ impl ActCraftApp {
     /// this every frame.
     pub fn take_device_request(&mut self) -> Option<Option<String>> {
         self.device_request.take()
+    }
+
+    /// A language the person picked (already applied to the window); the host saves it.
+    pub fn take_language_request(&mut self) -> Option<String> {
+        self.language_request.take()
     }
 
     fn lock(&self) -> MutexGuard<'_, Engine> {
@@ -529,7 +537,7 @@ impl ActCraftApp {
                     egui::CollapsingHeader::new(format!(
                         "{}{}",
                         pl.name,
-                        if pl.smart.is_some() { "  (smart)" } else { "" }
+                        if pl.smart.is_some() { format!("  ({})", tr("smart")) } else { String::new() }
                     ))
                     .id_salt(("pl", i))
                     .show(ui, |ui| {
@@ -690,7 +698,11 @@ impl ActCraftApp {
         ui.horizontal(|ui| {
             ui.label(tr("Mute groups"));
             for (g, group) in e.show.mute_groups.clone().iter().enumerate() {
-                let text = format!("{}{}", group.label, if group.active { " (muted)" } else { "" });
+                let text = format!(
+                    "{}{}",
+                    group.label,
+                    if group.active { format!(" ({})", tr("muted")) } else { String::new() }
+                );
                 let b = egui::Button::new(text).selected(group.active);
                 if ui.add(b).clicked() {
                     self.run(e, "mute_group.toggle", json!({"group": g + 1}));
@@ -783,7 +795,7 @@ impl ActCraftApp {
             }
             ui.label(tr("Count-in"));
             let mut ci = u32::from(song.count_in_bars);
-            let unit = if ci == 1 { tr(" bar") } else { tr(" bars") };
+            let unit = format!(" {}", if ci == 1 { tr("bar") } else { tr("bars") });
             if ui.add(egui::DragValue::new(&mut ci).range(0..=8).suffix(unit)).changed() {
                 self.run(e, "song.set", json!({"song": id, "count_in_bars": ci}));
             }

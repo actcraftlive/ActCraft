@@ -14,6 +14,7 @@ actcraft-show = { workspace = true }
 actcraft-library = { workspace = true }
 egui = { workspace = true }
 serde_json = { workspace = true }
+craft-i18n = { workspace = true }
 
 [lints]
 workspace = true
