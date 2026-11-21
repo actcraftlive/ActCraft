@@ -222,7 +222,9 @@ impl Engine {
     pub fn run(&mut self, id: &str, params: &Value) -> CommandResult {
         let result = registry().dispatch(self, id, params);
         if let Err(e) = &result {
-            self.say_error(e.to_string());
+            // The window shows (and translates) the message alone; the full text stays for the
+            // CLI, logs and the control channel.
+            self.push_message(e.message().to_owned(), Vec::new(), e.to_string(), true);
         }
         result
     }

@@ -70,4 +70,4 @@ Statuses describe what ran in tests, not what is designed.
 | B1-B8 Lighting | planned M4-M8 |
 | C Merge (lighting lane, shared clock) | planned M7 (clock and lane field exist) |
 | D Replacements (CLI, control channel, MCP) | done for automation; rest with their features |
-| Languages EN and DE | partial: English built in (default), other languages are language files (`crates/actcraft-ui/i18n/<code>.tsv`, German shipped, completeness checked by a test); status messages translated through templates; command error texts still English |
+| Languages EN and DE | partial: English built in (default), other languages are language files (`crates/actcraft-ui/i18n/<code>.tsv`, German shipped, completeness checked by a test); status messages translated through templates; fixed command error texts translated, errors with values still English |

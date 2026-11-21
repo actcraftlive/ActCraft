@@ -46,6 +46,20 @@ pub enum CommandError {
     Internal(String),
 }
 
+impl CommandError {
+    /// The message without its kind (what a person reads in the window).
+    pub fn message(&self) -> &str {
+        match self {
+            Self::UnknownCommand(m)
+            | Self::Disabled(m)
+            | Self::InvalidParams(m)
+            | Self::Failed(m)
+            | Self::Unsupported(m)
+            | Self::Internal(m) => m,
+        }
+    }
+}
+
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
