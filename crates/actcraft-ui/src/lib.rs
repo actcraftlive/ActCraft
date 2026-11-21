@@ -41,6 +41,21 @@ pub fn message_text(m: &actcraft_engine::Message) -> String {
     actcraft_engine::fill(tr(&m.template), &values)
 }
 
+/// A song being dragged inside a set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DragSong {
+    playlist: usize,
+    set: usize,
+    index: usize,
+}
+
+/// Where a song dragged from `from` lands when dropped on row `row` (above it, or below when
+/// `below`), as `playlist.move_songs`'s `to`; `None` when it would stay where it is.
+fn drop_position(from: usize, row: usize, below: bool) -> Option<usize> {
+    let to = row + usize::from(below);
+    (to != from && to != from + 1).then_some(to)
+}
+
 /// What the big clock shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClockMode {
@@ -586,8 +601,14 @@ impl ActCraftApp {
                                 ui.label(RichText::new(&set.name).strong().color(t.text_dim));
                                 for (k, id) in set.songs.iter().enumerate() {
                                     let title = e.show.song(*id).map_or("?", |s| s.title.as_str()).to_owned();
-                                    ui.horizontal(|ui| {
-                                        ui.label(format!("{}. {title}", k + 1));
+                                    let row = ui.horizontal(|ui| {
+                                        // Drag the title to reorder; the buttons do the same without dragging.
+                                        let payload = DragSong { playlist: i, set: si, index: k };
+                                        ui.dnd_drag_source(egui::Id::unique(("set-song", i, si, k)), payload, |ui| {
+                                            ui.label(format!("{}. {title}", k + 1))
+                                        })
+                                        .response
+                                        .on_hover_text(tr("Drag to move it in the set"));
                                         // Move buttons: reordering works without dragging.
                                         if k > 0 && ui.small_button(tr("Up")).on_hover_text(tr("Move up")).clicked() {
                                             self.run(
@@ -614,6 +635,27 @@ impl ActCraftApp {
                                             );
                                         }
                                     });
+                                    // A song dragged over this row goes above or below it.
+                                    let rect = row.response.rect;
+                                    let below = ui.ctx().pointer_hover_pos().is_some_and(|p| p.y > rect.center().y);
+                                    if let Some(drag) = row.response.dnd_hover_payload::<DragSong>()
+                                        && drag.playlist == i
+                                        && drag.set == si
+                                    {
+                                        let y = if below { rect.bottom() } else { rect.top() };
+                                        ui.painter().hline(rect.x_range(), y, Stroke::new(2.0, t.accent));
+                                    }
+                                    if let Some(drag) = row.response.dnd_release_payload::<DragSong>()
+                                        && drag.playlist == i
+                                        && drag.set == si
+                                        && let Some(to) = drop_position(drag.index, k, below)
+                                    {
+                                        self.run(
+                                            e,
+                                            "playlist.move_songs",
+                                            json!({"playlist": i, "set": si, "indexes": [drag.index], "to": to}),
+                                        );
+                                    }
                                 }
                             }
                             if ui.small_button(tr("Add set")).clicked() {
@@ -1136,5 +1178,20 @@ mod tests {
         assert_eq!(super::fmt_time(65.4), "1:05");
         assert_eq!(super::fmt_time(f64::NAN), "0:00");
         assert_eq!(super::fmt_time(3725.0), "1:02:05");
+    }
+
+    #[test]
+    fn dropping_a_song_on_a_row_moves_it_above_or_below() {
+        use super::drop_position;
+        // Set A B C D; drag B (1).
+        assert_eq!(drop_position(1, 3, true), Some(4), "below D: to the end");
+        assert_eq!(drop_position(1, 0, false), Some(0), "above A: to the start");
+        assert_eq!(drop_position(1, 1, false), None, "on itself");
+        assert_eq!(drop_position(1, 1, true), None);
+        assert_eq!(drop_position(1, 2, false), None, "above C is where it is");
+        assert_eq!(drop_position(1, 2, true), Some(3));
+        let set = ["A", "B", "C", "D"];
+        let moved = actcraft_library::order::move_items(&set, &[1], 3);
+        assert_eq!(moved, ["A", "C", "B", "D"], "below C");
     }
 }

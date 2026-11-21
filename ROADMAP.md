@@ -48,7 +48,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - 🔶 Show package (`.actcraftpack`): the show and all its audio and MIDI files in one file, for
   backup or another computer; opening it unpacks the files beside it (done). Export of a single
   song or playlist to do
-- ⬜ Drag-and-drop reorder in sets (buttons work today)
+- ✅ Reorder songs in a set by dragging (a line shows where it lands) or with the Up/Down buttons
 
 ## M2 Lyrics, regions, sheet music 🔶 in progress
 

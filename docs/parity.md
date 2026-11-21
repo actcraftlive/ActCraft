@@ -50,7 +50,7 @@ Statuses describe what ran in tests, not what is designed.
 | A4.3 | Playlists split into sets | `playlist.create/add_set/add_songs` | done |
 | A4.4 | Smart playlists (match all/any) | `playlist.create_smart` | done |
 | A4.5 | Non-destructive quick sort per set | `playlist.sorted_view` | done (command; no UI yet) |
-| A4.6 | Multi-select reorder | `playlist.move_songs` | partial (command takes many; UI moves one at a time, no drag yet) |
+| A4.6 | Multi-select reorder | `playlist.move_songs` | partial (command takes many; the window moves one song at a time, by dragging or with Up/Down) |
 | A4.7 | Confirmation before delete | `playlist.delete {confirm}`, `song.remove {confirm}` | done |
 | A4.8 | Queue up to 128, add set, play next, add to queue | `queue.*` | done |
 | A4.9 | Configurable double-tap | `queue.set_double_tap`, `queue.double_tap` | done |
