@@ -114,6 +114,9 @@ impl ActCraftApp {
             }
             ui.separator();
             ui.checkbox(&mut self.lyrics_show_chords, tr("Chords"));
+        });
+        // Second row: following playback, size and import.
+        ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.lyrics_follow, tr("Follow playback"));
             egui::ComboBox::from_id_salt(("lyrics-scroll", song.id))
                 .selected_text(tr(song.lyrics_scroll.label()))
@@ -126,6 +129,7 @@ impl ActCraftApp {
                 })
                 .response
                 .on_hover_text(tr("How the lyrics follow playback in this song"));
+            ui.spacing_mut().slider_width = 120.0;
             ui.add(egui::Slider::new(&mut self.lyrics_size, 14.0..=64.0).show_value(false).text(tr("Size")));
             ui.separator();
             if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro or LRC file")).clicked() {
