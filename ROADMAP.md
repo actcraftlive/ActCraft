@@ -88,4 +88,6 @@ all platforms.
 
 ## Languages
 
-English today; German follows (all visible text already goes through the translation hook).
+- ✅ English and German window text (Settings > Language: system language, English or Deutsch;
+  remembered on this computer). A test fails when a window text has no German row.
+- ⬜ Status messages from the engine and command errors are still English

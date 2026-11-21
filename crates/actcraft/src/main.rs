@@ -74,6 +74,9 @@ impl eframe::App for Host {
         if let Some(device) = self.app.take_device_request() {
             self.switch_device(device);
         }
+        if let Some(language) = self.app.take_language_request() {
+            self.prefs.update(|pr| pr.window.language = language);
+        }
         let _ = self.prefs.tick(std::time::Instant::now());
         for req in self.app.take_file_requests() {
             let dialog = to_dialog(&req);
@@ -136,6 +139,14 @@ impl Host {
 #[serde(default)]
 struct Prefs {
     audio: AudioPrefs,
+    window: WindowPrefs,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct WindowPrefs {
+    /// `auto` or empty for the system language, `en` or `de`.
+    language: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -161,6 +172,14 @@ fn main() {
     let mut platform = PlatformInfo::default();
     let (prefs, _report) = craft_settings::SettingsStore::<Prefs>::open(craft_settings::Location::Auto);
     platform.devices = actcraft_platform::output_devices().into_iter().map(|d| (d.id, d.name)).collect();
+    // The language chosen last time (`--lang CODE` overrides it, for screenshots).
+    let language = args
+        .iter()
+        .position(|a| a == "--lang")
+        .and_then(|i| args.get(i + 1).cloned())
+        .unwrap_or_else(|| prefs.get().window.language.clone());
+    platform.language = if language.is_empty() { "auto".to_owned() } else { language };
+    actcraft_ui::set_language(&platform.language);
 
     // The interface chosen last time, or the system default when it's gone.
     let saved = Some(prefs.get().audio.device.clone()).filter(|d| !d.is_empty());

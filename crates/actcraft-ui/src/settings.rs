@@ -40,6 +40,8 @@ impl ActCraftApp {
             .min_height(420.0)
             .collapsible(false)
             .show(ctx, |ui| {
+                self.language_row(ui);
+                ui.separator();
                 ui.horizontal(|ui| {
                     for (tab, label) in [
                         (Tab::Audio, tr("Audio")),
@@ -61,6 +63,27 @@ impl ActCraftApp {
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.settings_open = false;
         }
+    }
+
+    /// The window's language; the host keeps the choice on this computer.
+    fn language_row(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tr("Language")).strong());
+            let choices = crate::i18n::choices();
+            let current = choices
+                .iter()
+                .find(|(v, _)| *v == self.platform.language)
+                .map_or(tr("System language"), |(_, n)| tr(n));
+            egui::ComboBox::from_id_salt("language").width(200.0).selected_text(current).show_ui(ui, |ui| {
+                for (value, name) in choices {
+                    if ui.selectable_label(self.platform.language == value, tr(name)).clicked() {
+                        self.platform.language = value.to_owned();
+                        crate::i18n::set_language(value);
+                        self.language_request = Some(value.to_owned());
+                    }
+                }
+            });
+        });
     }
 
     fn audio_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
