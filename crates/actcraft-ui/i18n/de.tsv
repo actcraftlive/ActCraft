@@ -399,3 +399,4 @@
 	Packed the show and {count} files into {file}	Show und {count} Dateien in {file} gepackt
 	Packed the show into {file}; {missing} files could not be read and are not in it	Show in {file} gepackt; {missing} Dateien waren nicht lesbar und fehlen darin
 	Opened the package: {songs} songs, files in {folder}	Paket geöffnet: {songs} Songs, Dateien in {folder}
+	Drag to move it in the set	Ziehen, um ihn im Set zu verschieben
