@@ -192,6 +192,6 @@ pub fn region_import_markers(e: &mut Engine, prm: &Value) -> CommandResult {
     song.regions.sort_by(|a, b| a.start.total_cmp(&b.start));
     e.mark_changed();
     e.push_regions(id);
-    e.say(format!("Imported {added} regions from markers"));
+    e.say_with("Imported {count} regions from markers", vec![crate::MessageArg::plain("count", added)]);
     Ok(json!({"added": added}))
 }

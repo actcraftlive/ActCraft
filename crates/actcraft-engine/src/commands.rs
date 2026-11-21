@@ -545,7 +545,7 @@ fn show_open(e: &mut Engine, prm: &Value) -> CommandResult {
     replace_show(e, show, Some(path));
     // The first song is ready for playback; its audio loads when it plays.
     e.current_song = first;
-    e.say(format!("Opened show with {songs} songs"));
+    e.say_with("Opened show with {count} songs", vec![crate::MessageArg::plain("count", songs)]);
     Ok(json!({"songs": songs}))
 }
 
@@ -764,7 +764,10 @@ fn song_import_files(e: &mut Engine, prm: &Value) -> CommandResult {
             e.current_song = added.first().copied();
         }
     }
-    e.say(format!("Added {} songs, skipped {}", added.len(), skipped.len()));
+    e.say_with(
+        "Added {added} songs, skipped {skipped}",
+        vec![crate::MessageArg::plain("added", added.len()), crate::MessageArg::plain("skipped", skipped.len())],
+    );
     // Decode in the background (the window keeps responding) and estimate each tempo.
     e.queue_tempo_detection(added.iter().copied());
     Ok(json!({"added": added, "skipped": skipped}))
@@ -804,7 +807,7 @@ fn lyrics_import(e: &mut Engine, prm: &Value) -> CommandResult {
     song.lyrics = text;
     let lines = parsed.lines.len();
     e.mark_changed();
-    e.say(format!("Imported lyrics: {lines} lines"));
+    e.say_with("Imported lyrics: {lines} lines", vec![crate::MessageArg::plain("lines", lines)]);
     Ok(json!({"lines": lines, "timecodes": parsed.has_timecodes()}))
 }
 
@@ -1017,7 +1020,10 @@ fn mute_group_toggle(e: &mut Engine, prm: &Value) -> CommandResult {
     group.active = !group.active;
     let (label, active) = (group.label.clone(), group.active);
     e.push_mute_groups();
-    e.say(format!("{label} {}", if active { "muted" } else { "unmuted" }));
+    e.say_with(
+        if active { "{group} muted" } else { "{group} unmuted" },
+        vec![crate::MessageArg::plain("group", label)],
+    );
     Ok(json!({"active": active}))
 }
 
@@ -1180,13 +1186,13 @@ fn metronome_cycle(e: &mut Engine, _: &Value) -> CommandResult {
         let label = song.click.label();
         e.mark_changed();
         e.push_metronome();
-        e.say(format!("Click for this song: {label}"));
+        e.say_with("Click for this song: {mode}", vec![crate::MessageArg::word("mode", label)]);
         return Ok(json!({"click": label}));
     }
     e.show.metronome.mode = e.show.metronome.mode.next();
     let label = e.show.metronome.mode.label();
     e.push_metronome();
-    e.say(format!("Metronome: {label}"));
+    e.say_with("Metronome: {mode}", vec![crate::MessageArg::word("mode", label)]);
     Ok(json!({"mode": label}))
 }
 

@@ -92,4 +92,6 @@ all platforms.
   `crates/actcraft-ui/i18n/` (German today). A new file adds a language with no code change
   (`docs/translating.md`). Settings > Language picks one, or the system language; remembered on
   this computer. A test fails when a language file lacks a window text.
-- ⬜ Status messages from the engine and command errors are still English
+- ✅ Status messages (show opened, songs added, tempo detected, audio errors...) in the window's
+  language; the CLI and the control channel keep the English text
+- ⬜ Command error texts (wrong or missing values) are still English
