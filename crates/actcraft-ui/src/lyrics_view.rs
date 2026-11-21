@@ -9,6 +9,7 @@ use egui::{Color32, FontFamily, FontId, RichText, Stroke, TextFormat, Ui};
 use serde_json::json;
 
 use crate::flows::{FileAsk, FileKind, FileRequest};
+use crate::theme::Tokens;
 use crate::{ActCraftApp, tr};
 
 /// Lyrics file types the import picker offers.
@@ -132,6 +133,14 @@ impl ActCraftApp {
             ui.spacing_mut().slider_width = 120.0;
             ui.add(egui::Slider::new(&mut self.lyrics_size, 14.0..=64.0).show_value(false).text(tr("Size")));
             ui.separator();
+            let stage_label = if self.stage.is_some() { tr("Close lyrics window") } else { tr("Lyrics window") };
+            if ui
+                .selectable_label(self.stage.is_some(), stage_label)
+                .on_hover_text(tr("Large lyrics in a window of their own, for a second screen or the stage"))
+                .clicked()
+            {
+                self.toggle_stage_screen();
+            }
             if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro or LRC file")).clicked() {
                 self.ask_file(FileRequest {
                     ask: FileAsk::ImportLyrics { song: song.id },
@@ -157,7 +166,15 @@ impl ActCraftApp {
             );
             return;
         }
-        self.lyrics_display(ui, e, song);
+        let look = LyricsLook {
+            size: self.lyrics_size,
+            chords: self.lyrics_show_chords,
+            follow: self.lyrics_follow,
+            salt: "lyrics",
+        };
+        let mut follow = std::mem::take(&mut self.lyrics_follow_state);
+        Self::lyrics_display(self.tokens, ui, e, song, look, &mut follow);
+        self.lyrics_follow_state = follow;
     }
 
     pub(crate) fn finish_lyrics_edit_pub(&mut self, e: &mut Engine) {
@@ -281,20 +298,26 @@ impl ActCraftApp {
         });
     }
 
-    fn lyrics_display(&mut self, ui: &mut Ui, e: &Engine, song: &Song) {
-        let t = self.tokens;
+    pub(crate) fn lyrics_display(
+        t: Tokens,
+        ui: &mut Ui,
+        e: &Engine,
+        song: &Song,
+        look: LyricsLook,
+        state: &mut LyricsFollow,
+    ) {
         let parsed = lyrics::parse(&song.lyrics);
         let flats = lyrics::chords::prefers_flats(&song.key);
         let shift = i32::from(song.transpose) - i32::from(song.capo);
         let current = if e.status.playing || e.status.time > 0.0 { parsed.line_at(e.status.time) } else { None };
-        let size = self.lyrics_size;
+        let size = look.size;
         let heading_colours = [t.accent, t.warning, t.playing];
-        let mut area = egui::ScrollArea::vertical().id_salt("lyrics").auto_shrink([false, false]);
+        let mut area = egui::ScrollArea::vertical().id_salt(look.salt).auto_shrink([false, false]);
         // Smooth and constant-speed scrolling steer the view from last frame's layout.
         let times: Vec<Option<f64>> = parsed.lines.iter().map(|l| l.time).collect();
         let span = (song.start, song.end.unwrap_or(song.duration));
-        let geometry = &self.lyrics_geometry;
-        let target = if self.lyrics_follow && e.status.playing && geometry.song == song.id {
+        let geometry = &state.geometry;
+        let target = if look.follow && e.status.playing && geometry.song == song.id {
             follow_target(
                 song.lyrics_scroll,
                 e.status.time,
@@ -364,7 +387,7 @@ impl ActCraftApp {
                                 ui.label(layout(&line.spans, size * scale, colour, true));
                             }
                             LineKind::Text => {
-                                if self.lyrics_show_chords && line.has_chords() {
+                                if look.chords && line.has_chords() {
                                     chord_line(ui, &line.spans, size, t.text, t.warning, shift, flats);
                                 } else {
                                     ui.label(layout(&line.spans, size, t.text, false));
@@ -377,17 +400,13 @@ impl ActCraftApp {
                     ui.painter().line_segment([rect.left_top(), rect.left_bottom()], bar);
                 }
                 centres.push(r.response.rect.center().y - top);
-                if is_current
-                    && self.lyrics_follow
-                    && song.lyrics_scroll == LyricsScroll::Line
-                    && self.lyrics_last_line != Some(i)
-                {
+                if is_current && look.follow && song.lyrics_scroll == LyricsScroll::Line && state.last_line != Some(i) {
                     r.response.scroll_to_me(Some(egui::Align::Center));
-                    self.lyrics_last_line = Some(i);
+                    state.last_line = Some(i);
                 }
             }
         });
-        self.lyrics_geometry = LyricsGeometry {
+        state.geometry = LyricsGeometry {
             song: song.id,
             centres,
             content: output.content_size.y,
@@ -396,6 +415,119 @@ impl ActCraftApp {
         };
         if target.is_some() {
             ui.ctx().request_repaint();
+        }
+    }
+}
+
+/// How a lyrics view looks: text size, chords, whether it follows playback, and its scroll id.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LyricsLook {
+    pub size: f32,
+    pub chords: bool,
+    pub follow: bool,
+    pub salt: &'static str,
+}
+
+/// What a lyrics view remembers between frames to follow playback.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct LyricsFollow {
+    pub geometry: LyricsGeometry,
+    pub last_line: Option<usize>,
+}
+
+/// The second window: lyrics large, for the stage or a second screen.
+#[derive(Debug, Clone)]
+pub(crate) struct StageScreen {
+    pub size: f32,
+    pub chords: bool,
+    pub follow: LyricsFollow,
+}
+
+impl Default for StageScreen {
+    fn default() -> Self {
+        Self { size: 56.0, chords: true, follow: LyricsFollow::default() }
+    }
+}
+
+impl ActCraftApp {
+    /// Opens or closes the second lyrics window.
+    pub fn toggle_stage_screen(&mut self) {
+        self.stage = if self.stage.is_some() { None } else { Some(StageScreen::default()) };
+    }
+
+    /// Draws the second lyrics window while it's open (its own viewport, so it can be moved to
+    /// another screen and made full screen).
+    pub(crate) fn stage_window(&mut self, ctx: &egui::Context, e: &Engine) {
+        let Some(mut stage) = self.stage.take() else { return };
+        let t = self.tokens;
+        let song = e.current().cloned();
+        let mut open = true;
+        let title = match &song {
+            Some(s) if !s.title.is_empty() => format!("ActCraft \u{2014} {}", s.title),
+            _ => "ActCraft".to_owned(),
+        };
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("actcraft-stage"),
+            egui::ViewportBuilder::default().with_title(title).with_inner_size([1024.0, 640.0]),
+            |vui, _class| {
+                let ctx = vui.ctx().clone();
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    open = false;
+                }
+                egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg).inner_margin(t.pad)).show(
+                    vui,
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            if let Some(s) = &song {
+                                ui.label(RichText::new(&s.title).size(22.0).strong().color(t.text));
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.button(tr("Close")).clicked() {
+                                    open = false;
+                                }
+                                let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                                let label = if full { tr("Leave full screen") } else { tr("Full screen") };
+                                if ui.button(label).on_hover_text("F11").clicked()
+                                    || ctx.input(|i| i.key_pressed(egui::Key::F11))
+                                {
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+                                }
+                                ui.spacing_mut().slider_width = 120.0;
+                                ui.add(
+                                    egui::Slider::new(&mut stage.size, 24.0..=120.0).show_value(false).text(tr("Size")),
+                                );
+                                ui.checkbox(&mut stage.chords, tr("Chords"));
+                            });
+                        });
+                        ui.separator();
+                        match &song {
+                            Some(s) if !s.lyrics.trim().is_empty() => {
+                                let look = LyricsLook {
+                                    size: stage.size,
+                                    chords: stage.chords,
+                                    follow: true,
+                                    salt: "stage-lyrics",
+                                };
+                                Self::lyrics_display(t, ui, e, s, look, &mut stage.follow);
+                            }
+                            Some(_) => {
+                                ui.label(RichText::new(tr("This song has no lyrics.")).size(28.0).color(t.text_dim));
+                            }
+                            None => {
+                                ui.label(RichText::new(tr("No song loaded")).size(28.0).color(t.text_dim));
+                            }
+                        }
+                    },
+                );
+                if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+                    && !ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+                {
+                    open = false;
+                }
+            },
+        );
+        if open {
+            self.stage = Some(stage);
         }
     }
 }
@@ -561,5 +693,18 @@ mod tests {
         assert_eq!(follow_target(LyricsScroll::Constant, 5.0, &times, &centres, 1000.0, 200.0, (5.0, 5.0)), None);
         assert_eq!(follow_target(LyricsScroll::Line, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
         assert_eq!(follow_target(LyricsScroll::Off, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
+    }
+
+    #[test]
+    fn the_lyrics_window_opens_and_closes_with_its_own_settings() {
+        let ctx = egui::Context::default();
+        let engine = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let mut app = ActCraftApp::new(&ctx, std::sync::Arc::new(std::sync::Mutex::new(engine)), Default::default());
+        assert!(app.stage.is_none());
+        app.toggle_stage_screen();
+        let stage = app.stage.clone();
+        assert!(stage.as_ref().is_some_and(|s| s.chords && s.size > app.lyrics_size), "larger than the tab's text");
+        app.toggle_stage_screen();
+        assert!(app.stage.is_none());
     }
 }

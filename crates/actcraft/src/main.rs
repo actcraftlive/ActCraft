@@ -226,6 +226,7 @@ fn main() {
     let open_settings = args.iter().any(|a| a == "--open-settings");
     let show_lyrics = args.iter().any(|a| a == "--lyrics");
     let edit_lyrics = args.iter().any(|a| a == "--edit-lyrics");
+    let stage = args.iter().any(|a| a == "--stage");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
         started: std::time::Instant::now(),
@@ -265,6 +266,9 @@ fn main() {
             }
             if edit_lyrics {
                 app.edit_lyrics();
+            }
+            if stage {
+                app.toggle_stage_screen();
             }
             Ok(Box::new(Host { app, _audio: audio, screenshot, dialogs, prefs }))
         }),

@@ -120,8 +120,9 @@ pub struct ActCraftApp {
     lyrics_show_chords: bool,
     lyrics_follow: bool,
     lyrics_size: f32,
-    lyrics_last_line: Option<usize>,
-    lyrics_geometry: lyrics_view::LyricsGeometry,
+    lyrics_follow_state: lyrics_view::LyricsFollow,
+    /// The second lyrics window, while open.
+    stage: Option<lyrics_view::StageScreen>,
 }
 
 /// What the main area shows for the current song.
@@ -160,8 +161,8 @@ impl ActCraftApp {
             lyrics_show_chords: true,
             lyrics_follow: true,
             lyrics_size: 28.0,
-            lyrics_last_line: None,
-            lyrics_geometry: lyrics_view::LyricsGeometry::default(),
+            lyrics_follow_state: lyrics_view::LyricsFollow::default(),
+            stage: None,
         }
     }
 
@@ -249,6 +250,7 @@ impl ActCraftApp {
             egui::ScrollArea::vertical().id_salt("centre").auto_shrink([false, false]).show(ui, |ui| self.centre(ui, e))
         });
         self.settings_window(&ctx, e);
+        self.stage_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);
