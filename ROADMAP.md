@@ -26,7 +26,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ✅ Show file `.actcraft`: versioned, older files load, unknown fields kept
 - ✅ Gate `cargo xtask ci`: format, lints, tests, layers, web build, licences, assets
 - ✅ Every command survives hostile input; every file parser has a fuzz test
-- ⬜ CI workflow through storytold/craft-common-actions (own pull request)
+- ✅ CI workflow through storytold/craft-common-actions on Linux, Windows and macOS
 
 ## M1 Audio and library 🔶
 
@@ -56,7 +56,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - 🔶 Timecoded lines: the playing line is highlighted and scrolled to; smooth and constant-speed
   scrolling still to do
 - 🔶 Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
-  position; search and replace and timecode-aware undo still to do
+  position, find and replace (also `lyrics.replace`); timecode-aware undo still to do
 - 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
 - ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
   (Parts bar), leave a loop after its pass (L)
