@@ -394,6 +394,56 @@ impl Engine {
         self.peaks.get(path).cloned()
     }
 
+    /// The waveform of a file: from memory, else from the cache on disk (made the last time the
+    /// file was decoded, as long as the file hasn't changed), else decoded in the background
+    /// (`None` until then).
+    pub fn peaks_for(&mut self, path: &str) -> Option<Arc<Peaks>> {
+        if let Some(p) = self.peaks.get(path) {
+            return Some(Arc::clone(p));
+        }
+        if let Some(p) = self.stored_peaks(path) {
+            self.keep_peaks(path.to_owned(), Arc::clone(&p));
+            return Some(p);
+        }
+        self.request_clips([path.to_owned()]);
+        None
+    }
+
+    /// The cache key of a file's waveform: its path and stamp (size and time), so an edited file
+    /// is decoded again.
+    pub(crate) fn peaks_key(&self, path: &str) -> Option<String> {
+        self.services.file_stamp(path).map(|stamp| format!("peaks1|{path}|{stamp}"))
+    }
+
+    /// A waveform stored on disk for this file as it is now.
+    pub(crate) fn stored_peaks(&self, path: &str) -> Option<Arc<Peaks>> {
+        let key = self.peaks_key(path)?;
+        let bytes = self.services.cache_get(&key)?;
+        // The entry starts with its key, so a hash collision in the file name can't mix files up.
+        let rest = bytes.strip_prefix(key.as_bytes())?.strip_prefix(&[0])?;
+        Peaks::from_bytes(rest).map(Arc::new)
+    }
+
+    /// Stores a file's waveform on disk for the next time.
+    pub(crate) fn store_peaks(&mut self, path: &str, peaks: &Peaks) {
+        if let Some(key) = self.peaks_key(path) {
+            let mut entry = key.clone().into_bytes();
+            entry.push(0);
+            entry.extend_from_slice(&peaks.to_bytes());
+            self.services.cache_put(&key, &entry);
+        }
+    }
+
+    fn keep_peaks(&mut self, path: String, peaks: Arc<Peaks>) {
+        // Waveforms without their audio are small, but still bounded.
+        if self.peaks.len() >= MAX_CACHED_CLIPS * 4
+            && let Some(k) = self.peaks.keys().find(|k| !self.clips.contains_key(*k)).cloned()
+        {
+            self.peaks.remove(&k);
+        }
+        self.peaks.insert(path, peaks);
+    }
+
     pub(crate) fn track_params(&self, t: &Track) -> TrackParams {
         let eq = [0, 1, 2, 3].map(|i| t.eq.get(i).map_or((1000.0, 0.0, 0.7), |b| (b.freq, b.gain_db, b.q)));
         let settings = actcraft_audio::render::TrackSettings {
@@ -555,7 +605,12 @@ impl Engine {
         while let Ok(done) = self.load_rx.try_recv() {
             self.loading.remove(&done.path);
             match done.result {
-                Ok((clip, peaks)) => self.cache_clip(done.path, clip, peaks),
+                Ok((clip, peaks)) => {
+                    if self.stored_peaks(&done.path).is_none() {
+                        self.store_peaks(&done.path, &peaks);
+                    }
+                    self.cache_clip(done.path, clip, peaks);
+                }
                 Err(e) => {
                     self.say_error(format!("{}: {e}", services::file_name(&done.path)));
                     self.failed.insert(done.path);

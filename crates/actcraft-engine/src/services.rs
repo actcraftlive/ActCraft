@@ -29,6 +29,17 @@ pub trait Services: Send {
     fn create_folder(&mut self, _path: &str) -> Result<(), String> {
         Ok(())
     }
+    /// Size and modification time of a file as one text, so a cache entry made for it can tell
+    /// when the file changed. `None` when unknown (then nothing is cached for it).
+    fn file_stamp(&self, _path: &str) -> Option<String> {
+        None
+    }
+    /// A file from ActCraft's own cache (work done before, such as waveforms), by key.
+    fn cache_get(&self, _key: &str) -> Option<Vec<u8>> {
+        None
+    }
+    /// Keeps bytes in ActCraft's own cache under a key; failures are ignored (it's only a cache).
+    fn cache_put(&mut self, _key: &str, _bytes: &[u8]) {}
     /// Runs a job off the caller's thread where the platform has threads; inline otherwise.
     fn spawn(&self, job: Job) {
         job();
@@ -40,6 +51,7 @@ pub trait Services: Send {
 pub struct MemoryServices {
     pub files: BTreeMap<String, Vec<u8>>,
     pub now: Option<DateTime<FixedOffset>>,
+    pub cache: BTreeMap<String, Vec<u8>>,
 }
 
 impl Services for MemoryServices {
@@ -59,10 +71,30 @@ impl Services for MemoryServices {
         self.now.unwrap_or_default()
     }
 
+    fn file_stamp(&self, path: &str) -> Option<String> {
+        // Memory files have no clock: the length and a checksum stand in for the time.
+        self.files.get(path).map(|b| format!("{}-{:016x}", b.len(), fnv1a(b)))
+    }
+
+    fn cache_get(&self, key: &str) -> Option<Vec<u8>> {
+        self.cache.get(key).cloned()
+    }
+
+    fn cache_put(&mut self, key: &str, bytes: &[u8]) {
+        if self.cache.len() < 10_000 {
+            self.cache.insert(key.to_owned(), bytes.to_vec());
+        }
+    }
+
     fn file_reader(&self) -> FileReader {
         let files = self.files.clone();
         Arc::new(move |path: &str| files.get(path).cloned().ok_or_else(|| format!("no file {path}")))
     }
+}
+
+/// FNV-1a, 64 bit: a small stable hash for cache file names (not for security).
+pub fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3))
 }
 
 /// The folder part of a path (before the last `/` or `\`), empty for a bare file name.

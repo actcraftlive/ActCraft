@@ -1093,9 +1093,9 @@ impl ActCraftApp {
             ui.label(RichText::new(tr("No audio file on this track.")).color(t.text_dim));
             return;
         }
-        let Some(peaks) = e.cached_peaks(&track.file) else {
-            // Decoded in the background; the window never waits for it.
-            e.request_clips([track.file.clone()]);
+        // From memory or the cache on disk; otherwise decoded in the background, so the window
+        // never waits for it.
+        let Some(peaks) = e.peaks_for(&track.file) else {
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(RichText::new(tr("Loading waveform\u{2026}")).color(t.text_dim));

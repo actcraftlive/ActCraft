@@ -55,3 +55,25 @@ fn damaged_wav_files_never_panic() {
         let _ = clip::wav_markers(&input);
     }
 }
+
+#[test]
+fn damaged_waveform_cache_files_never_panic() {
+    use actcraft_audio::peaks::Peaks;
+    let seed =
+        Peaks { sample_rate: 48_000, pairs: (0..500).map(|i| (-(i as f32) / 500.0, i as f32 / 500.0)).collect() }
+            .to_bytes();
+    let mut rng = Rng(7);
+    for round in 0..1500 {
+        let mut input = seed.clone();
+        for _ in 0..(1 + rng.next() % 6) {
+            let i = (rng.next() % input.len() as u64) as usize;
+            input[i] = rng.next() as u8;
+        }
+        if round % 5 == 0 {
+            input.truncate((rng.next() % seed.len() as u64) as usize);
+        }
+        if let Some(p) = Peaks::from_bytes(&input) {
+            assert!(p.pairs.iter().all(|(lo, hi)| lo.is_finite() && hi.is_finite()));
+        }
+    }
+}

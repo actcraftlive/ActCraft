@@ -48,6 +48,25 @@ impl Services for NativeServices {
         Arc::new(|path: &str| guarded("reading a file", || read_capped(Path::new(path))))
     }
 
+    fn file_stamp(&self, path: &str) -> Option<String> {
+        let meta = std::fs::metadata(path).ok()?;
+        let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+        Some(format!("{}-{}", meta.len(), modified.as_nanos()))
+    }
+
+    fn cache_get(&self, key: &str) -> Option<Vec<u8>> {
+        let file = cache_dir()?.join(cache_file_name(key));
+        guarded("reading the cache", || read_capped(&file)).ok()
+    }
+
+    fn cache_put(&mut self, key: &str, bytes: &[u8]) {
+        let Some(dir) = cache_dir() else { return };
+        let _ = guarded("writing the cache", || {
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            craft_atomic::atomic_write(&dir.join(cache_file_name(key)), bytes).map_err(|e| e.to_string())
+        });
+    }
+
     fn create_folder(&mut self, path: &str) -> Result<(), String> {
         guarded("making a folder", || match std::fs::create_dir(path) {
             Ok(()) => Ok(()),
@@ -59,6 +78,28 @@ impl Services for NativeServices {
     fn spawn(&self, job: Job) {
         spawn_job(job);
     }
+}
+
+/// ActCraft's cache folder: work that can be redone (waveforms), kept between runs.
+/// Windows `%LOCALAPPDATA%\ActCraft\cache`, macOS `~/Library/Caches/ActCraft`, elsewhere
+/// `$XDG_CACHE_HOME/actcraft` or `~/.cache/actcraft`. `ACTCRAFT_CACHE_DIR` overrides it.
+pub fn cache_dir() -> Option<PathBuf> {
+    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if let Some(dir) = var("ACTCRAFT_CACHE_DIR") {
+        return Some(dir);
+    }
+    if cfg!(windows) {
+        return var("LOCALAPPDATA").map(|d| d.join("ActCraft").join("cache"));
+    }
+    if cfg!(target_os = "macos") {
+        return var("HOME").map(|h| h.join("Library").join("Caches").join("ActCraft"));
+    }
+    var("XDG_CACHE_HOME").or_else(|| var("HOME").map(|h| h.join(".cache"))).map(|d| d.join("actcraft"))
+}
+
+/// A cache key as a file name: its hash in hex, so any key is a safe name.
+fn cache_file_name(key: &str) -> String {
+    format!("{:016x}.bin", actcraft_engine::services::fnv1a(key.as_bytes()))
 }
 
 /// Runs a background job on its own thread; if no thread can start, runs it here so the work

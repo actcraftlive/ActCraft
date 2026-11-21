@@ -38,6 +38,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - ✅ Tempo: automatic detection, tap tempo, manual
 - ✅ Autoplay, crossfade, fade-out, song loop; start/end time per song (by command)
 - ✅ Waveform with zoom; click to jump
+- ✅ Waveforms kept in ActCraft's cache folder between runs (made again only when the audio file
+  changes) and carried inside show packages; opening a show starts decoding its first song
 - ✅ Library search (boolean, fields, phrases, keywords), playlists with sets, smart playlists
 - ✅ Queue (128), play history (500) with playlist from a date, double-click action
 - ✅ Add songs from files (picker, drag and drop), names read with a pattern, duplicates found
