@@ -338,3 +338,41 @@ fn lyrics_replace_changes_every_match_and_marks_the_show() {
     assert_eq!(r.ok().map(|v| v["replaced"].clone()), Some(json!(0)));
     assert!(e.run("lyrics.replace", &json!({"song": id, "find": ""})).is_err());
 }
+
+#[test]
+fn a_show_package_carries_its_files_and_opens_elsewhere() {
+    let mut files = MemoryServices::default();
+    files.files.insert("/gig/drums.wav".into(), tone_wav(800));
+    files.files.insert("/gig/click.mid".into(), b"MThd".to_vec());
+    let mut e = Engine::new(Box::new(files));
+    assert!(e.run("song.add", &json!({"title": "A"})).is_ok());
+    assert!(e.run("track.add", &json!({"song": 1, "name": "Drums", "file": "/gig/drums.wav"})).is_ok());
+    // The same file twice is packed once; a missing file is reported, not fatal.
+    assert!(e.run("track.add", &json!({"song": 1, "name": "Again", "file": "/gig/drums.wav"})).is_ok());
+    assert!(e.run("track.add", &json!({"song": 1, "name": "Gone", "file": "/gig/gone.wav"})).is_ok());
+    assert!(e.run("song.set", &json!({"song": 1, "midi_file": "/gig/click.mid"})).is_ok());
+    assert!(e.run("show.export_package", &json!({"path": "/gig/show.zip"})).is_err(), "needs the package extension");
+    let r = e.run("show.export_package", &json!({"path": "/gig/Friday.actcraftpack"}));
+    assert!(r.is_ok(), "{r:?}");
+    let r = r.unwrap_or_default();
+    assert_eq!(r["files"], json!(2));
+    assert_eq!(r["missing"], json!(["/gig/gone.wav"]));
+    // Opened on "another computer": the files land beside the package.
+    let package = e.services().read_file("/gig/Friday.actcraftpack").unwrap_or_default();
+    let mut other = MemoryServices::default();
+    other.files.insert("/usb/Friday.actcraftpack".into(), package);
+    let mut e2 = Engine::new(Box::new(other));
+    let r = e2.run("show.open_package", &json!({"path": "/usb/Friday.actcraftpack"})).unwrap_or_default();
+    assert_eq!(r["folder"], json!("/usb/Friday files"));
+    let song = e2.show.song(1).cloned().unwrap_or_default();
+    let tracks: Vec<&str> = song.tracks.iter().map(|t| t.file.as_str()).collect();
+    assert_eq!(tracks, ["/usb/Friday files/0001-drums.wav", "/usb/Friday files/0001-drums.wav", "/gig/gone.wav"]);
+    assert_eq!(song.midi_file.as_deref(), Some("/usb/Friday files/0002-click.mid"));
+    assert_eq!(e2.services().read_file("/usb/Friday files/0001-drums.wav").ok(), Some(tone_wav(800)));
+    assert!(e2.dirty, "the opened show isn't saved anywhere yet");
+    // Not a package: a clear error, nothing changes.
+    assert!(
+        e2.run("show.open_package", &json!({"path": "/usb/Friday files/0002-click.mid", "discard": true})).is_err()
+    );
+    assert_eq!(e2.show.songs.len(), 1);
+}

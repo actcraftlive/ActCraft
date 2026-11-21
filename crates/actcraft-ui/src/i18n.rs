@@ -92,6 +92,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/lib.rs"),
             include_str!("../../actcraft-engine/src/commands.rs"),
             include_str!("../../actcraft-engine/src/region_commands.rs"),
+            include_str!("../../actcraft-engine/src/package_commands.rs"),
             include_str!("../../actcraft/src/main.rs"),
         ];
         let mut out = scan(&window, &["tr("]);

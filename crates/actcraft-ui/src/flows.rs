@@ -17,6 +17,8 @@ use crate::{ActCraftApp, tr};
 pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "wave", "aif", "aiff", "flac", "mp3", "ogg", "opus", "m4a"];
 /// The show file type.
 pub const SHOW_EXTENSIONS: &[&str] = &["actcraft"];
+/// The show package file type (the show and its files in one file).
+pub const PACKAGE_EXTENSIONS: &[&str] = &["actcraftpack"];
 
 /// Why a file picker was opened; the answer goes back to [`ActCraftApp::file_chosen`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +29,8 @@ pub enum FileAsk {
     AddTrack { song: u64 },
     TrackFile { song: u64, track: usize },
     ImportLyrics { song: u64 },
+    ExportPackage,
+    OpenPackage,
 }
 
 /// What happens once a save finishes.
@@ -41,6 +45,7 @@ pub enum AfterSave {
 pub enum AfterDiscard {
     NewShow,
     OpenShow,
+    OpenPackage,
     Quit,
 }
 
@@ -110,6 +115,8 @@ pub fn handled_by_window(id: &str) -> bool {
             | "app.about"
             | "app.commands"
             | "song.duplicates"
+            | "show.export_package"
+            | "show.open_package"
     )
 }
 
@@ -156,6 +163,16 @@ impl ActCraftApp {
                 {
                     self.continue_after_discard(e, next);
                 }
+            }
+            FileAsk::ExportPackage => {
+                let mut path = first;
+                if !has_ext(&path, PACKAGE_EXTENSIONS) {
+                    path.set_extension("actcraftpack");
+                }
+                let _ = e.run("show.export_package", &json!({"path": path_string(&path)}));
+            }
+            FileAsk::OpenPackage => {
+                let _ = e.run("show.open_package", &json!({"path": path_string(&first), "discard": true}));
             }
             FileAsk::AddSongs => self.add_songs(e, &paths),
             FileAsk::AddTrack { song } => {
@@ -204,6 +221,29 @@ impl ActCraftApp {
             title: tr("Open show"),
             filters: vec![(tr("ActCraft show"), SHOW_EXTENSIONS)],
             file_name: None,
+            directory: show_dir(e),
+        });
+    }
+
+    fn ask_open_package(&mut self, e: &Engine) {
+        self.ask_file(FileRequest {
+            ask: FileAsk::OpenPackage,
+            kind: FileKind::Open,
+            title: tr("Open show package"),
+            filters: vec![(tr("ActCraft show package"), PACKAGE_EXTENSIONS)],
+            file_name: None,
+            directory: show_dir(e),
+        });
+    }
+
+    fn ask_export_package(&mut self, e: &Engine) {
+        let name = if e.show.name.trim().is_empty() { tr("My show").to_owned() } else { e.show.name.clone() };
+        self.ask_file(FileRequest {
+            ask: FileAsk::ExportPackage,
+            kind: FileKind::Save,
+            title: tr("Export show package"),
+            filters: vec![(tr("ActCraft show package"), PACKAGE_EXTENSIONS)],
+            file_name: Some(format!("{name}.actcraftpack")),
             directory: show_dir(e),
         });
     }
@@ -271,6 +311,7 @@ impl ActCraftApp {
                 let _ = e.run("show.new", &json!({"discard": true}));
             }
             AfterDiscard::OpenShow => self.ask_open_show(e),
+            AfterDiscard::OpenPackage => self.ask_open_package(e),
             AfterDiscard::Quit => self.allow_close = true,
         }
     }
@@ -283,6 +324,8 @@ impl ActCraftApp {
             "show.open" => self.guard_unsaved(e, AfterDiscard::OpenShow),
             "show.save" => self.save(e, AfterSave::Nothing),
             "show.save_as" => self.ask_save_as(e, AfterSave::Nothing),
+            "show.export_package" => self.ask_export_package(e),
+            "show.open_package" => self.guard_unsaved(e, AfterDiscard::OpenPackage),
             "show.rename" => {
                 self.modal = Some(Modal::Text {
                     title: tr("Rename show"),
@@ -403,9 +446,11 @@ impl ActCraftApp {
         if dropped.is_empty() {
             return;
         }
-        if let Some(show) = dropped.iter().find(|p| has_ext(p, SHOW_EXTENSIONS)) {
+        if let Some(show) = dropped.iter().find(|p| has_ext(p, SHOW_EXTENSIONS) || has_ext(p, PACKAGE_EXTENSIONS)) {
             if e.dirty {
                 e.say_error(tr("Save or discard the open show first (File > New Show), then drop it again."));
+            } else if has_ext(show, PACKAGE_EXTENSIONS) {
+                let _ = e.run("show.open_package", &json!({"path": path_string(show)}));
             } else {
                 let _ = e.run("show.open", &json!({"path": path_string(show)}));
             }

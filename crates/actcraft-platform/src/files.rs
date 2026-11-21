@@ -48,6 +48,14 @@ impl Services for NativeServices {
         Arc::new(|path: &str| guarded("reading a file", || read_capped(Path::new(path))))
     }
 
+    fn create_folder(&mut self, path: &str) -> Result<(), String> {
+        guarded("making a folder", || match std::fs::create_dir(path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && Path::new(path).is_dir() => Ok(()),
+            Err(e) => Err(format!("cannot make the folder {path}: {e}")),
+        })
+    }
+
     fn spawn(&self, job: Job) {
         spawn_job(job);
     }
@@ -130,6 +138,12 @@ impl Services for RootedServices {
 
     fn now(&self) -> DateTime<FixedOffset> {
         self.inner.now()
+    }
+
+    fn create_folder(&mut self, path: &str) -> Result<(), String> {
+        // Checked like a file written there: the parent must be inside the write root.
+        let p = self.resolve(path, &self.write_root)?;
+        self.inner.create_folder(&p.to_string_lossy())
     }
 
     fn file_reader(&self) -> FileReader {

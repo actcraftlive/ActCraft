@@ -16,6 +16,7 @@ check again so it gets a fresh look.
 | Crate | Declared | Used under | Reason |
 |---|---|---|---|
 | `self_cell` | Apache-2.0 OR GPL-2.0-only | Apache-2.0 | egui's `epaint` requires it; the other Craft apps (craft-anything, anicraft) record the same choice |
+| `constant_time_eq` | CC0-1.0 OR MIT-0 OR Apache-2.0 | Apache-2.0 | the `zip` crate requires it (through craft-zip, for show packages); MIT-0 is not on the allowlist, Apache-2.0 is |
 
 ## Out of scope
 
