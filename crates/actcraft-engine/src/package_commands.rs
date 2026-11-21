@@ -2,7 +2,7 @@
 //! show to another computer or keep a backup.
 //!
 //! Layout: `show.actcraft` (the show, its file references pointing inside the package) and
-//! `files/<nnnn>-<name>` for each audio or MIDI file. Opening a package writes the files into a
+//! `files/<nnnn>-<name>` for each audio, MIDI or PDF file. Opening a package writes the files into a
 //! folder beside it and opens the show with its references pointing there.
 
 use std::collections::BTreeMap;
@@ -122,6 +122,9 @@ pub fn show_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
         if let Some(midi) = &mut song.midi_file {
             packer.relink(midi)?;
         }
+        if let Some(pdf) = &mut song.pdf_file {
+            packer.relink(pdf)?;
+        }
     }
     let Packer { mut writer, packed, missing, total, .. } = packer;
     writer.add(SHOW_ENTRY, &show.to_bytes(), craft_zip::Compression::Deflated).map_err(|e| failed(e.to_string()))?;
@@ -195,6 +198,9 @@ pub fn show_open_package(e: &mut Engine, prm: &Value) -> CommandResult {
         }
         if let Some(midi) = &mut song.midi_file {
             relink(midi);
+        }
+        if let Some(pdf) = &mut song.pdf_file {
+            relink(pdf);
         }
     }
     let songs = show.songs.len();

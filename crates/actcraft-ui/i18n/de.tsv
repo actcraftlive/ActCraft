@@ -442,3 +442,20 @@
 	the show has unsaved changes; save it first or pass discard: true	Die Show hat ungespeicherte Änderungen; erst speichern oder discard: true angeben
 	the show's files are larger than a package can hold (2 GB)	Die Dateien der Show sind größer, als ein Paket fassen kann (2 GB)
 	the track has no audio file	Die Spur hat keine Audiodatei
+	Sheet music	Noten
+	Sheet music •	Noten •
+	`pdf_file` must be a .pdf file	`pdf_file` muss eine .pdf-Datei sein
+	Attach PDF	PDF anhängen
+	Attach PDF…	PDF anhängen…
+	Choose another PDF…	Andere PDF wählen…
+	Invert colours	Farben umkehren
+	No PDF yet. Attach sheet music, a lyrics sheet or notes as a PDF to see them here while you play.	Noch keine PDF. Hänge Noten, ein Textblatt oder Notizen als PDF an, um sie hier beim Spielen zu sehen.
+	PDF file	PDF-Datei
+	Page {page}	Seite {page}
+	Remove PDF	PDF entfernen
+	Scroll through the pages at a constant speed while the song plays	Während der Song läuft, gleichmäßig durch die Seiten scrollen
+	Sheet music, lyrics or notes as a PDF file	Noten, Songtext oder Notizen als PDF-Datei
+	The PDF could not be opened:	Die PDF ließ sich nicht öffnen:
+	The PDF has no pages ActCraft can show.	Die PDF hat keine Seiten, die ActCraft zeigen kann.
+	White on black, for a dark stage	Weiß auf Schwarz, für eine dunkle Bühne
+	{count} pages	{count} Seiten

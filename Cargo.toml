@@ -48,6 +48,7 @@ craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "8048f8
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-i18n = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-zip = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", features = ["raster"] }
 craft-audio = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", default-features = false, features = ["decode-native"] }
 
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "wayland", "x11"] }
@@ -57,3 +58,13 @@ cpal = "0.18"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# craft-pdf is built against craft-libs' vendored hayro (its own [patch] doesn't reach dependents),
+# so the same sources are used here, at the same craft-libs rev.
+[patch.crates-io]
+hayro = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+hayro-interpret = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+hayro-syntax = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+hayro-jbig2 = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+hayro-cmap = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+hayro-postscript = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }

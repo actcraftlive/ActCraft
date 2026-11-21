@@ -102,7 +102,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, pdf_file?: text|null, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -678,6 +678,14 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     }
     if let Some(v) = p::opt_f64_in(prm, "fade_out", 0.0, 60.0)? {
         next.fade_out = v;
+    }
+    if prm.get("pdf_file").is_some_and(Value::is_null) {
+        next.pdf_file = None;
+    } else if let Some(v) = p::opt_str_max(prm, "pdf_file", MAX_TEXT)? {
+        if services::extension(v).as_deref() != Some("pdf") {
+            return Err(invalid("`pdf_file` must be a .pdf file"));
+        }
+        next.pdf_file = Some(v.to_owned());
     }
     if prm.get("midi_file").is_some_and(Value::is_null) {
         next.midi_file = None;
