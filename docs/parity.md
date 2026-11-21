@@ -33,7 +33,7 @@ Statuses describe what ran in tests, not what is designed.
 | A1.10 | Metronome on own bus; modes incl. visual-only | `metronome.toggle/cycle_mode/set` | done |
 | A1.11 | Per-song count-in | `song.set {count_in_bars}`, `metronome.count_in` | done |
 | A1.12 | Start quantized to the beat | `metronome.set {quantized_start}` | done |
-| A1.13 | Beat anchor independent of song start; BPM per song; grid with snap | `song.set {beat_anchor, bpm}` | partial (snap in engine clock, no grid UI yet) |
+| A1.13 | Beat anchor independent of song start; BPM per song; grid with snap | `song.set {beat_anchor, bpm}` | done: grid drawn on the waveform, click-to-jump snaps to beats |
 | A1.14 | MIDI file per song in sync | `song.set {midi_file}` | planned M3 |
 | A1.15 | Autoplay, crossfade (ignores requests while running), fade-out, song loop | `song.set {autoplay, fade_out, loop_song}`, `transport.crossfade_to`, `transport.set_crossfade` | done |
 | A1.16 | Waveform view with zoom | `waveform.peaks` | done |
