@@ -592,3 +592,13 @@
 	Make the undone change again	Die zurückgenommene Änderung wieder machen
 	that DOCX document could not be read	dieses DOCX-Dokument konnte nicht gelesen werden
 	DOCX documents are read in the desktop app	DOCX-Dokumente liest die Desktop-App
+	Export Song Package…	Song-Paket exportieren …
+	Export Playlist Package…	Playlist-Paket exportieren …
+	Export song package	Song-Paket exportieren
+	Export playlist package	Playlist-Paket exportieren
+	Export song package…	Song-Paket exportieren …
+	Export package…	Paket exportieren …
+	This playlist and its songs with their files in one package	Diese Playlist und ihre Songs mit ihren Dateien in einem Paket
+	give `song` or `playlist`, not both	`song` oder `playlist` angeben, nicht beides
+	no playlist open	keine Playlist geöffnet
+	bad playlist	ungültige Playlist

@@ -115,17 +115,71 @@ impl Packer<'_> {
     }
 }
 
-/// Writes the show and every file it uses into one package file.
+/// The show to pack: all of it, one song (`song`), or one playlist and its songs (`playlist`).
+/// The rest of the show (buses, mixer, metronome, voice) goes along; history keeps only what
+/// is packed.
+fn part_to_pack(show: &Show, prm: &Value) -> Result<Show, CommandError> {
+    let mut out = show.clone();
+    let keep: Vec<u64> = match (p::has(prm, "song"), p::has(prm, "playlist")) {
+        (true, true) => return Err(invalid("give `song` or `playlist`, not both")),
+        (false, false) => return Ok(out),
+        (true, false) => {
+            let id = u64::try_from(p::i64_in(prm, "song", 1, i64::MAX)?).map_err(|_| invalid("bad song id"))?;
+            if show.song(id).is_none() {
+                return Err(invalid(format!("no song with id {id}")));
+            }
+            out.playlists.clear();
+            vec![id]
+        }
+        (false, true) => {
+            let i = p::index(prm, "playlist", show.playlists.len())?;
+            let Some(pl) = show.playlists.get(i) else { return Err(invalid("no such playlist")) };
+            out.playlists = vec![pl.clone()];
+            crate::commands::playlist_songs(show, pl)
+        }
+    };
+    out.songs.retain(|s| keep.contains(&s.id));
+    out.history.retain(|h| keep.contains(&h.song));
+    Ok(out)
+}
+
+/// `song.export_package {path, song?}`: a package of one song, the current one when not given.
+pub fn song_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
+    let path = p::str_max(prm, "path", MAX_TEXT)?;
+    let song = if p::has(prm, "song") {
+        p::i64_in(prm, "song", 1, i64::MAX)?
+    } else {
+        let id = e.current_song.ok_or_else(|| invalid("no song chosen"))?;
+        i64::try_from(id).map_err(|_| invalid("bad song id"))?
+    };
+    show_export_package(e, &json!({"path": path, "song": song}))
+}
+
+/// `playlist.export_package {path, playlist?}`: a package of one playlist and its songs, the
+/// open one when not given.
+pub fn playlist_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
+    let path = p::str_max(prm, "path", MAX_TEXT)?;
+    let playlist = match p::opt_i64_in(prm, "playlist", 0, i64::MAX)? {
+        Some(i) => i,
+        None => {
+            let i = e.current_playlist.ok_or_else(|| invalid("no playlist open"))?;
+            i64::try_from(i).map_err(|_| invalid("bad playlist"))?
+        }
+    };
+    show_export_package(e, &json!({"path": path, "playlist": playlist}))
+}
+
+/// Writes the show (or one song or playlist of it) and every file it uses into one package file.
 pub fn show_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
     let path = p::str_max(prm, "path", MAX_TEXT)?.to_owned();
     if !is_package_path(&path) {
         return Err(invalid(format!("a show package file ends in .{PACKAGE_EXTENSION}")));
     }
-    let mut show = e.show.clone();
+    let mut show = part_to_pack(&e.show, prm)?;
     // Waveforms known now (in memory or on disk) travel with their files, so the package opens
     // without decoding everything again.
     let mut peaks = BTreeMap::new();
-    for song in &e.show.songs {
+    for song in &show.songs {
         for file in song.tracks.iter().map(|t| t.file.as_str()) {
             if file.is_empty() || peaks.contains_key(file) {
                 continue;

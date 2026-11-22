@@ -43,6 +43,18 @@ fn with_songs(mut c: Command<Engine>) -> Command<Engine> {
     c
 }
 
+/// Enabled while a song is chosen (the command works on it unless given another).
+fn with_current_song(mut c: Command<Engine>) -> Command<Engine> {
+    c.enabled = |e: &Engine| e.current_song.is_some_and(|id| e.show.song(id).is_some());
+    c
+}
+
+/// Enabled while a playlist is open (the command works on it unless given another).
+fn with_open_playlist(mut c: Command<Engine>) -> Command<Engine> {
+    c.enabled = |e: &Engine| e.current_playlist.is_some_and(|i| i < e.show.playlists.len());
+    c
+}
+
 /// Every command, in menu order.
 pub fn all() -> Vec<Command<Engine>> {
     vec![
@@ -74,7 +86,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Export show package",
             "File/Export Show Package…",
             None,
-            "{path: text} (.actcraftpack: the show and every audio and MIDI file it uses)",
+            "{path: text, song?: id, playlist?: index} (.actcraftpack: the show, or only that song or that playlist and its songs, with every audio, MIDI, PDF and score file they use)",
             crate::package_commands::show_export_package,
         ),
         cmd(
@@ -116,6 +128,14 @@ pub fn all() -> Vec<Command<Engine>> {
             song_import_files,
         ),
         cmd("song.duplicates", "Find duplicate songs", "Song/Find Duplicates", None, "none", song_duplicates),
+        with_current_song(cmd(
+            "song.export_package",
+            "Export song package",
+            "Song/Export Song Package…",
+            None,
+            "{path: text, song?: id (the current song when left out)} (.actcraftpack: the song with its files)",
+            crate::package_commands::song_export_package,
+        )),
         with_songs(cmd(
             "region.add",
             "Add region",
@@ -402,6 +422,14 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("playlist.rename", "Rename playlist", "", None, "{playlist: index, name: text}", playlist_rename),
         cmd("playlist.delete", "Delete playlist", "", None, "{playlist: index, confirm: true}", playlist_delete),
+        with_open_playlist(cmd(
+            "playlist.export_package",
+            "Export playlist package",
+            "Playlist/Export Playlist Package…",
+            None,
+            "{path: text, playlist?: index (the open playlist when left out)} (.actcraftpack: the playlist and its songs with their files)",
+            crate::package_commands::playlist_export_package,
+        )),
         cmd("playlist.select", "Play from playlist", "", None, "{playlist: index|null}", playlist_select),
         cmd("playlist.add_set", "Add set", "", None, "{playlist: index, name?: text}", playlist_add_set),
         cmd(

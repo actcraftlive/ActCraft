@@ -585,6 +585,70 @@ const SCORE: &str = r#"<?xml version="1.0"?>
 </measure></part></score-partwise>"#;
 
 #[test]
+fn a_package_can_hold_one_song_or_one_playlist() {
+    let mut files = MemoryServices::default();
+    for name in ["a", "b", "c"] {
+        files.files.insert(format!("/gig/{name}.pdf"), b"%PDF-1.4".to_vec());
+    }
+    let mut e = Engine::new(Box::new(files));
+    let mut ids = Vec::new();
+    for name in ["a", "b", "c"] {
+        let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+        assert!(e.run("song.set", &json!({"song": id, "title": name, "pdf_file": format!("/gig/{name}.pdf")})).is_ok());
+        ids.push(id);
+    }
+    assert!(e.run("playlist.create", &json!({"name": "Encore"})).is_ok());
+    assert!(e.run("playlist.add_songs", &json!({"playlist": 0, "songs": [ids[2], ids[0]]})).is_ok());
+    let open = |e: &Engine, path: &str| {
+        let bytes = e.services().read_file(path).unwrap_or_default();
+        let mut other = MemoryServices::default();
+        other.files.insert("/usb/p.actcraftpack".into(), bytes);
+        let mut e2 = Engine::new(Box::new(other));
+        assert!(e2.run("show.open_package", &json!({"path": "/usb/p.actcraftpack"})).is_ok());
+        e2
+    };
+    // One song: only it and its file, no playlists.
+    let r = e.run("show.export_package", &json!({"path": "/gig/one.actcraftpack", "song": ids[1]}));
+    assert_eq!(r.ok().map(|v| v["files"].clone()), Some(json!(1)));
+    let one = open(&e, "/gig/one.actcraftpack");
+    assert_eq!(one.show.songs.iter().map(|s| s.title.as_str()).collect::<Vec<_>>(), vec!["b"]);
+    assert!(one.show.playlists.is_empty());
+    // One playlist: it and its songs.
+    let r = e.run("show.export_package", &json!({"path": "/gig/encore.actcraftpack", "playlist": 0}));
+    assert_eq!(r.ok().map(|v| v["files"].clone()), Some(json!(2)));
+    let encore = open(&e, "/gig/encore.actcraftpack");
+    let mut titles: Vec<&str> = encore.show.songs.iter().map(|s| s.title.as_str()).collect();
+    titles.sort_unstable();
+    assert_eq!(titles, vec!["a", "c"]);
+    assert_eq!(encore.show.playlists.len(), 1);
+    // Both at once, or ones that don't exist, are refused.
+    for bad in [
+        json!({"path": "/gig/x.actcraftpack", "song": ids[0], "playlist": 0}),
+        json!({"path": "/gig/x.actcraftpack", "song": 999}),
+        json!({"path": "/gig/x.actcraftpack", "playlist": 5}),
+    ] {
+        assert!(e.run("show.export_package", &bad).is_err(), "{bad}");
+    }
+    assert!(e.services().read_file("/gig/x.actcraftpack").is_err(), "nothing written");
+    // The menu's commands take the chosen song and the open playlist.
+    assert!(e.run("song.load", &json!({"song": ids[2]})).is_ok());
+    assert!(e.enabled("song.export_package"));
+    let r = e.run("song.export_package", &json!({"path": "/gig/c.actcraftpack"}));
+    assert_eq!(r.ok().map(|v| v["files"].clone()), Some(json!(1)));
+    assert_eq!(
+        open(&e, "/gig/c.actcraftpack").show.songs.iter().map(|s| s.title.clone()).collect::<Vec<_>>(),
+        vec!["c"]
+    );
+    assert!(!e.enabled("playlist.export_package"), "no playlist open yet");
+    assert!(e.run("playlist.export_package", &json!({"path": "/gig/p.actcraftpack"})).is_err());
+    assert!(e.run("playlist.select", &json!({"playlist": 0})).is_ok());
+    assert!(e.enabled("playlist.export_package"));
+    assert!(e.run("playlist.export_package", &json!({"path": "/gig/p.actcraftpack"})).is_ok());
+    // The show in the window is untouched.
+    assert_eq!(e.show.songs.len(), 3);
+}
+
+#[test]
 fn pdf_marks_are_added_checked_removed_and_saved() {
     let mut e = Engine::new(Box::new(MemoryServices::default()));
     let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
