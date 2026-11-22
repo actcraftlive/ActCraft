@@ -339,13 +339,27 @@ impl ActCraftApp {
         let t = self.tokens;
         ui.horizontal(|ui| {
             let playing = e.playing();
-            let play_label = if playing { tr("Stop") } else { tr("Play") };
-            let fill = if playing { t.danger } else { t.playing };
+            // Play / Pause in one button (Space); Stop also goes back to the song's start (Esc).
+            let play_label = if playing { tr("Pause") } else { tr("Play") };
+            let fill = if playing { t.warning } else { t.playing };
             let play = egui::Button::new(RichText::new(play_label).size(18.0).color(t.accent_text))
                 .fill(fill)
                 .min_size(vec2(96.0, 44.0));
-            if ui.add_enabled(e.enabled("transport.toggle") || playing, play).clicked() {
+            let hint =
+                if playing { tr("Pause here; Play goes on from this point (Space)") } else { tr("Play (Space)") };
+            if ui.add_enabled(e.enabled("transport.toggle") || playing, play).on_hover_text(hint).clicked() {
                 self.run(e, "transport.toggle", Value::Null);
+            }
+            let at_start = e.status.time <= e.current().map_or(0.0, |s| s.start.max(0.0)) + 0.01;
+            let stop = egui::Button::new(RichText::new(tr("Stop")).size(18.0).color(t.accent_text))
+                .fill(t.danger)
+                .min_size(vec2(80.0, 44.0));
+            if ui
+                .add_enabled(e.has_audio() && (playing || !at_start), stop)
+                .on_hover_text(tr("Stop and go back to the start of the song (Esc)"))
+                .clicked()
+            {
+                self.run(e, "transport.stop", Value::Null);
             }
             if ui.add(egui::Button::new(tr("Previous")).min_size(vec2(0.0, 44.0))).clicked() {
                 self.run(e, "transport.previous_song", Value::Null);

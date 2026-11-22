@@ -206,8 +206,13 @@
 	Play history	Wiedergabeverlauf
 	Play next	Als Nächstes spielen
 	Play next song automatically	Nächsten Song automatisch abspielen
-	Play or Stop	Abspielen oder Stopp
-	Play or stop	Abspielen oder Stopp
+	Play or Pause	Abspielen oder Pause
+	Play or pause	Abspielen oder Pause
+	Pause	Pause
+	Pause here; Play goes on from this point (Space)	Hier anhalten; Abspielen macht an dieser Stelle weiter (Leertaste)
+	Play (Space)	Abspielen (Leertaste)
+	Stop (back to the start)	Stopp (zurück zum Anfang)
+	Stop and go back to the start of the song (Esc)	Stoppen und zum Anfang des Songs zurück (Esc)
 	Play with Count-in	Mit Einzähler abspielen
 	Play with count-in	Mit Einzähler abspielen
 	Playback	Wiedergabe

@@ -465,3 +465,38 @@ fn spoken_cues_become_a_voice_track_and_are_spoken_once() {
     assert!(e.voice_track(&song).is_none());
     assert!(e.run("voice.set", &json!({"language": "de; rm -rf"})).is_err());
 }
+
+#[test]
+fn pause_keeps_the_place_and_stop_goes_back_to_the_start() {
+    // Regression: the only button was "Stop", which paused and never went back to the start.
+    let mut files = MemoryServices::default();
+    files.files.insert("song.wav".into(), tone_wav(96_000));
+    let mut e = Engine::new(Box::new(files));
+    let (ctl, mut renderer) = actcraft_audio::link(48_000);
+    e.attach_audio(ctl);
+    let _ = e.run("transport.set_play_guard", &json!({"ms": 0}));
+    assert!(e.run("song.import_files", &json!({"paths": ["song.wav"]})).is_ok());
+    e.tick();
+    let mut buf = vec![0.0f32; 2 * 4800];
+    let mut run = |e: &mut Engine, blocks: usize| {
+        for _ in 0..blocks {
+            renderer.process(&mut buf, 2);
+        }
+        e.tick();
+    };
+    assert!(e.run("transport.play", &json!({"count_in": false})).is_ok());
+    run(&mut e, 5);
+    assert!(e.status.playing);
+    // Space: pause, the place stays.
+    assert!(e.run("transport.toggle", &Value::Null).is_ok());
+    run(&mut e, 1);
+    let paused_at = e.status.time;
+    assert!(!e.status.playing && paused_at > 0.3, "paused at {paused_at}");
+    run(&mut e, 3);
+    assert!((e.status.time - paused_at).abs() < 1e-6, "pause doesn't move");
+    // Esc: stop, back to the start.
+    assert!(e.run("transport.stop", &Value::Null).is_ok());
+    run(&mut e, 1);
+    assert!(!e.status.playing);
+    assert!(e.status.time.abs() < 1e-6, "back at the start, not {}", e.status.time);
+}

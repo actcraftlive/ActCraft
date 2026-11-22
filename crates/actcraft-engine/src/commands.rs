@@ -271,12 +271,20 @@ pub fn all() -> Vec<Command<Engine>> {
             "transport.play",
             "Play",
             "Transport/Play",
-            Some("Space"),
+            None,
             "{count_in?: bool (default true)}",
             transport_play,
         )),
-        cmd("transport.stop", "Stop", "Transport/Stop", Some("Escape"), "none", transport_stop),
-        with_song(cmd("transport.toggle", "Play or stop", "Transport/Play or Stop", None, "none", transport_toggle)),
+        cmd("transport.pause", "Pause", "Transport/Pause", None, "none", transport_pause),
+        cmd("transport.stop", "Stop", "Transport/Stop (back to the start)", Some("Escape"), "none", transport_stop),
+        with_song(cmd(
+            "transport.toggle",
+            "Play or pause",
+            "Transport/Play or Pause",
+            Some("Space"),
+            "none",
+            transport_toggle,
+        )),
         with_song(cmd("transport.seek", "Go to time", "", None, "{seconds: number}", transport_seek)),
         cmd("transport.next_song", "Next song", "Transport/Next Song", Some("Ctrl+Right"), "none", transport_next),
         cmd(
@@ -1159,17 +1167,30 @@ fn transport_play(e: &mut Engine, prm: &Value) -> CommandResult {
     start_playback(e, count_in)
 }
 
+/// Stops where playback is; Play goes on from there.
+fn transport_pause(e: &mut Engine, _: &Value) -> CommandResult {
+    need_audio(e)?;
+    if e.transport_guard() {
+        return Ok(json!({"ignored": "double trigger"}));
+    }
+    e.send(Msg::Stop);
+    Ok(json!({"seconds": e.status.time}))
+}
+
+/// Stops and goes back to the song's start, so Play starts the song from the top.
 fn transport_stop(e: &mut Engine, _: &Value) -> CommandResult {
     need_audio(e)?;
     if e.transport_guard() {
         return Ok(json!({"ignored": "double trigger"}));
     }
     e.send(Msg::Stop);
-    ok()
+    let start = e.loaded_song_pub().and_then(|id| e.show.song(id)).map_or(0.0, |s| s.start.max(0.0));
+    e.send(Msg::Seek(start));
+    Ok(json!({"seconds": start}))
 }
 
 fn transport_toggle(e: &mut Engine, _: &Value) -> CommandResult {
-    if e.playing() { transport_stop(e, &Value::Null) } else { start_playback(e, true) }
+    if e.playing() { transport_pause(e, &Value::Null) } else { start_playback(e, true) }
 }
 
 fn transport_seek(e: &mut Engine, prm: &Value) -> CommandResult {
