@@ -499,4 +499,11 @@ fn pause_keeps_the_place_and_stop_goes_back_to_the_start() {
     run(&mut e, 1);
     assert!(!e.status.playing);
     assert!(e.status.time.abs() < 1e-6, "back at the start, not {}", e.status.time);
+    // Listening to a cue: play from a place, also while already playing.
+    assert!(e.run("transport.play", &json!({"count_in": false, "from": 1.0})).is_ok());
+    run(&mut e, 1);
+    assert!(e.status.playing && (e.status.time - 1.1).abs() < 0.05, "plays from 1 s: {}", e.status.time);
+    assert!(e.run("transport.play", &json!({"count_in": false, "from": 0.5})).is_ok());
+    run(&mut e, 1);
+    assert!(e.status.playing && (e.status.time - 0.6).abs() < 0.05, "jumps to 0.5 s: {}", e.status.time);
 }

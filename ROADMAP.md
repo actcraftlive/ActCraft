@@ -69,7 +69,9 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 - 🔶 Markers from WAV files become regions (done); markers in other formats to do
 - ✅ Spoken cues: the computer's own voice says the song title at the start and each region's
   words a set number of beats before it ("Chorus", "End 3 2 1"), on a bus of their own
-  (Settings > Spoken cues); each phrase is spoken once and cached
+  (Settings > Spoken cues); each phrase is spoken once and cached. A song's own Spoken cues tab
+  adds cues at the playback position with one click (Verse, Chorus, End 3 2 1...) and plays from
+  just before a cue to hear it
 - 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
   colours, scroll with playback (done); annotations to do
 - 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
