@@ -18,6 +18,8 @@ pub const NOTATION_EXTENSIONS: &[&str] = actcraft_engine::notation::EXTENSIONS;
 pub(crate) struct NotationDoc {
     pub path: String,
     pub score: Score,
+    /// Per part, the bars in the order they are played (repeats, endings and jumps unrolled).
+    pub orders: Vec<Vec<usize>>,
 }
 
 /// What a part is drawn as.
@@ -123,7 +125,17 @@ fn bar_width(bar: &Bar, m: Metrics) -> f32 {
     }
     let closest = closest.max(TICKS_PER_QUARTER / 8);
     let slots = bar.length.max(1) as f32 / closest as f32;
-    (slots * unit).clamp(4.0 * unit, 40.0 * unit) + 2.0 * m.space
+    (slots * unit).clamp(4.0 * unit, 40.0 * unit) + 2.0 * m.space + repeat_left(bar, m) + repeat_right(bar, m)
+}
+
+/// Room a repeat sign at the bar's start takes from its notes.
+fn repeat_left(bar: &Bar, m: Metrics) -> f32 {
+    if bar.flow.repeat_start { 1.4 * m.space } else { 0.0 }
+}
+
+/// Room a repeat sign at the bar's end takes from its notes.
+fn repeat_right(bar: &Bar, m: Metrics) -> f32 {
+    if bar.flow.repeat_end.is_some() { 1.4 * m.space } else { 0.0 }
 }
 
 fn header_width(rows: &Rows, bar: &Bar, with_time: bool, m: Metrics) -> f32 {
@@ -208,7 +220,8 @@ fn score_offset(song: &Song) -> f64 {
     f64::from(song.score_first_bar) - 1.0
 }
 
-/// Which score bar plays at `time` and how far into it (0..1), on the song's beat grid.
+/// Which bar of the played order (repeats unrolled) plays at `time` and how far into it (0..1),
+/// on the song's beat grid; `bars` is the length of the played order.
 fn playing_bar(song: &Song, time: f64, bars: usize) -> Option<(usize, f32)> {
     let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
     let beat = clock.beat_at(time);
@@ -221,10 +234,17 @@ fn playing_bar(song: &Song, time: f64, bars: usize) -> Option<(usize, f32)> {
     (index >= 0.0 && index < bars as f64).then_some((index as usize, ((beat - grid_bar * per_bar) / per_bar) as f32))
 }
 
-/// The time score bar `index` starts at, on the song's beat grid.
+/// The time bar `index` of the played order starts at, on the song's beat grid.
 fn bar_time(song: &Song, index: usize) -> f64 {
     let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
     clock.time_of_beat((index as f64 + score_offset(song)) * f64::from(song.beats_per_bar.max(1)))
+}
+
+/// Where a click on written bar `bar` goes in the played order: of the passes through it, the one
+/// nearest the playing position `near` (the first pass when nothing plays).
+fn played_index(order: &[usize], bar: usize, near: Option<usize>) -> Option<usize> {
+    let near = near.unwrap_or(0);
+    order.iter().enumerate().filter(|&(_, &b)| b == bar).map(|(k, _)| k).min_by_key(|k| k.abs_diff(near))
 }
 
 /// How a chord's stem is drawn.
@@ -345,6 +365,20 @@ impl Painter<'_> {
     fn y(&self, top: f32, pos: i32) -> f32 {
         // Position 8 is the top line, 0 the bottom one.
         top + (8 - pos) as f32 * self.m.space / 2.0
+    }
+
+    /// A repeat sign at bar line `x`: a thick and a thin line, and two dots on the side of the
+    /// repeated bars (right of `x` for a start, left for an end).
+    fn repeat_sign(&self, x: f32, top: f32, bottom: f32, dots: [f32; 2], forward: bool) {
+        let s = self.m.space;
+        let dir = if forward { 1.0 } else { -1.0 };
+        let thick = x + dir * 0.25 * s;
+        self.p.line_segment([pos2(thick, top), pos2(thick, bottom)], Stroke::new(0.5 * s, self.ink.ink));
+        let thin = x + dir * 0.75 * s;
+        self.p.line_segment([pos2(thin, top), pos2(thin, bottom)], Stroke::new(1.2, self.ink.ink));
+        for y in dots {
+            self.p.circle_filled(pos2(x + dir * 1.15 * s, y), 0.22 * s, self.ink.ink);
+        }
     }
 
     fn staff_lines(&self, x0: f32, x1: f32, top: f32) {
@@ -626,7 +660,8 @@ impl ActCraftApp {
             self.notation = None;
             match actcraft_engine::notation_commands::load_score(e, &path) {
                 Ok(score) => {
-                    self.notation = Some(NotationDoc { path: path.clone(), score });
+                    let orders = score.parts.iter().map(|p| actcraft_engine::notation::play_order(&p.bars)).collect();
+                    self.notation = Some(NotationDoc { path: path.clone(), score, orders });
                     self.notation_look.part = 0;
                 }
                 Err(err) => {
@@ -710,7 +745,10 @@ impl ActCraftApp {
         let width = (ui.available_width() - 2.0 * margin).max(200.0);
         let systems = break_lines(part, &rows, width, m);
         let content = systems.len() as f32 * line_h + 2.0 * margin;
-        let playing = playing_bar(song, e.status.time, part.bars.len());
+        let order = doc.orders.get(look.part).map(Vec::as_slice).unwrap_or_default();
+        let played = playing_bar(song, e.status.time, order.len());
+        // The written bar that plays.
+        let playing = played.and_then(|(k, frac)| order.get(k).map(|&b| (b, frac)));
         let ink = Ink { paper: t.surface, ink: t.text, line: t.text_dim, mark: t.accent };
         let mut area = egui::ScrollArea::vertical().id_salt(("notation", song.id)).auto_shrink([false, false]);
         if self.sheet_view.follow && e.status.playing {
@@ -811,24 +849,39 @@ impl ActCraftApp {
                     let index = sys.first + k;
                     let Some(bar) = part.bars.get(index) else { continue };
                     let (Some(&bx), Some(&bx1)) = (xs.get(k), xs.get(k + 1)) else { continue };
-                    let pad_l = 1.4 * m.space;
-                    let inner = (w - pad_l - 1.0 * m.space).max(1.0);
+                    let pad_l = 1.4 * m.space + repeat_left(bar, m);
+                    let inner = (w - pad_l - 1.0 * m.space - repeat_right(bar, m)).max(1.0);
                     let x_of = |n: &Note| bx + pad_l + inner * (n.start as f32 / bar.length.max(1) as f32);
-                    // Bar number and tempo above the line.
+                    // Bar number, the signs a jump goes to, and tempo above the line, one after
+                    // the other.
                     let label_y = y0 + 1.6 * m.space;
+                    let mut label_x = bx + 2.0;
                     if !bar.number.is_empty() {
-                        painter.text(
-                            pos2(bx + 2.0, label_y),
+                        let r = painter.text(
+                            pos2(label_x, label_y),
                             Align2::LEFT_CENTER,
                             &bar.number,
                             FontId::proportional(1.1 * m.space),
                             ink.line,
                         );
+                        label_x = r.right() + 0.6 * m.space;
+                    }
+                    for (on, word) in [(bar.flow.segno, tr("Segno")), (bar.flow.coda, tr("Coda"))] {
+                        if on {
+                            let r = painter.text(
+                                pos2(label_x, label_y),
+                                Align2::LEFT_CENTER,
+                                word,
+                                FontId::proportional(1.2 * m.space),
+                                ink.ink,
+                            );
+                            label_x = r.right() + 0.6 * m.space;
+                        }
                     }
                     if let Some(tempo) = bar.tempo {
                         let text = actcraft_engine::fill(tr("{bpm} BPM"), &[("bpm", &format!("{tempo:.0}"))]);
                         painter.text(
-                            pos2(bx + 3.0 * m.space, label_y),
+                            pos2(label_x.max(bx + 3.0 * m.space), label_y),
                             Align2::LEFT_CENTER,
                             text,
                             FontId::proportional(1.3 * m.space),
@@ -850,6 +903,76 @@ impl ActCraftApp {
                         painter.line_segment(
                             [pos2(bx1, tab_y), pos2(bx1, bottom)],
                             Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
+                        );
+                    }
+                    // Repeat signs on every staff and the tablature.
+                    let flow = &bar.flow;
+                    let mut spans: Vec<(f32, f32, [f32; 2])> = rows
+                        .staves
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(si, _)| tops.get(si))
+                        .map(|&top| {
+                            let top = y0 + top;
+                            (top, top + 4.0 * m.space, [pa.y(top, 5), pa.y(top, 3)])
+                        })
+                        .collect();
+                    if rows.strings > 1 {
+                        let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
+                        let mid = (tab_y + bottom) / 2.0;
+                        spans.push((tab_y, bottom, [mid - 0.5 * m.tab_gap, mid + 0.5 * m.tab_gap]));
+                    }
+                    for &(top, bottom, dots) in &spans {
+                        if flow.repeat_start {
+                            pa.repeat_sign(bx, top, bottom, dots, true);
+                        }
+                        if flow.repeat_end.is_some() {
+                            pa.repeat_sign(bx1, top, bottom, dots, false);
+                        }
+                    }
+                    // An ending's bracket over its bars, numbered where it starts.
+                    if !flow.endings.is_empty() {
+                        let y = y0 + 2.6 * m.space;
+                        let stroke = Stroke::new(1.2, ink.ink);
+                        painter.line_segment([pos2(bx + 1.0, y), pos2(bx1 - 0.4 * m.space, y)], stroke);
+                        if flow.ending_start || k == 0 {
+                            painter.line_segment([pos2(bx + 1.0, y), pos2(bx + 1.0, y + 1.4 * m.space)], stroke);
+                            let numbers: Vec<String> = flow.endings.iter().map(|n| format!("{n}.")).collect();
+                            painter.text(
+                                pos2(bx + 0.5 * m.space, y + 0.2 * m.space),
+                                Align2::LEFT_TOP,
+                                numbers.join(" "),
+                                FontId::proportional(1.2 * m.space),
+                                ink.ink,
+                            );
+                        }
+                        if flow.repeat_end.is_some() {
+                            let x = bx1 - 0.4 * m.space;
+                            painter.line_segment([pos2(x, y), pos2(x, y + 1.4 * m.space)], stroke);
+                        }
+                    }
+                    // Jumps and repeat counts, at the bar's end above the staff.
+                    let mut words: Vec<String> = Vec::new();
+                    for (on, word) in [
+                        (flow.to_coda, tr("To Coda")),
+                        (flow.dal_segno, tr("D.S.")),
+                        (flow.da_capo, tr("D.C.")),
+                        (flow.fine, tr("Fine")),
+                    ] {
+                        if on {
+                            words.push(word.to_owned());
+                        }
+                    }
+                    if let Some(times) = flow.repeat_end.filter(|t| *t > 2) {
+                        words.push(actcraft_engine::fill(tr("{times}\u{d7}"), &[("times", &times.to_string())]));
+                    }
+                    if !words.is_empty() {
+                        painter.text(
+                            pos2(bx1 - 2.0, label_y),
+                            Align2::RIGHT_CENTER,
+                            words.join("  "),
+                            FontId::proportional(1.2 * m.space),
+                            ink.ink,
                         );
                     }
                     // Notes on each staff: chords by onset and voice, short notes beamed by beat.
@@ -937,8 +1060,8 @@ impl ActCraftApp {
             }
             response.on_hover_text(tr("Click a bar to play from there"));
         });
-        if let Some(bar) = seek {
-            let at = bar_time(song, bar).max(0.0);
+        if let Some(k) = seek.and_then(|bar| played_index(order, bar, played.map(|p| p.0))) {
+            let at = bar_time(song, k).max(0.0);
             self.run(e, "transport.seek", json!({"seconds": at}));
         }
     }
@@ -964,7 +1087,16 @@ mod tests {
     use super::*;
 
     fn bar(notes: Vec<Note>) -> Bar {
-        Bar { number: "1".into(), beats: 4, beat_type: 4, fifths: 0, tempo: None, length: 3840, notes }
+        Bar {
+            number: "1".into(),
+            beats: 4,
+            beat_type: 4,
+            fifths: 0,
+            tempo: None,
+            length: 3840,
+            notes,
+            flow: Default::default(),
+        }
     }
 
     fn quarter(start: u32) -> Note {
@@ -1091,6 +1223,31 @@ mod tests {
         assert_eq!(playing_bar(&song, 4.0, 10), Some((1, 0.5)), "two seconds per bar");
         assert_eq!(playing_bar(&song, 100.0, 10), None, "after the last bar");
         assert!((bar_time(&song, 3) - 7.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_click_goes_to_the_pass_nearest_the_playing_one() {
+        // |: 1 2 :| 3, played 1 2 1 2 3.
+        let order = [0, 1, 0, 1, 2];
+        assert_eq!(played_index(&order, 0, None), Some(0), "nothing plays: the first pass");
+        assert_eq!(played_index(&order, 0, Some(3)), Some(2), "during the second pass");
+        assert_eq!(played_index(&order, 2, Some(0)), Some(4));
+        assert_eq!(played_index(&order, 7, Some(0)), None, "a bar never played");
+        // The playing bar on the second pass is written bar 1 again.
+        let song = Song { bpm: 120.0, beats_per_bar: 4, beat_anchor: 0.0, ..Song::default() };
+        let played = playing_bar(&song, 4.0, order.len());
+        assert_eq!(played.and_then(|(k, _)| order.get(k).copied()), Some(0));
+        assert!((bar_time(&song, 2) - 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn repeat_signs_take_room_from_the_notes() {
+        let m = Metrics::new(1.0);
+        let plain = bar(vec![quarter(0)]);
+        let mut repeated = plain.clone();
+        repeated.flow.repeat_start = true;
+        repeated.flow.repeat_end = Some(2);
+        assert!(bar_width(&repeated, m) > bar_width(&plain, m) + 2.0 * m.space);
     }
 
     #[test]

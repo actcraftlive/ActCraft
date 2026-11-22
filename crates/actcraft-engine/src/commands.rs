@@ -185,7 +185,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Read notation",
             "",
             None,
-            "{song?: id} -> {title, composer, tempo, parts: [{name, bars, notes, tablature, strings, capo}]}",
+            "{song?: id} -> {title, composer, tempo, parts: [{name, bars, played_bars (repeats and jumps unrolled), notes, tablature, strings, capo}]}",
             crate::notation_commands::notation_read,
         )),
         with_songs(cmd(
