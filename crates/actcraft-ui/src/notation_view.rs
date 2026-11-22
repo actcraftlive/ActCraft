@@ -1,6 +1,7 @@
 //! Notation in the Sheet music tab: a song's MusicXML score drawn as staves and tablature, bar
 //! after bar in lines across the tab. The playing bar is marked and the view follows playback;
-//! clicking a bar plays from there. Song bar 1 (the beat grid's first bar) is the score's bar 1.
+//! clicking a bar plays from there. The score's bar 1 sits on the song bar set per song
+//! (`score_first_bar`, 1 by default: the beat grid's first bar).
 
 use actcraft_engine::Engine;
 use actcraft_engine::notation::{Bar, Clef, ClefKind, Note, NoteValue, Part, Pitch, Score, TICKS_PER_QUARTER};
@@ -201,23 +202,29 @@ fn key_positions(clef: Clef, fifths: i8) -> Vec<i32> {
     order.iter().take(usize::from(fifths.unsigned_abs()).min(7)).map(|p| p + shift).collect()
 }
 
-/// Which bar plays at `time` and how far into it (0..1), on the song's beat grid.
+/// Grid bars (0-based from the beat anchor) before the score's first bar; negative when the
+/// score starts before the anchor (a pickup).
+fn score_offset(song: &Song) -> f64 {
+    f64::from(song.score_first_bar) - 1.0
+}
+
+/// Which score bar plays at `time` and how far into it (0..1), on the song's beat grid.
 fn playing_bar(song: &Song, time: f64, bars: usize) -> Option<(usize, f32)> {
     let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
     let beat = clock.beat_at(time);
-    if !beat.is_finite() || beat < 0.0 {
+    if !beat.is_finite() {
         return None;
     }
     let per_bar = f64::from(song.beats_per_bar.max(1));
-    let bar = (beat / per_bar).floor();
-    let index = bar as usize;
-    (bar < bars as f64).then_some((index, ((beat - bar * per_bar) / per_bar) as f32))
+    let grid_bar = (beat / per_bar).floor();
+    let index = grid_bar - score_offset(song);
+    (index >= 0.0 && index < bars as f64).then_some((index as usize, ((beat - grid_bar * per_bar) / per_bar) as f32))
 }
 
-/// The time bar `index` starts at, on the song's beat grid.
+/// The time score bar `index` starts at, on the song's beat grid.
 fn bar_time(song: &Song, index: usize) -> f64 {
     let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
-    clock.time_of_beat(index as f64 * f64::from(song.beats_per_bar.max(1)))
+    clock.time_of_beat((index as f64 + score_offset(song)) * f64::from(song.beats_per_bar.max(1)))
 }
 
 /// How a chord's stem is drawn.
@@ -635,6 +642,7 @@ impl ActCraftApp {
         let Some(doc) = self.notation.as_ref() else { return };
         let look = &mut self.notation_look;
         look.part = look.part.min(doc.score.parts.len().saturating_sub(1));
+        let mut first_bar: Option<i32> = None;
         ui.horizontal_wrapped(|ui| {
             if !doc.score.title.is_empty() {
                 ui.label(egui::RichText::new(&doc.score.title).strong());
@@ -666,17 +674,35 @@ impl ActCraftApp {
                 })
                 .response
                 .labelled_by(label.id);
+            // Where the score sits in the audio, so the playing bar lines up after an intro.
+            let label = ui.label(tr("Score bar 1 is song bar"));
+            let mut first = song.score_first_bar;
+            let range = actcraft_show::limits::MIN_SCORE_FIRST_BAR..=actcraft_show::limits::MAX_SCORE_FIRST_BAR;
+            if ui
+                .add(egui::DragValue::new(&mut first).range(range).speed(0.1))
+                .labelled_by(label.id)
+                .on_hover_text(tr(
+                    "The bar of the song's beat grid where the score's first bar plays; 0 or less for a pickup bar",
+                ))
+                .changed()
+            {
+                first_bar = Some(first);
+            }
             ui.spacing_mut().slider_width = 120.0;
             ui.add(egui::Slider::new(&mut look.zoom, 0.6..=2.5).show_value(false).text(tr("Zoom")));
             ui.checkbox(&mut self.sheet_view.follow, tr("Follow playback"))
                 .on_hover_text(tr("Keep the playing bar in view while the song plays"));
         });
+        if let Some(v) = first_bar {
+            self.run(e, "song.set", json!({"song": song.id, "score_first_bar": v}));
+        }
         ui.separator();
+        let Some(doc) = self.notation.as_ref() else { return };
+        let look = self.notation_look;
         let Some(part) = doc.score.parts.get(look.part) else { return };
         if part.bars.is_empty() {
             return;
         }
-        let look = *look;
         let m = Metrics::new(look.zoom);
         let rows = Rows::of(part, look.show);
         let (tops, tab_top, line_h) = rows.layout(m);
@@ -1065,5 +1091,22 @@ mod tests {
         assert_eq!(playing_bar(&song, 4.0, 10), Some((1, 0.5)), "two seconds per bar");
         assert_eq!(playing_bar(&song, 100.0, 10), None, "after the last bar");
         assert!((bar_time(&song, 3) - 7.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_score_can_start_on_another_song_bar() {
+        // Two bars of intro in the audio before the score starts: score bar 1 is song bar 3.
+        let song = Song { bpm: 120.0, beats_per_bar: 4, beat_anchor: 1.0, score_first_bar: 3, ..Song::default() };
+        assert_eq!(playing_bar(&song, 1.0, 10), None, "the intro is not in the score");
+        assert_eq!(playing_bar(&song, 5.0, 10), Some((0, 0.0)));
+        assert_eq!(playing_bar(&song, 8.0, 10), Some((1, 0.5)));
+        assert!((bar_time(&song, 0) - 5.0).abs() < 1e-9, "a click on bar 1 plays from song bar 3");
+        assert!((bar_time(&song, 2) - 9.0).abs() < 1e-9);
+        // A pickup bar: score bar 1 is song bar 0, the bar before the beat anchor.
+        let song = Song { score_first_bar: 0, beat_anchor: 3.0, ..song };
+        assert_eq!(playing_bar(&song, 0.5, 10), None, "before the pickup");
+        assert_eq!(playing_bar(&song, 1.0, 10), Some((0, 0.0)), "the pickup bar");
+        assert_eq!(playing_bar(&song, 3.0, 10), Some((1, 0.0)), "score bar 2 starts on beat one");
+        assert!((bar_time(&song, 0) - 1.0).abs() < 1e-9);
     }
 }

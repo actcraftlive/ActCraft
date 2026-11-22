@@ -102,7 +102,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, announce_title?: bool, fade_out?, midi_file?, pdf_file?: text|null, notation_file?: text|null (.musicxml, .xml, .mxl), lyrics?, lyrics_scroll?: line|smooth|constant|off}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, announce_title?: bool, fade_out?, midi_file?, pdf_file?: text|null, notation_file?: text|null (.musicxml, .xml, .mxl), score_first_bar?: song bar of the score's bar 1 (-999..9999, 0 or less for a pickup), lyrics?, lyrics_scroll?: line|smooth|constant|off}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -693,6 +693,13 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     }
     if let Some(v) = p::opt_i64_in(prm, "count_in_bars", 0, 8)? {
         next.count_in_bars = u8::try_from(v).unwrap_or(0);
+    }
+    {
+        use actcraft_show::limits::{MAX_SCORE_FIRST_BAR, MIN_SCORE_FIRST_BAR};
+        if let Some(v) = p::opt_i64_in(prm, "score_first_bar", MIN_SCORE_FIRST_BAR.into(), MAX_SCORE_FIRST_BAR.into())?
+        {
+            next.score_first_bar = i32::try_from(v).unwrap_or(1);
+        }
     }
     if let Some(v) = p::opt_str_max(prm, "lyrics_scroll", 32)? {
         next.lyrics_scroll = actcraft_show::LyricsScroll::parse(v)

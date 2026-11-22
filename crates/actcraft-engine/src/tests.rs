@@ -582,6 +582,14 @@ fn notation_attaches_reads_and_travels_in_packages() {
     assert!(e.run("song.set", &json!({"song": id, "notation_file": "/gig/b.mxl"})).is_ok());
     assert!(e.run("song.set", &json!({"song": id, "notation_file": null})).is_ok());
     assert_eq!(e.show.song(id).and_then(|s| s.notation_file.clone()), None);
+    // Where the score's bar 1 sits on the song's bars: 1 by default, 0 or less for a pickup.
+    assert_eq!(e.show.song(id).map(|s| s.score_first_bar), Some(1));
+    assert!(e.run("song.set", &json!({"song": id, "score_first_bar": 3})).is_ok());
+    assert!(e.run("song.set", &json!({"song": id, "score_first_bar": -1})).is_ok());
+    assert_eq!(e.show.song(id).map(|s| s.score_first_bar), Some(-1));
+    assert!(e.run("song.set", &json!({"song": id, "score_first_bar": 100_000})).is_err());
+    assert!(e.run("song.set", &json!({"song": id, "score_first_bar": "two"})).is_err());
+    assert_eq!(e.show.song(id).map(|s| s.score_first_bar), Some(-1), "refused values change nothing");
     // In a package the score goes along and is found again after unpacking.
     assert!(e.run("song.set", &json!({"song": id, "notation_file": "/gig/night.musicxml"})).is_ok());
     assert!(e.run("show.export_package", &json!({"path": "/gig/Night.actcraftpack"})).is_ok());
