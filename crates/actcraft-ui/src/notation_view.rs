@@ -247,6 +247,60 @@ fn played_index(order: &[usize], bar: usize, near: Option<usize>) -> Option<usiz
     order.iter().enumerate().filter(|&(_, &b)| b == bar).map(|(k, _)| k).min_by_key(|k| k.abs_diff(near))
 }
 
+/// A note in a line of bars: the bar's place in the line and the note's index in the bar.
+type NoteAt = (usize, usize);
+
+/// A tie or slur on one staff of a line: where it starts and ends (`None` when that end is on
+/// another line), and the side a slur's file asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Arc {
+    from: Option<NoteAt>,
+    to: Option<NoteAt>,
+    above: Option<bool>,
+    /// A tie (to the next note of the same pitch) rather than a slur.
+    tie: bool,
+}
+
+/// The ties and slurs of staff `staff` in a line of bars. A tie joins a note to the next one of
+/// the same pitch; a slur joins its start to the stop with the same number.
+fn arcs(bars: &[&Bar], staff: u8) -> Vec<Arc> {
+    let mut ties: Vec<(u8, NoteAt)> = Vec::new();
+    let mut slurs: Vec<(u8, NoteAt, Option<bool>)> = Vec::new();
+    let mut out = Vec::new();
+    for (bi, bar) in bars.iter().enumerate() {
+        for (ni, n) in bar.notes.iter().enumerate().filter(|(_, n)| n.staff == staff) {
+            let at = (bi, ni);
+            if let Some(midi) = n.pitch.map(Pitch::midi) {
+                if n.tied {
+                    let from = ties.iter().position(|t| t.0 == midi).map(|k| ties.remove(k).1);
+                    out.push(Arc { from, to: Some(at), above: None, tie: true });
+                }
+                if n.tie_start {
+                    ties.push((midi, at));
+                }
+            }
+            for s in n.slurs.iter().filter(|s| !s.start) {
+                let open = slurs.iter().position(|o| o.0 == s.number).map(|k| slurs.remove(k));
+                let above = open.and_then(|o| o.2).or(s.above);
+                out.push(Arc { from: open.map(|o| o.1), to: Some(at), above, tie: false });
+            }
+            for s in n.slurs.iter().filter(|s| s.start) {
+                slurs.push((s.number, at, s.above));
+            }
+        }
+    }
+    out.extend(ties.into_iter().map(|(_, at)| Arc { from: Some(at), to: None, above: None, tie: true }));
+    out.extend(slurs.into_iter().map(|(_, at, above)| Arc { from: Some(at), to: None, above, tie: false }));
+    out
+}
+
+/// Where a note's head sits across a bar drawn from `bx` with width `w`.
+fn note_x(bar: &Bar, bx: f32, w: f32, m: Metrics, n: &Note) -> f32 {
+    let pad_l = 1.4 * m.space + repeat_left(bar, m);
+    let inner = (w - pad_l - 1.0 * m.space - repeat_right(bar, m)).max(1.0);
+    bx + pad_l + inner * (n.start as f32 / bar.length.max(1) as f32)
+}
+
 /// How a chord's stem is drawn.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Stem {
@@ -608,6 +662,27 @@ impl Painter<'_> {
             self.p.line_segment([pos2(sx, y), pos2(sx + 0.9 * s, y + dir * 1.3 * s)], Stroke::new(1.8, self.ink.ink));
         }
     }
+    /// A tie or slur from `a` to `b`, bowed up or down; two close curves make it thicker in the
+    /// middle than at its ends.
+    fn arc(&self, a: egui::Pos2, b: egui::Pos2, above: bool) {
+        let s = self.m.space;
+        let dir = if above { -1.0 } else { 1.0 };
+        let rise = (0.12 * (b.x - a.x).abs()).clamp(0.5 * s, 1.6 * s);
+        let curve = |rise: f32| -> Vec<egui::Pos2> {
+            let c = pos2((a.x + b.x) / 2.0, (a.y + b.y) / 2.0 + dir * rise);
+            (0..=16)
+                .map(|i| {
+                    let t = i as f32 / 16.0;
+                    let u = 1.0 - t;
+                    pos2(u * u * a.x + 2.0 * u * t * c.x + t * t * b.x, u * u * a.y + 2.0 * u * t * c.y + t * t * b.y)
+                })
+                .collect()
+        };
+        for r in [rise, rise - 0.15 * s] {
+            self.p.add(Shape::line(curve(r), Stroke::new(1.3, self.ink.ink)));
+        }
+    }
+
     /// Beams over stems `(x, end, flags)`: one per flag level, a short one for a note alone on
     /// its level.
     fn beam(&self, stems: &[(f32, f32, u8)], up: bool) {
@@ -849,9 +924,7 @@ impl ActCraftApp {
                     let index = sys.first + k;
                     let Some(bar) = part.bars.get(index) else { continue };
                     let (Some(&bx), Some(&bx1)) = (xs.get(k), xs.get(k + 1)) else { continue };
-                    let pad_l = 1.4 * m.space + repeat_left(bar, m);
-                    let inner = (w - pad_l - 1.0 * m.space - repeat_right(bar, m)).max(1.0);
-                    let x_of = |n: &Note| bx + pad_l + inner * (n.start as f32 / bar.length.max(1) as f32);
+                    let x_of = |n: &Note| note_x(bar, bx, *w, m, n);
                     // Bar number, the signs a jump goes to, and tempo above the line, one after
                     // the other.
                     let label_y = y0 + 1.6 * m.space;
@@ -1048,6 +1121,44 @@ impl ActCraftApp {
                         }
                     }
                 }
+                // Ties and slurs over the line's bars; one whose other end is on another line runs
+                // to the line's edge.
+                let line_bars: Vec<&Bar> = (0..sys.widths.len()).filter_map(|k| part.bars.get(sys.first + k)).collect();
+                let line_start = xs.first().copied().unwrap_or(x0);
+                for (si, clef) in rows.staves.iter().enumerate() {
+                    let Some(&top) = tops.get(si) else { continue };
+                    let top = y0 + top;
+                    let head = |(k, ni): NoteAt| {
+                        let bar = line_bars.get(k)?;
+                        let n = bar.notes.get(ni)?;
+                        let pos = clef.position(n.pitch?);
+                        let x = note_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n);
+                        Some((x, pa.y(top, pos), pos))
+                    };
+                    for arc in arcs(&line_bars, (si + 1) as u8) {
+                        let (from, to) = (arc.from.and_then(head), arc.to.and_then(head));
+                        let Some((_, y_ref, pos)) = from.or(to) else { continue };
+                        // Away from the stems: above for high notes, below for low ones.
+                        let above = arc.above.unwrap_or(pos >= 4);
+                        let off = if above { -0.8 } else { 0.8 } * m.space;
+                        // A tie whose other note is on another line is a short half tie toward the
+                        // line's edge; a slur runs to the edge.
+                        let a = from.map(|(x, y, _)| pos2(x + 0.5 * m.space, y));
+                        let b = to.map(|(x, y, _)| pos2(x - 0.5 * m.space, y));
+                        let stub = 3.0 * m.space;
+                        let a = a.unwrap_or_else(|| {
+                            let edge = b.map_or(line_start, |b| if arc.tie { b.x - stub } else { line_start });
+                            pos2(edge.max(line_start), y_ref)
+                        });
+                        let b = b.unwrap_or_else(|| {
+                            let edge = if arc.tie { a.x + stub } else { x_end };
+                            pos2(edge.min(x_end), y_ref)
+                        });
+                        if b.x > a.x {
+                            pa.arc(a + vec2(0.0, off), b + vec2(0.0, off), above);
+                        }
+                    }
+                }
                 // Clicking a bar plays from its start.
                 if response.clicked()
                     && let Some(at) = response.interact_pointer_pos()
@@ -1223,6 +1334,36 @@ mod tests {
         assert_eq!(playing_bar(&song, 4.0, 10), Some((1, 0.5)), "two seconds per bar");
         assert_eq!(playing_bar(&song, 100.0, 10), None, "after the last bar");
         assert!((bar_time(&song, 3) - 7.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ties_and_slurs_join_their_notes_across_bars_and_lines() {
+        use actcraft_engine::notation::Slur;
+        let slur = |number, start| Slur { number, start, above: None };
+        // Bar 1: C tied over the bar line; a slur from E (bar 1) to D (bar 2).
+        let mut b1 = bar(vec![quarter(0), eighth(960, 2)]);
+        b1.notes[0].tie_start = true;
+        b1.notes[1].slurs = vec![slur(1, true)];
+        let mut b2 = bar(vec![quarter(0), eighth(960, 1)]);
+        b2.notes[0].tied = true;
+        b2.notes[1].slurs = vec![slur(1, false), slur(1, true)];
+        let got = arcs(&[&b1, &b2], 1);
+        assert_eq!(
+            got,
+            vec![
+                Arc { from: Some((0, 0)), to: Some((1, 0)), above: None, tie: true },
+                Arc { from: Some((0, 1)), to: Some((1, 1)), above: None, tie: false },
+                // The new slur from D ends on the next line.
+                Arc { from: Some((1, 1)), to: None, above: None, tie: false },
+            ]
+        );
+        // On the next line the tie's and slur's ends come from its start; other staves are apart.
+        assert_eq!(arcs(&[&b2], 1)[0], Arc { from: None, to: Some((0, 0)), above: None, tie: true });
+        assert!(arcs(&[&b1, &b2], 2).is_empty());
+        // A tie joins notes of the same pitch only.
+        let mut c = bar(vec![eighth(0, 2)]);
+        c.notes[0].tied = true;
+        assert_eq!(arcs(&[&b1, &c], 1).first().map(|a| a.from), Some(None));
     }
 
     #[test]

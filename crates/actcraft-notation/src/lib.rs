@@ -168,6 +168,10 @@ pub struct Note {
     pub fret: Option<u8>,
     /// Sounds on from the previous note (the fret is not struck again).
     pub tied: bool,
+    /// Tied to the next note of the same pitch.
+    pub tie_start: bool,
+    /// Slurs that start or end at this note.
+    pub slurs: Vec<Slur>,
     pub voice: u8,
     /// Staff of a part written on several staves (piano), 1-based.
     pub staff: u8,
@@ -185,10 +189,26 @@ impl Default for Note {
             string: None,
             fret: None,
             tied: false,
+            tie_start: false,
+            slurs: Vec::new(),
             voice: 1,
             staff: 1,
         }
     }
+}
+
+/// Slurs one note may start or end.
+pub const MAX_SLURS_PER_NOTE: usize = 4;
+
+/// One end of a slur (a phrase arc over notes of different pitch) at a note.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Slur {
+    /// Tells overlapping slurs apart; the start and the stop of one slur share it.
+    pub number: u8,
+    /// The slur starts here (else it ends here).
+    pub start: bool,
+    /// Drawn above the notes (`Some(true)`), below, or where the notes leave room (`None`).
+    pub above: Option<bool>,
 }
 
 /// A written pitch.
