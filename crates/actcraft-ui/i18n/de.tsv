@@ -602,3 +602,44 @@
 	give `song` or `playlist`, not both	`song` oder `playlist` angeben, nicht beides
 	no playlist open	keine Playlist geöffnet
 	bad playlist	ungültige Playlist
+	ActCraft reads lyrics from {types} files	ActCraft liest Songtexte aus {types}-Dateien
+	`click` must be off, whole_song, count_in_only or visual_only, not `{value}`	`click` muss off, whole_song, count_in_only oder visual_only sein, nicht `{value}`
+	`kind` must be pen, highlight or note, not `{value}`	`kind` muss pen, highlight oder note sein, nicht `{value}`
+	`lyrics_scroll` must be line, smooth, constant or off, not `{value}`	`lyrics_scroll` muss line, smooth, constant oder off sein, nicht `{value}`
+	`mode` must be play, loop, skip or stop_after, not `{value}`	`mode` muss play, loop, skip oder stop_after sein, nicht `{value}`
+	`{key}` has more than {max} songs	`{key}` hat mehr als {max} Songs
+	`{key}` has more than {max} items	`{key}` hat mehr als {max} Einträge
+	`{key}` is longer than {max} bytes	`{key}` ist länger als {max} Bytes
+	`{key}` is required	`{key}` fehlt
+	`{key}` item longer than {max} bytes	ein Eintrag in `{key}` ist länger als {max} Bytes
+	`{key}` items must be indexes below {count}	die Einträge in `{key}` müssen Nummern unter {count} sein
+	`{key}` items must be text	die Einträge in `{key}` müssen Text sein
+	`{key}` must be a list	`{key}` muss eine Liste sein
+	`{key}` must be a list of song ids	`{key}` muss eine Liste von Song-IDs sein
+	`{key}` must be a number	`{key}` muss eine Zahl sein
+	`{key}` must be a song id	`{key}` muss eine Song-ID sein
+	`{key}` must be a whole number	`{key}` muss eine ganze Zahl sein
+	`{key}` must be between {min} and {max}	`{key}` muss zwischen {min} und {max} liegen
+	`{key}` must be text	`{key}` muss Text sein
+	`{key}` must be true or false	`{key}` muss true oder false sein
+	`{key}` must hold song ids	`{key}` muss Song-IDs enthalten
+	`{key}` out of range	`{key}` liegt außerhalb des Bereichs
+	`{key}`: nothing to choose from	`{key}`: es gibt nichts zur Auswahl
+	a mark has at most {max} points	eine Markierung hat höchstens {max} Punkte
+	a playlist holds at most {max} sets	eine Playlist hat höchstens {max} Sets
+	a set holds at most {max} songs	ein Set hat höchstens {max} Songs
+	a show holds at most {max} playlists	eine Show hat höchstens {max} Playlists
+	a show holds at most {max} songs	eine Show hat höchstens {max} Songs
+	a show package file ends in .{extension}	eine Show-Paketdatei endet auf .{extension}
+	a song holds at most {max} regions	ein Song hat höchstens {max} Abschnitte
+	a song holds at most {max} tracks	ein Song hat höchstens {max} Spuren
+	a song's PDF holds at most {max} marks	die PDF eines Songs hat höchstens {max} Markierungen
+	cannot sort by `{value}`	nach `{value}` kann nicht sortiert werden
+	no song with id {id}	kein Song mit der ID {id}
+	not a show package: {why}	kein Show-Paket: {why}
+	nothing was played on {date}	am {date} wurde nichts gespielt
+	spoken words are at most {max} bytes	gesprochene Worte haben höchstens {max} Bytes
+	the queue holds at most {max} songs	die Warteschlange hat höchstens {max} Songs
+	unknown double-tap mode `{value}`	unbekannter Doppeltipp-Modus `{value}`
+	unknown metronome mode `{value}`	unbekannter Metronom-Modus `{value}`
+	the package entry {entry} could not be read	der Paketeintrag {entry} konnte nicht gelesen werden

@@ -267,7 +267,7 @@ pub fn show_open_package(e: &mut Engine, prm: &Value) -> CommandResult {
         let data = archive
             .read(entry, MAX_READ_BYTES)
             .map_err(|err| failed(err.to_string()))?
-            .ok_or_else(|| failed(format!("{entry} could not be read")))?;
+            .ok_or_else(|| failed(format!("the package entry {entry} could not be read")))?;
         let target = services::join(&folder, name);
         e.services_mut().write_file(&target, &data).map_err(failed)?;
         // Its waveform, when the package carries one, goes into the cache for the new file.
