@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, mpsc};
 
 use actcraft_engine::Engine;
-use actcraft_show::Song;
+use actcraft_show::{PdfMark, PdfMarkKind, Song};
 use egui::{Color32, ColorImage, RichText, Ui, vec2};
 use serde_json::json;
 
@@ -51,6 +51,140 @@ pub(crate) struct SheetLook {
 impl Default for SheetLook {
     fn default() -> Self {
         Self { zoom: 1.0, invert: false, follow: false }
+    }
+}
+
+/// What a pointer on a page does in the Sheet music tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum MarkTool {
+    /// Pages are only looked at (and scrolled by dragging).
+    #[default]
+    View,
+    Pen,
+    Highlight,
+    Note,
+}
+
+/// Colours a mark can have, by name, so the choice never rests on colour alone.
+pub(crate) const MARK_COLOURS: [(&str, &str); 4] =
+    [("Red", "#e5484d"), ("Blue", "#4f9cf0"), ("Green", "#2f9e5b"), ("Yellow", "#f2b43c")];
+
+/// Marking on a PDF: the tool, the colour (index into [`MARK_COLOURS`]) and the stroke or box
+/// being drawn.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct MarkEdit {
+    pub tool: MarkTool,
+    pub colour: usize,
+    /// The page and points of the mark being drawn.
+    pub draft: Option<(u32, Vec<[f32; 2]>)>,
+}
+
+impl MarkEdit {
+    fn colour_hex(&self) -> &'static str {
+        MARK_COLOURS.get(self.colour).map_or("#e5484d", |c| c.1)
+    }
+}
+
+/// A finished stroke or box, or a spot where a note goes, as `pdf.mark` params.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum MarkRequest {
+    Mark(serde_json::Value),
+    NoteAt { page: u32, at: [f32; 2] },
+}
+
+/// The point `p` as a fraction of `rect`, from its top left.
+fn fraction(rect: egui::Rect, p: egui::Pos2) -> [f32; 2] {
+    let f = (p - rect.min) / rect.size().max(vec2(1.0, 1.0));
+    [f.x.clamp(0.0, 1.0), f.y.clamp(0.0, 1.0)]
+}
+
+/// The pointer's next step on a page while `edit` marks: a stroke grows while dragged, a box
+/// spans the drag, a click asks for a note. Returns what is finished.
+fn mark_input(edit: &mut MarkEdit, page: u32, rect: egui::Rect, r: &egui::Response) -> Option<MarkRequest> {
+    let at = r.interact_pointer_pos().map(|p| fraction(rect, p));
+    match edit.tool {
+        MarkTool::View => None,
+        MarkTool::Note => {
+            if r.clicked() {
+                at.map(|at| MarkRequest::NoteAt { page, at })
+            } else {
+                None
+            }
+        }
+        MarkTool::Pen | MarkTool::Highlight => {
+            if r.drag_started()
+                && let Some(at) = at
+            {
+                edit.draft = Some((page, vec![at]));
+            }
+            if r.dragged()
+                && let (Some(at), Some((p, points))) = (at, edit.draft.as_mut())
+                && *p == page
+            {
+                match edit.tool {
+                    MarkTool::Highlight => {
+                        points.truncate(1);
+                        points.push(at);
+                    }
+                    _ => {
+                        let moved = points.last().is_none_or(|l| (l[0] - at[0]).abs() + (l[1] - at[1]).abs() > 0.002);
+                        if moved && points.len() < actcraft_show::limits::MAX_MARK_POINTS {
+                            points.push(at);
+                        }
+                    }
+                }
+            }
+            if r.drag_stopped()
+                && let Some((p, points)) = edit.draft.take()
+                && p == page
+                && points.len() >= 2
+            {
+                let kind = if edit.tool == MarkTool::Highlight { "highlight" } else { "pen" };
+                let points: Vec<[f32; 2]> =
+                    if edit.tool == MarkTool::Highlight { points.into_iter().take(2).collect() } else { points };
+                return Some(MarkRequest::Mark(json!({
+                    "page": page, "kind": kind, "points": points, "colour": edit.colour_hex(),
+                })));
+            }
+            None
+        }
+    }
+}
+
+/// Paints a page's marks over it; `rect` is the page as shown.
+fn paint_marks<'a>(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    marks: impl Iterator<Item = &'a PdfMark>,
+    paper: Color32,
+) {
+    let at = |p: &[f32; 2]| rect.min + vec2(p[0] * rect.width(), p[1] * rect.height());
+    let thick = (rect.width() * 0.003).clamp(1.5, 6.0);
+    for m in marks {
+        let [r, g, b] = actcraft_show::parse_colour(&m.colour).unwrap_or([229, 72, 77]);
+        let colour = Color32::from_rgb(r, g, b);
+        match m.kind {
+            PdfMarkKind::Pen => {
+                let pts: Vec<egui::Pos2> = m.points.iter().map(at).collect();
+                painter.add(egui::Shape::line(pts, egui::Stroke::new(thick, colour)));
+            }
+            PdfMarkKind::Highlight => {
+                if let (Some(p), Some(q)) = (m.points.first(), m.points.get(1)) {
+                    let area = egui::Rect::from_two_pos(at(p), at(q));
+                    painter.rect_filled(area, 2.0, Color32::from_rgba_unmultiplied(r, g, b, 80));
+                }
+            }
+            PdfMarkKind::Note => {
+                if let Some(p) = m.points.first() {
+                    let size = (rect.width() * 0.022).clamp(11.0, 30.0);
+                    let galley = painter.layout_no_wrap(m.text.clone(), egui::FontId::proportional(size), colour);
+                    let bg = egui::Rect::from_min_size(at(p), galley.size()).expand(3.0);
+                    painter.rect_filled(bg, 3.0, paper);
+                    painter.rect_stroke(bg, 3.0, egui::Stroke::new(1.5, colour), egui::StrokeKind::Inside);
+                    painter.galley(at(p), galley, colour);
+                }
+            }
+        }
     }
 }
 
@@ -257,6 +391,7 @@ impl ActCraftApp {
                 ui.checkbox(&mut self.sheet_view.follow, tr("Follow playback"))
                     .on_hover_text(tr("Scroll through the pages at a constant speed while the song plays"));
             });
+            self.mark_bar(ui, e, song);
         }
         ui.separator();
         let Some(doc) = self.sheet.as_mut() else {
@@ -266,7 +401,116 @@ impl ActCraftApp {
             }
             return;
         };
-        pdf_pages(ui, doc, self.sheet_view, song, (e.status.time, e.status.playing), "sheet");
+        let status = (e.status.time, e.status.playing);
+        let out = pdf_pages(ui, doc, self.sheet_view, song, status, "sheet", Some(&mut self.mark_edit));
+        self.sheet_top_page = out.top_page;
+        match out.request {
+            Some(MarkRequest::Mark(mut prm)) => {
+                prm["song"] = json!(song.id);
+                self.run(e, "pdf.mark", prm);
+            }
+            Some(MarkRequest::NoteAt { page, at }) => self.note_prompt = Some((song.id, page, at, String::new())),
+            None => {}
+        }
+        self.note_window(ui.ctx(), e);
+    }
+
+    /// The marking tools over the pages: view or pen, highlighter, note; the colour; removing
+    /// the last mark or all of them.
+    fn mark_bar(&mut self, ui: &mut Ui, e: &mut Engine, song: &Song) {
+        ui.horizontal_wrapped(|ui| {
+            let edit = &mut self.mark_edit;
+            let label = ui.label(tr("Mark"));
+            for (tool, name, hint) in [
+                (MarkTool::View, tr("Look"), tr("Look at the pages and scroll them")),
+                (MarkTool::Pen, tr("Pen"), tr("Draw on the page with the pointer")),
+                (MarkTool::Highlight, tr("Highlighter"), tr("Drag a box over what you want to stand out")),
+                (MarkTool::Note, tr("Note"), tr("Click where a note goes, then write it")),
+            ] {
+                ui.selectable_value(&mut edit.tool, tool, name).on_hover_text(hint).labelled_by(label.id);
+            }
+            let label = ui.label(tr("Colour"));
+            let current = MARK_COLOURS.get(edit.colour).map_or("", |c| c.0);
+            egui::ComboBox::from_id_salt("mark-colour")
+                .selected_text(tr(current))
+                .show_ui(ui, |ui| {
+                    for (i, (name, _)) in MARK_COLOURS.iter().enumerate() {
+                        ui.selectable_value(&mut edit.colour, i, tr(name));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            ui.separator();
+            // Without a pointer, a note goes on the first page in view.
+            if ui
+                .button(tr("Add note\u{2026}"))
+                .on_hover_text(tr("Write a note at the top of the first page in view"))
+                .clicked()
+            {
+                let page = u32::try_from(self.sheet_top_page).unwrap_or(0);
+                self.note_prompt = Some((song.id, page, [0.04, 0.04], String::new()));
+            }
+            let marks = song.pdf_marks.len();
+            if ui
+                .add_enabled(marks > 0, egui::Button::new(tr("Remove last mark")))
+                .on_hover_text(tr("Take back the mark made last"))
+                .clicked()
+            {
+                self.run(e, "pdf.unmark", json!({"song": song.id, "mark": marks - 1}));
+            }
+            if self.confirm_clear_marks && marks > 0 {
+                let text = actcraft_engine::fill(tr("Remove all {count} marks?"), &[("count", &marks.to_string())]);
+                ui.label(text);
+                if ui.button(tr("Remove")).clicked() {
+                    self.run(e, "pdf.clear_marks", json!({"song": song.id, "confirm": true}));
+                    self.confirm_clear_marks = false;
+                }
+                if ui.button(tr("Cancel")).clicked() {
+                    self.confirm_clear_marks = false;
+                }
+            } else if ui.add_enabled(marks > 0, egui::Button::new(tr("Remove all marks\u{2026}"))).clicked() {
+                self.confirm_clear_marks = true;
+            }
+        });
+    }
+
+    /// The small window that takes a note's words; Enter adds it, Esc or Cancel drops it.
+    fn note_window(&mut self, ctx: &egui::Context, e: &mut Engine) {
+        let Some((song, page, at, mut text)) = self.note_prompt.take() else { return };
+        let mut keep = true;
+        let mut add = false;
+        egui::Modal::new(egui::Id::unique("pdf-note")).show(ctx, |ui| {
+            ui.set_min_width(360.0);
+            ui.heading(tr("Note"));
+            let label =
+                ui.label(actcraft_engine::fill(tr("Note on page {page}"), &[("page", &(page + 1).to_string())]));
+            let field = ui.add(egui::TextEdit::singleline(&mut text).desired_width(320.0)).labelled_by(label.id);
+            if !field.has_focus() && !field.lost_focus() {
+                field.request_focus();
+            }
+            if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                add = true;
+            }
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!text.trim().is_empty(), egui::Button::new(tr("Add"))).clicked() {
+                    add = true;
+                }
+                if ui.button(tr("Cancel")).clicked() {
+                    keep = false;
+                }
+            });
+        });
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            keep = false;
+        }
+        if add && !text.trim().is_empty() {
+            let prm = json!({"song": song, "page": page, "kind": "note", "points": [at], "text": text});
+            self.run(e, "pdf.mark", prm);
+            keep = false;
+        }
+        if keep {
+            self.note_prompt = Some((song, page, at, text));
+        }
     }
 }
 
@@ -287,8 +531,16 @@ pub(crate) fn load_pdf_into(
     Ok(())
 }
 
-/// Draws a PDF's pages one under the other at `look`'s zoom; with `look.follow` they scroll at
-/// a constant speed over the song while it plays (`status` is the time and whether it plays).
+/// What the pages did: a finished mark or a spot for a note, and the first page in view.
+#[derive(Debug, Default)]
+pub(crate) struct PagesOutput {
+    pub request: Option<MarkRequest>,
+    pub top_page: usize,
+}
+
+/// Draws a PDF's pages one under the other at `look`'s zoom, with the song's marks; with
+/// `look.follow` they scroll at a constant speed over the song while it plays (`status` is the
+/// time and whether it plays). With `edit`, the pointer marks the pages.
 pub(crate) fn pdf_pages(
     ui: &mut Ui,
     doc: &mut SheetDoc,
@@ -296,7 +548,9 @@ pub(crate) fn pdf_pages(
     song: &Song,
     status: (f64, bool),
     salt: &'static str,
-) {
+    mut edit: Option<&mut MarkEdit>,
+) -> PagesOutput {
+    let mut out = PagesOutput::default();
     let (time, playing) = status;
     doc.collect(ui.ctx());
     let available = ui.available_width();
@@ -344,15 +598,119 @@ pub(crate) fn pdf_pages(
                         );
                     }
                 }
+                let page = u32::try_from(i).unwrap_or(u32::MAX);
+                paint_marks(ui.painter(), rect, song.pdf_marks.iter().filter(|m| m.page == page), paper);
+                if let Some(edit) = edit.as_deref_mut().filter(|e| e.tool != MarkTool::View) {
+                    let r = ui
+                        .interact(rect, egui::Id::unique((salt, song.id, "page", i)), egui::Sense::click_and_drag())
+                        .on_hover_cursor(egui::CursorIcon::Crosshair);
+                    if let Some(req) = mark_input(edit, page, rect, &r) {
+                        out.request = Some(req);
+                    }
+                    // The mark being drawn, as it will look.
+                    if let Some((p, points)) = edit.draft.as_ref().filter(|d| d.0 == page) {
+                        let kind =
+                            if edit.tool == MarkTool::Highlight { PdfMarkKind::Highlight } else { PdfMarkKind::Pen };
+                        let draft = PdfMark {
+                            page: *p,
+                            kind,
+                            colour: edit.colour_hex().to_owned(),
+                            points: points.clone(),
+                            ..PdfMark::default()
+                        };
+                        paint_marks(ui.painter(), rect, std::iter::once(&draft), paper);
+                    }
+                }
+            }
+            if local.bottom() <= viewport.top() {
+                out.top_page = (i + 1).min(heights.len().saturating_sub(1));
             }
             y += h + gap;
         }
     });
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Drives `mark_input` on a 200×100 page at the window's top left with pointer events, one
+    /// list per frame; returns what it finished.
+    fn drive(edit: &mut MarkEdit, frames: &[Vec<egui::Event>]) -> Vec<MarkRequest> {
+        let ctx = egui::Context::default();
+        let page = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(200.0, 100.0));
+        let mut out = Vec::new();
+        for (k, events) in frames.iter().enumerate() {
+            let input = egui::RawInput {
+                events: events.clone(),
+                screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(400.0, 300.0))),
+                time: Some(k as f64 * 0.1),
+                ..Default::default()
+            };
+            let mut frame = ctx.run_ui(input, |ui| {
+                let r = ui.interact(page, egui::Id::unique("test-page"), egui::Sense::click_and_drag());
+                if let Some(req) = mark_input(edit, 3, page, &r) {
+                    out.push(req);
+                }
+            });
+            // No renderer takes the font texture here.
+            frame.textures_delta.clear();
+        }
+        out
+    }
+
+    fn press(x: f32, y: f32, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos: egui::pos2(x, y),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        }
+    }
+
+    fn drag() -> Vec<Vec<egui::Event>> {
+        let to = |x, y| egui::Event::PointerMoved(egui::pos2(x, y));
+        vec![
+            vec![to(20.0, 10.0)],
+            vec![press(20.0, 10.0, true)],
+            vec![to(60.0, 30.0)],
+            vec![to(100.0, 50.0)],
+            vec![press(100.0, 50.0, false)],
+            vec![],
+        ]
+    }
+
+    #[test]
+    fn dragging_on_a_page_draws_a_stroke_or_a_box_and_a_click_asks_for_a_note() {
+        let mut pen = MarkEdit { tool: MarkTool::Pen, colour: 1, draft: None };
+        let got = drive(&mut pen, &drag());
+        let [MarkRequest::Mark(prm)] = got.as_slice() else { panic!("one stroke: {got:?}") };
+        assert_eq!(
+            (prm["page"].clone(), prm["kind"].clone(), prm["colour"].clone()),
+            (json!(3), json!("pen"), json!("#4f9cf0"))
+        );
+        let points = prm["points"].as_array().cloned().unwrap_or_default();
+        assert!(points.len() >= 2, "{points:?}");
+        assert_eq!(points.last(), Some(&json!([0.5, 0.5])), "fractions of the page");
+        assert!(pen.draft.is_none(), "the draft is handed over");
+        // A highlighter keeps only the two corners.
+        let mut marker = MarkEdit { tool: MarkTool::Highlight, ..MarkEdit::default() };
+        let got = drive(&mut marker, &drag());
+        let [MarkRequest::Mark(prm)] = got.as_slice() else { panic!("one box: {got:?}") };
+        assert_eq!(prm["points"].as_array().map(Vec::len), Some(2));
+        // A click with the note tool gives the spot; looking does nothing.
+        let click = vec![
+            vec![egui::Event::PointerMoved(egui::pos2(50.0, 25.0))],
+            vec![press(50.0, 25.0, true)],
+            vec![press(50.0, 25.0, false)],
+            vec![],
+        ];
+        let mut note = MarkEdit { tool: MarkTool::Note, ..MarkEdit::default() };
+        assert_eq!(drive(&mut note, &click), vec![MarkRequest::NoteAt { page: 3, at: [0.25, 0.25] }]);
+        let mut look = MarkEdit::default();
+        assert!(drive(&mut look, &drag()).is_empty());
+    }
 
     #[test]
     fn render_widths_step_and_stay_bounded() {

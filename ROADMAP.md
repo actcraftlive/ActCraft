@@ -23,12 +23,11 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. PDF annotations (M2)
-2. Lyrics editor: timecode-aware undo (M2)
-3. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-4. Show package of a single song or playlist (M1)
-5. Command errors that carry a value (file name, number) in the window's language
-6. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. Lyrics editor: timecode-aware undo (M2)
+2. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+3. Show package of a single song or playlist (M1)
+4. Command errors that carry a value (file name, number) in the window's language
+5. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -95,8 +94,10 @@ details are in the milestone sections further down.
   (Settings > Spoken cues); each phrase is spoken once and cached. A song's own Spoken cues tab
   adds cues at the playback position with one click (Verse, Chorus, End 3 2 1...) and plays from
   just before a cue to hear it
-- 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
-  colours, scroll with playback (done); annotations to do
+- ✅ PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
+  colours, scroll with playback; marks on the pages (pen, highlighter, notes, in four named
+  colours) kept with the song and shown in the Stage window too (`pdf.mark`, `pdf.unmark`,
+  `pdf.clear_marks`)
 - ✅ Notation per song in the Sheet music tab: a MusicXML score (`.musicxml`, `.xml`,
   compressed `.mxl`, as notation and tablature editors export it) drawn as staves and tablature,
   part by part; frets come from the file or are placed on the part's tuning; eighths and shorter

@@ -655,7 +655,7 @@ fn stage_sheet(
         }
         let Some(doc) = stage.sheet.as_mut() else { return };
         let look = crate::sheet_view::SheetLook { zoom: 1.0, invert: stage.invert, follow: true };
-        crate::sheet_view::pdf_pages(ui, doc, look, song, status, "stage-sheet");
+        crate::sheet_view::pdf_pages(ui, doc, look, song, status, "stage-sheet", None);
     }
 }
 

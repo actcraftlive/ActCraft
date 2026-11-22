@@ -182,6 +182,7 @@ mod tests {
         for o in actcraft_library::smart::OPS {
             out.push(crate::flows::op_label(o).to_owned());
         }
+        out.extend(crate::sheet_view::MARK_COLOURS.iter().map(|c| c.0.to_owned()));
         for m in [
             actcraft_show::RegionMode::Play,
             actcraft_show::RegionMode::Loop,
