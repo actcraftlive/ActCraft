@@ -23,7 +23,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Notation: slurs and ties as arcs, tuplets, techniques in the tab (M2)
+1. Notation: tuplets, techniques in the tab (M2)
 2. Notation: lyrics under the notes and chord symbols above them (M2)
 3. Notation: keyboard way to move to a bar (M2, accessibility)
 4. Second window shows sheet music too: PDF and notation (M2)
@@ -114,7 +114,9 @@ details are in the milestone sections further down.
   - ✅ Repeats and endings (first, second... endings), D.C., D.S., Fine, To Coda: drawn on the
     staff and tab, and the bars unrolled into the order they are played, so the playing bar,
     follow and click-to-bar are right on every pass (`notation.read` reports `played_bars`)
-  - ⬜ Slurs and ties drawn as arcs on the staff (ties show as "(fret)" in the tab today)
+  - ✅ Ties and slurs drawn as arcs on the staff, over bar lines; one that continues on the next
+    line runs to the line's edge (a tie as a short half tie); tied frets show as "(fret)" in
+    the tab
   - ⬜ Lyrics under the notes (`<lyric>`), and chord symbols above the staff (`<harmony>`)
   - ⬜ Techniques in the tab: bends, slides, hammer-on/pull-off, palm mute, harmonics, vibrato
   - ⬜ Triplets and other tuplets marked with their number and bracket

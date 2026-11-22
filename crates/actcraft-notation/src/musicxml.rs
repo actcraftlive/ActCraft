@@ -5,8 +5,8 @@ use craft_xml::{El, Options};
 use crate::flow::{MAX_ENDING_NUMBERS, MAX_REPEAT_TIMES};
 use crate::tab::fill_frets;
 use crate::{
-    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_STAVES, MAX_STRINGS,
-    Note, NoteValue, Part, Pitch, Score, TICKS_PER_QUARTER, signature_ticks,
+    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_SLURS_PER_NOTE,
+    MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER, signature_ticks,
 };
 
 /// Entries a compressed score may hold.
@@ -359,7 +359,15 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
             .filter(|v| *v >= 0.0 && *v <= max)
             .map(|v| v as u8)
     };
-    let tied = el.children("tie").any(|t| t.attr("type") == Some("stop"));
+    // A tie is written as a sound (`<tie>`) and as a sign (`<notations><tied>`); either counts.
+    let notations = el.child("notations");
+    let tie = |kind: &str| {
+        el.children("tie").any(|t| t.attr("type") == Some(kind))
+            || notations.is_some_and(|n| n.children("tied").any(|t| t.attr("type") == Some(kind)))
+    };
+    let tied = tie("stop");
+    let tie_start = tie("start");
+    let slurs = notations.map(read_slurs).unwrap_or_default();
     Some(Note {
         start,
         length,
@@ -369,9 +377,33 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
         string: small("string", MAX_STRINGS as f64).filter(|s| *s >= 1),
         fret: small("fret", f64::from(MAX_FRET)),
         tied,
+        tie_start,
+        slurs,
         voice: number(el.child_text("voice").as_deref()).map_or(1, |v| v.clamp(1.0, 64.0) as u8),
         staff: number(el.child_text("staff").as_deref()).map_or(1, |v| v.clamp(1.0, 8.0) as u8),
     })
+}
+
+/// The slur starts and stops a note's `<notations>` hold; a "continue" only passes through.
+fn read_slurs(notations: &El) -> Vec<Slur> {
+    notations
+        .children("slur")
+        .filter_map(|s| {
+            let start = match s.attr("type") {
+                Some("start") => true,
+                Some("stop") => false,
+                _ => return None,
+            };
+            let number = number(s.attr("number")).map_or(1, |n| n.clamp(1.0, 16.0) as u8);
+            let above = match (s.attr("placement"), s.attr("orientation")) {
+                (Some("above"), _) | (_, Some("over")) => Some(true),
+                (Some("below"), _) | (_, Some("under")) => Some(false),
+                _ => None,
+            };
+            Some(Slur { number, start, above })
+        })
+        .take(MAX_SLURS_PER_NOTE)
+        .collect()
 }
 
 /// A G, F or C clef; `None` for tablature, percussion and anything else.
@@ -517,6 +549,7 @@ mod tests {
         let second = &part.bars[1];
         assert_eq!((second.number.as_str(), second.beats, second.fifths), ("2", 4, 1), "carried over");
         assert!(second.notes[0].tied);
+        assert!(part.bars[0].notes.iter().any(|n| n.tie_start), "the tie starts in bar 1");
         assert_eq!((second.notes[0].value, second.notes[0].dots), (NoteValue::Half, 1));
         // No type written: taken from the length. No fret written: placed on the tuning.
         assert_eq!(second.notes[1].value, NoteValue::Quarter);
@@ -610,6 +643,39 @@ mod tests {
         // Three passes with endings, then D.S. to bar 2, to the coda after the last ending.
         assert_eq!(crate::play_order(bars), vec![0, 1, 2, 0, 1, 2, 0, 1, 3, 4, 1, 3, 5]);
         assert_eq!(ending_numbers("1 2, 2, 0, 99, x"), vec![1, 2]);
+    }
+
+    #[test]
+    fn slurs_and_tie_signs_are_read() {
+        let note = |step: &str, notations: &str| {
+            format!(
+                r#"<note><pitch><step>{step}</step><octave>4</octave></pitch><duration>1</duration><notations>{notations}</notations></note>"#
+            )
+        };
+        let notes = [
+            note("C", r#"<slur type="start" number="1" placement="below"/><tied type="start"/>"#),
+            note("C", r#"<tied type="stop"/><slur type="continue" number="1"/>"#),
+            note("E", r#"<slur type="stop" number="1"/><slur type="start" number="2" orientation="over"/>"#),
+            note("G", r#"<slur type="stop" number="99"/>"#),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">
+            <measure number="1"><attributes><divisions>1</divisions></attributes>{notes}</measure></part></score-partwise>"#
+        );
+        let score = read(xml.as_bytes());
+        assert!(score.is_ok(), "{score:?}");
+        let Ok(score) = score else { return };
+        let n = &score.parts[0].bars[0].notes;
+        assert!(n[0].tie_start && !n[0].tied);
+        assert!(n[1].tied && !n[1].tie_start, "the tie sign counts like the tie sound");
+        assert_eq!(n[0].slurs, vec![Slur { number: 1, start: true, above: Some(false) }]);
+        assert!(n[1].slurs.is_empty(), "a continue only passes through");
+        assert_eq!(
+            n[2].slurs,
+            vec![Slur { number: 1, start: false, above: None }, Slur { number: 2, start: true, above: Some(true) }]
+        );
+        assert_eq!(n[3].slurs, vec![Slur { number: 16, start: false, above: None }], "numbers are bounded");
     }
 
     #[test]
