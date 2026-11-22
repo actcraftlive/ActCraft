@@ -187,18 +187,8 @@ impl ActCraftApp {
         let t = self.tokens;
         // The open document follows the song's PDF.
         let wanted = song.pdf_file.clone();
-        if self.sheet.as_ref().map(|s| s.path.as_str()) != wanted.as_deref() {
-            self.sheet = None;
-            if let Some(path) = &wanted {
-                match e.services().read_file(path).and_then(|b| SheetDoc::open(path, b, ui.ctx().clone())) {
-                    Ok(doc) => self.sheet = Some(doc),
-                    Err(err) => {
-                        ui.label(
-                            RichText::new(format!("{} {err}", tr("The PDF could not be opened:"))).color(t.danger),
-                        );
-                    }
-                }
-            }
+        if let Err(err) = load_pdf_into(&mut self.sheet, ui.ctx(), e, wanted.as_deref()) {
+            ui.label(RichText::new(format!("{} {err}", tr("The PDF could not be opened:"))).color(t.danger));
         }
         let score = song.notation_file.is_some();
         // With both a PDF and a score, the person picks which one shows.
@@ -246,6 +236,10 @@ impl ActCraftApp {
             if score && ui.button(tr("Remove notation")).clicked() {
                 self.run(e, "song.set", json!({"song": song.id, "notation_file": null}));
             }
+            if wanted.is_some() || score {
+                ui.separator();
+                self.stage_button(ui, crate::lyrics_view::StageShows::Sheet);
+            }
         });
         if score && source == SheetSource::Notation {
             ui.separator();
@@ -272,58 +266,88 @@ impl ActCraftApp {
             }
             return;
         };
-        doc.collect(ui.ctx());
-        let look = self.sheet_view;
-        let available = ui.available_width();
-        let shown_w = (available * look.zoom).max(100.0);
-        let px = render_width(shown_w, ui.ctx().pixels_per_point());
-        let gap = 12.0;
-        let heights: Vec<f32> = doc.pages.iter().map(|&(w, h)| shown_w * h / w).collect();
-        let content: f32 = heights.iter().sum::<f32>() + gap * heights.len() as f32;
-        let mut area = egui::ScrollArea::both().id_salt(("sheet", song.id)).auto_shrink([false, false]);
-        if look.follow && e.status.playing {
-            let span = (song.start, song.end.unwrap_or(song.duration));
-            if span.1 > span.0 {
-                let frac = ((e.status.time - span.0) / (span.1 - span.0)).clamp(0.0, 1.0) as f32;
-                let view = ui.available_height();
-                area = area.vertical_scroll_offset(frac * (content - view).max(0.0));
-                ui.ctx().request_repaint();
-            }
+        pdf_pages(ui, doc, self.sheet_view, song, (e.status.time, e.status.playing), "sheet");
+    }
+}
+
+/// Opens `path` as the PDF in `slot` unless it already is (`None` closes it); the error says why
+/// it could not be opened. A failed file is tried again on the next call.
+pub(crate) fn load_pdf_into(
+    slot: &mut Option<SheetDoc>,
+    ctx: &egui::Context,
+    e: &Engine,
+    path: Option<&str>,
+) -> Result<(), String> {
+    if slot.as_ref().map(|s| s.path.as_str()) == path {
+        return Ok(());
+    }
+    *slot = None;
+    let Some(path) = path else { return Ok(()) };
+    *slot = Some(e.services().read_file(path).and_then(|b| SheetDoc::open(path, b, ctx.clone()))?);
+    Ok(())
+}
+
+/// Draws a PDF's pages one under the other at `look`'s zoom; with `look.follow` they scroll at
+/// a constant speed over the song while it plays (`status` is the time and whether it plays).
+pub(crate) fn pdf_pages(
+    ui: &mut Ui,
+    doc: &mut SheetDoc,
+    look: SheetLook,
+    song: &Song,
+    status: (f64, bool),
+    salt: &'static str,
+) {
+    let (time, playing) = status;
+    doc.collect(ui.ctx());
+    let available = ui.available_width();
+    let shown_w = (available * look.zoom).max(100.0);
+    let px = render_width(shown_w, ui.ctx().pixels_per_point());
+    let gap = 12.0;
+    let heights: Vec<f32> = doc.pages.iter().map(|&(w, h)| shown_w * h / w).collect();
+    let content: f32 = heights.iter().sum::<f32>() + gap * heights.len() as f32;
+    let mut area = egui::ScrollArea::both().id_salt((salt, song.id)).auto_shrink([false, false]);
+    if look.follow && playing {
+        let span = (song.start, song.end.unwrap_or(song.duration));
+        if span.1 > span.0 {
+            let frac = ((time - span.0) / (span.1 - span.0)).clamp(0.0, 1.0) as f32;
+            let view = ui.available_height();
+            area = area.vertical_scroll_offset(frac * (content - view).max(0.0));
+            ui.ctx().request_repaint();
         }
-        let paper = if look.invert { Color32::BLACK } else { Color32::WHITE };
-        area.show_viewport(ui, |ui, viewport| {
-            ui.set_min_size(vec2(shown_w, content));
-            let origin = ui.min_rect().min;
-            let mut y = 0.0;
-            for (i, h) in heights.iter().copied().enumerate() {
-                let rect = egui::Rect::from_min_size(origin + vec2(0.0, y), vec2(shown_w, h));
-                let local = egui::Rect::from_min_size(egui::pos2(0.0, y), vec2(shown_w, h));
-                if local.intersects(viewport.expand(h * 0.5)) {
-                    match doc.texture((i, px, look.invert)) {
-                        Some(tex) => {
-                            ui.painter().image(
-                                tex.id(),
-                                rect,
-                                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                                Color32::WHITE,
-                            );
-                        }
-                        None => {
-                            ui.painter().rect_filled(rect, 2.0, paper);
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                actcraft_engine::fill(tr("Page {page}"), &[("page", &(i + 1).to_string())]),
-                                egui::FontId::proportional(16.0),
-                                Color32::GRAY,
-                            );
-                        }
+    }
+    let paper = if look.invert { Color32::BLACK } else { Color32::WHITE };
+    area.show_viewport(ui, |ui, viewport| {
+        ui.set_min_size(vec2(shown_w, content));
+        let origin = ui.min_rect().min;
+        let mut y = 0.0;
+        for (i, h) in heights.iter().copied().enumerate() {
+            let rect = egui::Rect::from_min_size(origin + vec2(0.0, y), vec2(shown_w, h));
+            let local = egui::Rect::from_min_size(egui::pos2(0.0, y), vec2(shown_w, h));
+            if local.intersects(viewport.expand(h * 0.5)) {
+                match doc.texture((i, px, look.invert)) {
+                    Some(tex) => {
+                        ui.painter().image(
+                            tex.id(),
+                            rect,
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                            Color32::WHITE,
+                        );
+                    }
+                    None => {
+                        ui.painter().rect_filled(rect, 2.0, paper);
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            actcraft_engine::fill(tr("Page {page}"), &[("page", &(i + 1).to_string())]),
+                            egui::FontId::proportional(16.0),
+                            Color32::GRAY,
+                        );
                     }
                 }
-                y += h + gap;
             }
-        });
-    }
+            y += h + gap;
+        }
+    });
 }
 
 #[cfg(test)]

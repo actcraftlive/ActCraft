@@ -133,14 +133,7 @@ impl ActCraftApp {
             ui.spacing_mut().slider_width = 120.0;
             ui.add(egui::Slider::new(&mut self.lyrics_size, 14.0..=64.0).show_value(false).text(tr("Size")));
             ui.separator();
-            let stage_label = if self.stage.is_some() { tr("Close lyrics window") } else { tr("Lyrics window") };
-            if ui
-                .selectable_label(self.stage.is_some(), stage_label)
-                .on_hover_text(tr("Large lyrics in a window of their own, for a second screen or the stage"))
-                .clicked()
-            {
-                self.toggle_stage_screen();
-            }
+            self.stage_button(ui, StageShows::Lyrics);
             if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro or LRC file")).clicked() {
                 self.ask_file(FileRequest {
                     ask: FileAsk::ImportLyrics { song: song.id },
@@ -435,31 +428,89 @@ pub(crate) struct LyricsFollow {
     pub last_line: Option<usize>,
 }
 
-/// The second window: lyrics large, for the stage or a second screen.
-#[derive(Debug, Clone)]
+/// What the second window shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum StageShows {
+    #[default]
+    Lyrics,
+    /// The song's notation or PDF, as the Sheet music tab picks it.
+    Sheet,
+}
+
+/// The second window: lyrics or sheet music large, for the stage or a second screen. It keeps
+/// its own open score and PDF, so it can show another song than the main window.
 pub(crate) struct StageScreen {
     pub size: f32,
     pub chords: bool,
     pub follow: LyricsFollow,
+    pub shows: StageShows,
+    /// Zoom of the notation.
+    pub zoom: f32,
+    /// White on black for the PDF.
+    pub invert: bool,
+    pub notation: Option<crate::notation_view::NotationDoc>,
+    pub sheet: Option<crate::sheet_view::SheetDoc>,
 }
 
 impl Default for StageScreen {
     fn default() -> Self {
-        Self { size: 56.0, chords: true, follow: LyricsFollow::default() }
+        Self {
+            size: 56.0,
+            chords: true,
+            follow: LyricsFollow::default(),
+            shows: StageShows::default(),
+            zoom: 1.6,
+            invert: false,
+            notation: None,
+            sheet: None,
+        }
     }
 }
 
 impl ActCraftApp {
-    /// Opens or closes the second lyrics window.
+    /// Opens or closes the second window (with the lyrics).
     pub fn toggle_stage_screen(&mut self) {
         self.stage = if self.stage.is_some() { None } else { Some(StageScreen::default()) };
     }
 
+    /// The button that opens the second window with `shows`, switches an open one to it, or
+    /// closes it when it already shows that.
+    pub(crate) fn stage_button(&mut self, ui: &mut Ui, shows: StageShows) {
+        let showing = self.stage.as_ref().is_some_and(|s| s.shows == shows);
+        let label = if showing { tr("Close stage window") } else { tr("Stage window") };
+        let hint = match shows {
+            StageShows::Lyrics => tr("Large lyrics in a window of their own, for a second screen or the stage"),
+            StageShows::Sheet => tr("Large sheet music in a window of its own, for a second screen or the stage"),
+        };
+        if ui.selectable_label(showing, label).on_hover_text(hint).clicked() {
+            self.stage = press_stage(self.stage.take(), shows);
+        }
+    }
+
+    /// Opens the second window with the song's sheet music.
+    pub fn show_stage_sheet(&mut self) {
+        self.stage = Some(StageScreen { shows: StageShows::Sheet, ..StageScreen::default() });
+    }
+}
+
+/// The second window after its button for `shows` is pressed: opened showing it, switched to it
+/// (keeping its other settings), or closed when it already shows it.
+fn press_stage(stage: Option<StageScreen>, shows: StageShows) -> Option<StageScreen> {
+    match stage {
+        Some(s) if s.shows == shows => None,
+        Some(s) => Some(StageScreen { shows, ..s }),
+        None => Some(StageScreen { shows, ..StageScreen::default() }),
+    }
+}
+
+impl ActCraftApp {
     /// Draws the second lyrics window while it's open (its own viewport, so it can be moved to
     /// another screen and made full screen).
     pub(crate) fn stage_window(&mut self, ctx: &egui::Context, e: &Engine) {
         let Some(mut stage) = self.stage.take() else { return };
         let t = self.tokens;
+        // With both a PDF and a score, the window shows the one the Sheet music tab shows.
+        let source = self.sheet_source;
         let song = e.current().cloned();
         let mut open = true;
         let title = match &song {
@@ -481,6 +532,9 @@ impl ActCraftApp {
                             if let Some(s) = &song {
                                 ui.label(RichText::new(&s.title).size(22.0).strong().color(t.text));
                             }
+                            ui.separator();
+                            ui.selectable_value(&mut stage.shows, StageShows::Lyrics, tr("Lyrics"));
+                            ui.selectable_value(&mut stage.shows, StageShows::Sheet, tr("Sheet music"));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ui.button(tr("Close")).clicked() {
                                     open = false;
@@ -493,14 +547,37 @@ impl ActCraftApp {
                                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
                                 }
                                 ui.spacing_mut().slider_width = 120.0;
-                                ui.add(
-                                    egui::Slider::new(&mut stage.size, 24.0..=120.0).show_value(false).text(tr("Size")),
-                                );
-                                ui.checkbox(&mut stage.chords, tr("Chords"));
+                                if stage.shows == StageShows::Lyrics {
+                                    ui.add(
+                                        egui::Slider::new(&mut stage.size, 24.0..=120.0)
+                                            .show_value(false)
+                                            .text(tr("Size")),
+                                    );
+                                    ui.checkbox(&mut stage.chords, tr("Chords"));
+                                } else {
+                                    // Zoom for notes, inverted colours for a PDF.
+                                    match song.as_ref().and_then(|s| sheet_choice(s, source)) {
+                                        Some((_, true)) => {
+                                            ui.add(
+                                                egui::Slider::new(&mut stage.zoom, 0.6..=3.0)
+                                                    .show_value(false)
+                                                    .text(tr("Zoom")),
+                                            );
+                                        }
+                                        Some((_, false)) => {
+                                            ui.checkbox(&mut stage.invert, tr("Invert colours"))
+                                                .on_hover_text(tr("White on black, for a dark stage"));
+                                        }
+                                        None => {}
+                                    }
+                                }
                             });
                         });
                         ui.separator();
                         match &song {
+                            Some(s) if stage.shows == StageShows::Sheet => {
+                                stage_sheet(ui, t, e, s, &mut stage, source);
+                            }
                             Some(s) if !s.lyrics.trim().is_empty() => {
                                 let look = LyricsLook {
                                     size: stage.size,
@@ -529,6 +606,56 @@ impl ActCraftApp {
         if open {
             self.stage = Some(stage);
         }
+    }
+}
+
+/// Which sheet music of a song shows: its score or its PDF (the file and whether it is the
+/// score); with both, the one `source` names, as in the Sheet music tab.
+fn sheet_choice(song: &Song, source: crate::sheet_view::SheetSource) -> Option<(&str, bool)> {
+    use crate::sheet_view::SheetSource;
+    match (song.notation_file.as_deref(), song.pdf_file.as_deref()) {
+        (Some(score), Some(_)) if source == SheetSource::Notation => Some((score, true)),
+        (Some(score), None) => Some((score, true)),
+        (_, Some(pdf)) => Some((pdf, false)),
+        (None, None) => None,
+    }
+}
+
+/// The second window's sheet music: the song's notation (whole width, following playback) or
+/// its PDF (pages at the window's width, scrolling over the song).
+fn stage_sheet(
+    ui: &mut Ui,
+    t: Tokens,
+    e: &Engine,
+    song: &Song,
+    stage: &mut StageScreen,
+    source: crate::sheet_view::SheetSource,
+) {
+    let status = (e.status.time, e.status.playing);
+    let notice = |ui: &mut Ui, text: String| {
+        ui.label(RichText::new(text).size(28.0).color(t.text_dim));
+    };
+    let Some((path, notation)) = sheet_choice(song, source) else {
+        notice(ui, tr("This song has no sheet music.").to_owned());
+        return;
+    };
+    if notation {
+        if let Err(why) = crate::notation_view::load_notation_into(&mut stage.notation, e, path) {
+            notice(ui, format!("{} {why}", tr("The notation could not be opened:")));
+            return;
+        }
+        let Some(doc) = stage.notation.as_ref() else { return };
+        let look = crate::notation_view::NotationLook { zoom: stage.zoom, ..Default::default() };
+        let view = crate::notation_view::ScoreView { look, follow: true, keyboard: false, salt: "stage-notation" };
+        crate::notation_view::score_canvas(ui, t, doc, song, status, view);
+    } else {
+        if let Err(err) = crate::sheet_view::load_pdf_into(&mut stage.sheet, ui.ctx(), e, Some(path)) {
+            notice(ui, format!("{} {err}", tr("The PDF could not be opened:")));
+            return;
+        }
+        let Some(doc) = stage.sheet.as_mut() else { return };
+        let look = crate::sheet_view::SheetLook { zoom: 1.0, invert: stage.invert, follow: true };
+        crate::sheet_view::pdf_pages(ui, doc, look, song, status, "stage-sheet");
     }
 }
 
@@ -696,14 +823,44 @@ mod tests {
     }
 
     #[test]
+    fn the_second_window_shows_the_sheet_music_the_tab_shows() {
+        use crate::sheet_view::SheetSource;
+        let mut song = Song::default();
+        assert_eq!(sheet_choice(&song, SheetSource::Notation), None);
+        song.pdf_file = Some("/a.pdf".into());
+        assert_eq!(sheet_choice(&song, SheetSource::Notation), Some(("/a.pdf", false)), "only a PDF");
+        song.notation_file = Some("/a.mxl".into());
+        assert_eq!(sheet_choice(&song, SheetSource::Notation), Some(("/a.mxl", true)));
+        assert_eq!(sheet_choice(&song, SheetSource::Pdf), Some(("/a.pdf", false)), "both: as the tab picks");
+        song.pdf_file = None;
+        assert_eq!(sheet_choice(&song, SheetSource::Pdf), Some(("/a.mxl", true)), "only a score");
+    }
+
+    #[test]
+    fn the_stage_buttons_open_switch_and_close_the_second_window() {
+        let shows = |s: &Option<StageScreen>| s.as_ref().map(|s| s.shows);
+        let opened = press_stage(None, StageShows::Sheet);
+        assert_eq!(shows(&opened), Some(StageShows::Sheet));
+        // The lyrics button switches the open window and keeps its settings.
+        let mut big = opened;
+        if let Some(s) = big.as_mut() {
+            s.size = 99.0;
+        }
+        let switched = press_stage(big, StageShows::Lyrics);
+        assert_eq!(shows(&switched), Some(StageShows::Lyrics));
+        assert_eq!(switched.as_ref().map(|s| s.size), Some(99.0));
+        // Pressed again it closes.
+        assert!(press_stage(switched, StageShows::Lyrics).is_none());
+    }
+
+    #[test]
     fn the_lyrics_window_opens_and_closes_with_its_own_settings() {
         let ctx = egui::Context::default();
         let engine = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
         let mut app = ActCraftApp::new(&ctx, std::sync::Arc::new(std::sync::Mutex::new(engine)), Default::default());
         assert!(app.stage.is_none());
         app.toggle_stage_screen();
-        let stage = app.stage.clone();
-        assert!(stage.as_ref().is_some_and(|s| s.chords && s.size > app.lyrics_size), "larger than the tab's text");
+        assert!(app.stage.as_ref().is_some_and(|s| s.chords && s.size > app.lyrics_size), "larger than the tab's text");
         app.toggle_stage_screen();
         assert!(app.stage.is_none());
     }

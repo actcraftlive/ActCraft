@@ -273,7 +273,10 @@ fn main() {
             if edit_lyrics {
                 app.edit_lyrics();
             }
-            if stage {
+            // `--stage` opens the second window; with `--sheet` it shows the sheet music.
+            if stage && sheet {
+                app.show_stage_sheet();
+            } else if stage {
                 app.toggle_stage_screen();
             }
             if cues {
