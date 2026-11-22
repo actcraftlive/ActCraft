@@ -467,6 +467,36 @@ fn spoken_cues_become_a_voice_track_and_are_spoken_once() {
 }
 
 #[test]
+fn edited_cue_words_are_spoken_and_used_at_once() {
+    // Regression: changing a part's words to "Thema" still said the old word, because nothing
+    // spoke the new words or rebuilt the loaded song's voice track.
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let services = SpeakingServices { inner: MemoryServices::default(), calls: std::sync::Arc::clone(&calls) };
+    let mut e = Engine::new(Box::new(services));
+    let (ctl, _renderer) = actcraft_audio::link(48_000);
+    e.attach_audio(ctl);
+    assert!(e.run("song.add", &json!({"title": "Asgard"})).is_ok());
+    assert!(e.run("region.add", &json!({"song": 1, "start": 4.0, "end": 8.0, "voice": "Zwischenspiel"})).is_ok());
+    e.load_into_renderer(1);
+    e.tick();
+    assert_eq!(e.loaded_song_pub(), Some(1));
+    let before = calls.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(e.run("region.set", &json!({"song": 1, "region": 0, "voice": "Thema"})).is_ok());
+    e.tick();
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), before + 1, "the new words are spoken");
+    let song = e.show.song(1).cloned().unwrap_or_default();
+    assert_eq!(crate::voice::voice_cues(&song, e.show.voice.lead_beats).first().map(|c| c.1.as_str()), Some("Thema"));
+    assert!(e.voice_track(&song).is_some(), "the voice track has the new words");
+    assert_eq!(e.voice_reload, None, "the stopped song was loaded again");
+    // The title is spoken as soon as it's switched on, for the start of the song.
+    assert!(e.run("song.set", &json!({"song": 1, "announce_title": true})).is_ok());
+    e.tick();
+    assert!(e.announce_track(&song).is_none(), "uses the song as it was");
+    let song = e.show.song(1).cloned().unwrap_or_default();
+    assert!(e.announce_track(&song).is_some());
+}
+
+#[test]
 fn pause_keeps_the_place_and_stop_goes_back_to_the_start() {
     // Regression: the only button was "Stop", which paused and never went back to the start.
     let mut files = MemoryServices::default();
