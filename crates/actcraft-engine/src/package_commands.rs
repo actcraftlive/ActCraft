@@ -26,6 +26,10 @@ const FILES_PREFIX: &str = "files/";
 const MAX_ENTRIES: u64 = 20_000;
 /// Largest show entry read from a package.
 const MAX_SHOW_BYTES: u64 = 64 * 1024 * 1024;
+/// Where waveforms of packed files live: `peaks/<the file's name>`.
+const PEAKS_PREFIX: &str = "peaks/";
+/// Largest waveform entry read from a package.
+const MAX_PEAKS_BYTES: u64 = 256 * 1024 * 1024;
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -68,6 +72,8 @@ struct Packer<'a> {
     packed: BTreeMap<String, String>,
     total: u64,
     missing: Vec<String>,
+    /// Waveforms already worked out, by original path; packed beside their files.
+    peaks: BTreeMap<String, Vec<u8>>,
 }
 
 impl Packer<'_> {
@@ -95,6 +101,14 @@ impl Packer<'_> {
         let entry = format!("{FILES_PREFIX}{:04}-{}", self.packed.len() + 1, safe_name(services::file_name(path)));
         // Audio is compressed already; storing keeps packing fast.
         self.writer.add(&entry, &bytes, craft_zip::Compression::Stored).map_err(|e| failed(e.to_string()))?;
+        if let Some(peaks) = self.peaks.get(path.as_str())
+            && let Some(name) = entry.strip_prefix(FILES_PREFIX)
+        {
+            let peaks_entry = format!("{PEAKS_PREFIX}{name}");
+            self.writer
+                .add(&peaks_entry, peaks, craft_zip::Compression::Deflated)
+                .map_err(|e| failed(e.to_string()))?;
+        }
         self.packed.insert(path.clone(), entry.clone());
         *path = entry;
         Ok(())
@@ -108,12 +122,26 @@ pub fn show_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
         return Err(invalid(format!("a show package file ends in .{PACKAGE_EXTENSION}")));
     }
     let mut show = e.show.clone();
+    // Waveforms known now (in memory or on disk) travel with their files, so the package opens
+    // without decoding everything again.
+    let mut peaks = BTreeMap::new();
+    for song in &e.show.songs {
+        for file in song.tracks.iter().map(|t| t.file.as_str()) {
+            if file.is_empty() || peaks.contains_key(file) {
+                continue;
+            }
+            if let Some(p) = e.cached_peaks(file).or_else(|| e.stored_peaks(file)) {
+                peaks.insert(file.to_owned(), p.to_bytes());
+            }
+        }
+    }
     let mut packer = Packer {
         services: e.services(),
         writer: craft_zip::Writer::new(),
         packed: BTreeMap::new(),
         total: 0,
         missing: Vec::new(),
+        peaks,
     };
     for song in &mut show.songs {
         for track in &mut song.tracks {
@@ -185,6 +213,13 @@ pub fn show_open_package(e: &mut Engine, prm: &Value) -> CommandResult {
             .ok_or_else(|| failed(format!("{entry} could not be read")))?;
         let target = services::join(&folder, name);
         e.services_mut().write_file(&target, &data).map_err(failed)?;
+        // Its waveform, when the package carries one, goes into the cache for the new file.
+        let peaks_entry = format!("{PEAKS_PREFIX}{name}");
+        if let Ok(Some(stored)) = archive.read(&peaks_entry, MAX_PEAKS_BYTES)
+            && let Some(p) = actcraft_audio::peaks::Peaks::from_bytes(&stored)
+        {
+            e.store_peaks(&target, &p);
+        }
         written.insert(entry.clone(), target);
     }
     let relink = |file: &mut String| {

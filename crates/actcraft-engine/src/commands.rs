@@ -567,8 +567,14 @@ fn show_open(e: &mut Engine, prm: &Value) -> CommandResult {
     let songs = show.songs.len();
     let first = show.songs.first().map(|s| s.id);
     replace_show(e, show, Some(path));
-    // The first song is ready for playback; its audio loads when it plays.
+    // The first song is ready for playback; its audio starts decoding in the background now, so
+    // Play doesn't have to wait for it.
     e.current_song = first;
+    let files: Vec<String> = first
+        .and_then(|id| e.show.song(id))
+        .map(|s| s.tracks.iter().map(|t| t.file.clone()).collect())
+        .unwrap_or_default();
+    e.request_clips(files);
     e.say_with("Opened show with {count} songs", vec![crate::MessageArg::plain("count", songs)]);
     Ok(json!({"songs": songs}))
 }

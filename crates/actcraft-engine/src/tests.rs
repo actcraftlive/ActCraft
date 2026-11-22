@@ -376,3 +376,31 @@ fn a_show_package_carries_its_files_and_opens_elsewhere() {
     );
     assert_eq!(e2.show.songs.len(), 1);
 }
+
+#[test]
+fn waveforms_come_from_the_cache_the_next_time() {
+    let mut files = MemoryServices::default();
+    files.files.insert("/gig/song.wav".into(), tone_wav(8000));
+    let mut e = Engine::new(Box::new(files));
+    // First time: decoded (inline with memory services), then stored on "disk".
+    let _ = e.peaks_for("/gig/song.wav");
+    e.tick();
+    let first = e.peaks_for("/gig/song.wav");
+    assert!(first.is_some(), "decoded");
+    let key = e.peaks_key("/gig/song.wav").unwrap_or_default();
+    let stored = e.services().cache_get(&key);
+    assert!(stored.is_some(), "kept for the next time");
+    // A new run with the same cache: the waveform is there at once, nothing is decoded.
+    let mut services = MemoryServices::default();
+    services.files.insert("/gig/song.wav".into(), tone_wav(8000));
+    services.cache.insert(key.clone(), stored.clone().unwrap_or_default());
+    let mut e2 = Engine::new(Box::new(services));
+    assert_eq!(e2.peaks_for("/gig/song.wav"), first);
+    assert_eq!(e2.loading_count(), 0, "no decoding needed");
+    // A changed file has another stamp, so its old waveform isn't used.
+    let mut changed = MemoryServices::default();
+    changed.files.insert("/gig/song.wav".into(), tone_wav(4000));
+    changed.cache.insert(key, stored.unwrap_or_default());
+    let e3 = Engine::new(Box::new(changed));
+    assert!(e3.stored_peaks("/gig/song.wav").is_none());
+}
