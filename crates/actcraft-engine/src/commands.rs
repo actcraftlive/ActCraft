@@ -391,6 +391,14 @@ pub fn all() -> Vec<Command<Engine>> {
             "{enabled?: bool, bus?: index, volume_db?: number, lead_beats?: 0-32, language?: code (empty: the computer's own)}",
             crate::voice::voice_set,
         ),
+        cmd(
+            "midi.set",
+            "MIDI time settings",
+            "",
+            None,
+            "{clock?: bool (MIDI Clock with start, stop and song position), timecode?: bool (MIDI Timecode), timecode_fps?: 24|25|30} -> the settings",
+            crate::midi_sync::midi_set,
+        ),
         cmd("voice.prepare", "Speak cues now", "", None, "{song?: id}", crate::voice::voice_prepare),
         with_song(cmd(
             "metronome.count_in",

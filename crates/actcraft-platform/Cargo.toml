@@ -13,6 +13,7 @@ actcraft-audio = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 craft-atomic = { workspace = true }
 cpal = { workspace = true }
+midir = { workspace = true }
 
 [lints]
 workspace = true

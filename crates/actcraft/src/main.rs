@@ -14,7 +14,9 @@ use std::sync::{Arc, Mutex};
 
 use actcraft_control::channel;
 use actcraft_engine::{Engine, MessageArg};
-use actcraft_platform::{AudioOutput, NativeServices};
+
+use actcraft_engine::midi_sync::SyncConfig;
+use actcraft_platform::{AudioOutput, MidiTimeOut, NativeServices, StatusReader};
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
 use serde_json::json;
@@ -37,6 +39,9 @@ struct Host {
     dialogs: Dialogs<FileAsk>,
     /// Settings kept on this computer (the audio interface).
     prefs: craft_settings::SettingsStore<Prefs>,
+    /// Where MIDI time goes while it plays, and the playback position it follows.
+    midi: Option<MidiTimeOut>,
+    status: Option<StatusReader>,
 }
 
 /// Turns the window's request into a native file picker.
@@ -73,6 +78,16 @@ impl eframe::App for Host {
         self.app.ui(ui);
         if let Some(device) = self.app.take_device_request() {
             self.switch_device(device);
+        }
+        if let Some(port) = self.app.take_midi_request() {
+            self.switch_midi(port);
+        }
+        if self.app.take_midi_refresh() {
+            self.app.platform.midi_ports = actcraft_platform::midi_output_ports();
+        }
+        // What the show sends over MIDI can change any moment (Settings, a remote command).
+        if let Some(midi) = &self.midi {
+            midi.set(SyncConfig::from(&self.app.engine().show.midi));
         }
         if let Some(language) = self.app.take_language_request() {
             self.prefs.update(|pr| pr.window.language = language);
@@ -111,6 +126,29 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Closes the MIDI time output and opens `port` (none for `None`), following the playback
+    /// position of the running audio output. Remembered on this computer.
+    fn switch_midi(&mut self, port: Option<String>) {
+        self.midi = None;
+        self.app.platform.midi_port = None;
+        let name = port.clone().unwrap_or_default();
+        self.prefs.update(|pr| pr.audio.midi_output = name);
+        let (Some(port), Some(status)) = (port, self.status.clone()) else { return };
+        let cfg = SyncConfig::from(&self.app.engine().show.midi);
+        match MidiTimeOut::open(&port, status, cfg) {
+            Ok(out) => {
+                self.app.platform.midi_port = Some(out.port().to_owned());
+                self.app.engine().say_with("MIDI: {port}", vec![MessageArg::plain("port", &port)]);
+                self.midi = Some(out);
+            }
+            Err(e) => {
+                self.app
+                    .engine()
+                    .say_error_with("Could not open that MIDI output: {error}", vec![MessageArg::plain("error", e)]);
+            }
+        }
+    }
+
     /// Stops the current output and opens another device; the engine gets the new stream.
     fn switch_device(&mut self, device: Option<String>) {
         self._audio = None;
@@ -121,10 +159,15 @@ impl Host {
                 p.sample_rate = out.sample_rate;
                 p.output_channels = out.channels;
                 p.device_id = device.clone();
+                self.status = Some(controller.status_reader());
                 self.app.engine().attach_audio(controller);
                 self.app.engine().say_with("Audio: {device}", vec![MessageArg::plain("device", &out.device_name)]);
                 self._audio = Some(out);
                 self.prefs.update(|pr| pr.audio.device = device.unwrap_or_default());
+                // MIDI time follows the new output's position.
+                if let Some(port) = self.app.platform.midi_port.clone() {
+                    self.switch_midi(Some(port));
+                }
             }
             Err(e) => {
                 self.app.platform.audio_device = None;
@@ -157,6 +200,8 @@ struct WindowPrefs {
 struct AudioPrefs {
     /// Output device id; empty for the system default.
     device: String,
+    /// MIDI output that MIDI time goes to; empty for none.
+    midi_output: String,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -192,12 +237,14 @@ fn main() {
         Err(_) if saved.is_some() => AudioOutput::open(None).map(|ok| (ok, None)),
         Err(e) => Err(e),
     };
+    let mut status = None;
     let audio = match opened {
         Ok(((out, controller), device_id)) => {
             platform.audio_device = Some(out.device_name.clone());
             platform.sample_rate = out.sample_rate;
             platform.output_channels = out.channels;
             platform.device_id = device_id;
+            status = Some(controller.status_reader());
             engine.attach_audio(controller);
             Some(out)
         }
@@ -223,7 +270,10 @@ fn main() {
         }
     }
 
-    let open_settings = args.iter().any(|a| a == "--open-settings");
+    // `--open-settings [TAB]`: the Settings window, on a tab by name (`midi`, `audio`...).
+    let open_settings = args.iter().position(|a| a == "--open-settings").map(|i| {
+        args.get(i + 1).filter(|t| !t.starts_with("--") && !t.ends_with(".actcraft")).cloned().unwrap_or_default()
+    });
     let show_lyrics = args.iter().any(|a| a == "--lyrics");
     let edit_lyrics = args.iter().any(|a| a == "--edit-lyrics");
     let stage = args.iter().any(|a| a == "--stage");
@@ -261,8 +311,8 @@ fn main() {
             let ctx = cc.egui_ctx.clone();
             let dialogs = Dialogs::new(Arc::new(move || ctx.request_repaint()));
             let mut app = ActCraftApp::new(&cc.egui_ctx, engine, platform);
-            if open_settings {
-                app.open_settings();
+            if let Some(tab) = &open_settings {
+                app.open_settings_at(tab);
             }
             if show_lyrics {
                 app.show_lyrics();
@@ -285,7 +335,14 @@ fn main() {
             if about {
                 app.show_about();
             }
-            Ok(Box::new(Host { app, _audio: audio, screenshot, dialogs, prefs }))
+            let mut host = Host { app, _audio: audio, screenshot, dialogs, prefs, midi: None, status };
+            // The MIDI output chosen last time, if it is still there.
+            host.app.platform.midi_ports = actcraft_platform::midi_output_ports();
+            let saved = host.prefs.get().audio.midi_output.clone();
+            if !saved.is_empty() && host.app.platform.midi_ports.contains(&saved) {
+                host.switch_midi(Some(saved));
+            }
+            Ok(Box::new(host))
         }),
     );
     if let Err(e) = result {

@@ -10,7 +10,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M0 | Foundation: commands, CLI, control channel, MCP, build gate | ✅ |
 | M1 | Audio engine, mixer, outputs, metronome, library, playlists, queue | 🔶 |
 | M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
-| M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ⬜ |
+| M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | 🔶 in progress |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ⬜ |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | ⬜ |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ⬜ |
@@ -25,7 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+2. M3: MIDI file per song played to the MIDI output; MIDI in and remote actions; commands at
+   lyric timecodes and macros
 
 ## Quality and open questions
 
@@ -138,9 +139,12 @@ details are in the milestone sections further down.
 
 ## M3 MIDI and remote ⬜
 
-- ⬜ MIDI in/out on hardware, virtual and network ports; MIDI file per song
+- 🔶 MIDI out on the computer's ports (done: the ports the system lists, hardware and virtual);
+  MIDI in and a MIDI file per song to do
 - ⬜ Commands per song and at lyric timecodes; macros (`$CODE`); MIDI learn
-- ⬜ MIDI Timecode and MIDI Clock out
+- ✅ MIDI Clock (with start, stop, continue and song position) and MIDI Timecode (quarter frames,
+  a full frame on a jump; 24, 25 or 30 fps) out to a MIDI output chosen in Settings > MIDI
+  (`midi.set`); the output is kept on the computer, what is sent with the show
 - ⬜ Remote actions mapped to MIDI, keys, OSC and on-screen controls
 - ⬜ Assignable on-screen buttons, knobs, sliders, toggles; clock modes; session timer
 

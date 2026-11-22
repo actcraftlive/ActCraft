@@ -11,7 +11,10 @@
 
 pub mod audio_out;
 pub mod files;
+pub mod midi_out;
 pub mod speech;
 
+pub use actcraft_audio::StatusReader;
 pub use audio_out::{AudioOutput, OutputInfo, output_devices};
 pub use files::{NativeServices, RootedServices};
+pub use midi_out::{MidiTimeOut, output_ports as midi_output_ports};

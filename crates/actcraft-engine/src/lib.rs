@@ -26,6 +26,7 @@ use serde_json::Value;
 
 pub mod commands;
 pub mod error_text;
+pub mod midi_sync;
 pub mod notation_commands;
 pub mod package_commands;
 pub mod pdf_commands;

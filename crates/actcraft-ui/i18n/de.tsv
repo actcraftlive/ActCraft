@@ -643,3 +643,20 @@
 	unknown double-tap mode `{value}`	unbekannter Doppeltipp-Modus `{value}`
 	unknown metronome mode `{value}`	unbekannter Metronom-Modus `{value}`
 	the package entry {entry} could not be read	der Paketeintrag {entry} konnte nicht gelesen werden
+	MIDI	MIDI
+	MIDI output	MIDI-Ausgang
+	Send to	Senden an
+	None	Keiner
+	Look again	Erneut suchen
+	Find MIDI outputs connected since	Seitdem angeschlossene MIDI-Ausgänge finden
+	No MIDI outputs found on this computer.	Auf diesem Computer wurden keine MIDI-Ausgänge gefunden.
+	The output is kept on this computer; what is sent is kept with the show.	Der Ausgang wird auf diesem Computer gespeichert, was gesendet wird, mit der Show.
+	Send while a song plays	Senden, während ein Song spielt
+	MIDI Clock	MIDI Clock
+	24 pulses per beat with start, stop and the song position, so other gear plays in time	24 Impulse pro Schlag mit Start, Stopp und Songposition, damit andere Geräte im Takt spielen
+	MIDI Timecode	MIDI Timecode
+	The song time as hours, minutes, seconds and frames	Die Songzeit als Stunden, Minuten, Sekunden und Frames
+	Frames per second	Frames pro Sekunde
+	MIDI time settings	MIDI-Zeit-Einstellungen
+	MIDI: {port}	MIDI: {port}
+	Could not open that MIDI output: {error}	Dieser MIDI-Ausgang ließ sich nicht öffnen: {error}

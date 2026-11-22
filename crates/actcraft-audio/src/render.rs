@@ -345,6 +345,23 @@ impl Controller {
     pub fn last_status(&self) -> Status {
         self.last
     }
+
+    /// A reader of the same status for another thread (the MIDI time sender); it reads without
+    /// locks, like the engine.
+    pub fn status_reader(&self) -> StatusReader {
+        StatusReader(Arc::clone(&self.status))
+    }
+}
+
+/// Reads the renderer's newest status from any thread.
+#[derive(Clone)]
+pub struct StatusReader(Arc<StatusCell>);
+
+impl StatusReader {
+    /// The newest status, or `None` while the renderer is writing it.
+    pub fn load(&self) -> Option<Status> {
+        self.0.load()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]

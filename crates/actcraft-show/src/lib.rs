@@ -118,6 +118,9 @@ pub struct Show {
     pub metronome: MetronomeSettings,
     #[serde(default)]
     pub voice: VoiceSettings,
+    /// Time sent to other gear over MIDI while a song plays.
+    #[serde(default)]
+    pub midi: MidiSettings,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -141,6 +144,7 @@ impl Default for Show {
             mute_groups: Vec::new(),
             metronome: MetronomeSettings::default(),
             voice: VoiceSettings::default(),
+            midi: MidiSettings::default(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -447,6 +451,32 @@ pub struct VoiceSettings {
 impl Default for VoiceSettings {
     fn default() -> Self {
         Self { enabled: true, bus: 1, volume_db: 0.0, lead_beats: 4, language: String::new() }
+    }
+}
+
+/// Time sent to other gear (lights, effects, a second computer) over MIDI while a song plays.
+/// Which MIDI output it goes to is chosen per computer, in Settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MidiSettings {
+    /// MIDI Clock (24 per quarter note) with start, stop and song position.
+    pub clock: bool,
+    /// MIDI Timecode (quarter frames, a full frame on a jump).
+    pub timecode: bool,
+    /// Frames per second of the timecode: 24, 25 or 30.
+    pub timecode_fps: u8,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl MidiSettings {
+    /// Frame rates the timecode can run at.
+    pub const RATES: [u8; 3] = [24, 25, 30];
+}
+
+impl Default for MidiSettings {
+    fn default() -> Self {
+        Self { clock: false, timecode: false, timecode_fps: 25, extra: Map::new() }
     }
 }
 
@@ -904,6 +934,9 @@ impl Show {
         cut(&mut v.language, 16);
         self.mixer.master_volume_db = clamp_f(self.mixer.master_volume_db, -96.0, 12.0, 0.0);
         self.mixer.midi_latency_offset_ms = clamp_f(self.mixer.midi_latency_offset_ms, -500.0, 500.0, 0.0);
+        if !MidiSettings::RATES.contains(&self.midi.timecode_fps) {
+            self.midi.timecode_fps = 25;
+        }
         self.transitions.crossfade = clamp_f(self.transitions.crossfade, 0.0, 30.0, 0.0);
         self.playlists.truncate(MAX_PLAYLISTS);
         for p in &mut self.playlists {
