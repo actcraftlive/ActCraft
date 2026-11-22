@@ -157,6 +157,7 @@ mod tests {
                 length: 3840,
                 notes: Vec::new(),
                 flow,
+                chords: Vec::new(),
             })
             .collect()
     }

@@ -170,6 +170,7 @@ mod tests {
             length: 3840,
             notes,
             flow: Default::default(),
+            chords: Vec::new(),
         };
         Part { name: "Guitar".into(), bars: vec![bar], ..Part::default() }
     }

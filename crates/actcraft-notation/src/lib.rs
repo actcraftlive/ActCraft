@@ -135,7 +135,20 @@ pub struct Bar {
     pub notes: Vec<Note>,
     /// Repeat signs, endings and jumps at this bar.
     pub flow: Flow,
+    /// Chord symbols written above the bar, by onset.
+    pub chords: Vec<ChordSymbol>,
 }
+
+/// A chord symbol ("Am7", "F#/C#") and where in the bar it changes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChordSymbol {
+    /// Onset from the bar's start, ticks.
+    pub start: u32,
+    pub name: String,
+}
+
+/// Chord symbols kept per bar.
+pub const MAX_CHORDS_PER_BAR: usize = 32;
 
 impl Bar {
     /// The length the time signature gives, in ticks.
@@ -176,10 +189,45 @@ pub struct Note {
     pub tuplet: Tuplet,
     /// How a string player plays it: bends, slides, legato, mutes, harmonics.
     pub technique: Technique,
+    /// The words sung on this note, one per verse.
+    pub lyrics: Vec<Lyric>,
     pub voice: u8,
     /// Staff of a part written on several staves (piano), 1-based.
     pub staff: u8,
 }
+
+/// A syllable or word sung on a note.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lyric {
+    /// Verse, 1-based.
+    pub verse: u8,
+    pub text: String,
+    /// Where the syllable sits in its word; a hyphen joins it to the next one.
+    pub syllabic: Syllabic,
+}
+
+/// A syllable's place in its word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Syllabic {
+    /// A whole word.
+    #[default]
+    Single,
+    Begin,
+    Middle,
+    End,
+}
+
+impl Syllabic {
+    /// The word goes on in the next syllable (a hyphen follows).
+    pub fn continues(self) -> bool {
+        matches!(self, Syllabic::Begin | Syllabic::Middle)
+    }
+}
+
+/// Verses kept per note.
+pub const MAX_VERSES: u8 = 4;
+/// Characters kept per syllable or chord symbol.
+pub const MAX_WORD: usize = 48;
 
 /// Playing techniques of a fretted note, as tablature shows them.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -235,6 +283,7 @@ impl Default for Note {
             slurs: Vec::new(),
             tuplet: Tuplet::default(),
             technique: Technique::default(),
+            lyrics: Vec::new(),
             voice: 1,
             staff: 1,
         }

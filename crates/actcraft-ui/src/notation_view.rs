@@ -67,9 +67,16 @@ impl Metrics {
 struct Rows {
     /// Clef of each staff drawn.
     staves: Vec<Clef>,
+    /// Verses of lyrics under each staff (parallel to `staves`).
+    verses: Vec<usize>,
+    /// Chord symbols above the first row.
+    chords: bool,
     /// Strings of the tablature, 0 for none.
     strings: usize,
 }
+
+/// Height of one line of lyrics, in staff spaces.
+const LYRIC_LINE: f32 = 1.8;
 
 impl Rows {
     fn of(part: &Part, show: NotationShow) -> Self {
@@ -80,23 +87,48 @@ impl Rows {
         };
         let staves = if show == NotationShow::Tab { Vec::new() } else { part.clefs.clone() };
         let staves = if staves.is_empty() && show != NotationShow::Tab { vec![Clef::TREBLE] } else { staves };
-        Self { staves, strings: if tab { part.strings().len() } else { 0 } }
+        let notes = || part.bars.iter().flat_map(|b| &b.notes);
+        let verses = (1..=staves.len())
+            .map(|staff| {
+                notes()
+                    .filter(|n| usize::from(n.staff) == staff)
+                    .flat_map(|n| n.lyrics.iter().map(|l| usize::from(l.verse)))
+                    .max()
+                    .unwrap_or(0)
+            })
+            .collect();
+        let chords = part.bars.iter().any(|b| !b.chords.is_empty());
+        Self { staves, verses, chords, strings: if tab { part.strings().len() } else { 0 } }
     }
 
     /// Top of each staff's top line, the tablature's first line, and the line's whole height.
     fn layout(&self, m: Metrics) -> (Vec<f32>, f32, f32) {
         let mut y = 3.0 * m.space; // bar numbers and tempo marks
+        if self.chords {
+            y += 2.0 * m.space;
+        }
         let mut tops = Vec::new();
-        for _ in &self.staves {
+        for (k, _) in self.staves.iter().enumerate() {
             y += 3.0 * m.space; // ledger lines above
             tops.push(y);
             y += 4.0 * m.space + 3.5 * m.space; // the staff, ledger lines below
+            y += self.verses.get(k).copied().unwrap_or(0) as f32 * LYRIC_LINE * m.space;
         }
         let tab_top = y + m.tab_gap;
         if self.strings > 0 {
             y = tab_top + (self.strings.saturating_sub(1)) as f32 * m.tab_gap + m.tab_gap;
         }
         (tops, tab_top, y + 2.0 * m.space)
+    }
+
+    /// Where chord symbols sit, from the line's top.
+    fn chord_y(m: Metrics) -> f32 {
+        4.0 * m.space
+    }
+
+    /// Where verse `verse` (1-based) of the lyrics under a staff sits, from the staff's top.
+    fn lyric_y(verse: u8, m: Metrics) -> f32 {
+        (6.2 + f32::from(verse.saturating_sub(1)) * LYRIC_LINE) * m.space
     }
 }
 
@@ -127,8 +159,31 @@ fn bar_width(bar: &Bar, m: Metrics) -> f32 {
     }
     let closest = closest.max(TICKS_PER_QUARTER / 8);
     let slots = bar.length.max(1) as f32 / closest as f32;
-    (slots * unit).clamp(4.0 * unit, 40.0 * unit) + 2.0 * m.space + repeat_left(bar, m) + repeat_right(bar, m)
+    let notes = (slots * unit).clamp(4.0 * unit, 40.0 * unit) + 2.0 * m.space;
+    // Words under the notes need room too: neighbouring syllables may not touch. Notes sit in
+    // proportion to their onset, so the closest pair of wide words sets the width.
+    let word = |o: u32| {
+        bar.notes
+            .iter()
+            .filter(|n| n.start == o)
+            .flat_map(|n| &n.lyrics)
+            .map(|l| l.text.chars().count() as f32 * LYRIC_CHAR * m.space)
+            .fold(0.0, f32::max)
+    };
+    let length = bar.length.max(1);
+    let mut words = 0.0f32;
+    for (&a, &b) in onsets.iter().zip(onsets.iter().skip(1).chain(std::iter::once(&length))) {
+        let gap = b.saturating_sub(a).max(1) as f32;
+        let next = if b == length { 0.0 } else { word(b) };
+        let need = (word(a) + next) / 2.0 + 0.8 * m.space;
+        words = words.max(need * length as f32 / gap);
+    }
+    let words = words.min(40.0 * unit) + 2.4 * m.space;
+    notes.max(words) + repeat_left(bar, m) + repeat_right(bar, m)
 }
+
+/// Width of one character of lyrics, in staff spaces (an average for the proportional font).
+const LYRIC_CHAR: f32 = 0.7;
 
 /// Room a repeat sign at the bar's start takes from its notes.
 fn repeat_left(bar: &Bar, m: Metrics) -> f32 {
@@ -355,11 +410,12 @@ fn bend_label(semitones: f32) -> String {
     }
 }
 
-/// Where a note's head sits across a bar drawn from `bx` with width `w`.
-fn note_x(bar: &Bar, bx: f32, w: f32, m: Metrics, n: &Note) -> f32 {
+/// Where onset `start` (ticks) sits across a bar drawn from `bx` with width `w`: a note's head,
+/// a chord symbol.
+fn tick_x(bar: &Bar, bx: f32, w: f32, m: Metrics, start: u32) -> f32 {
     let pad_l = 1.4 * m.space + repeat_left(bar, m);
     let inner = (w - pad_l - 1.0 * m.space - repeat_right(bar, m)).max(1.0);
-    bx + pad_l + inner * (n.start as f32 / bar.length.max(1) as f32)
+    bx + pad_l + inner * (start as f32 / bar.length.max(1) as f32)
 }
 
 /// How a chord's stem is drawn.
@@ -1090,7 +1146,7 @@ impl ActCraftApp {
                     let index = sys.first + k;
                     let Some(bar) = part.bars.get(index) else { continue };
                     let (Some(&bx), Some(&bx1)) = (xs.get(k), xs.get(k + 1)) else { continue };
-                    let x_of = |n: &Note| note_x(bar, bx, *w, m, n);
+                    let x_of = |n: &Note| tick_x(bar, bx, *w, m, n.start);
                     // Bar number, the signs a jump goes to, and tempo above the line, one after
                     // the other.
                     let label_y = y0 + 1.6 * m.space;
@@ -1124,6 +1180,16 @@ impl ActCraftApp {
                             Align2::LEFT_CENTER,
                             text,
                             FontId::proportional(1.3 * m.space),
+                            ink.ink,
+                        );
+                    }
+                    // Chord symbols above the first row, where each chord changes.
+                    for chord in &bar.chords {
+                        painter.text(
+                            pos2(tick_x(bar, bx, *w, m, chord.start) - 0.6 * m.space, y0 + Rows::chord_y(m)),
+                            Align2::LEFT_CENTER,
+                            &chord.name,
+                            FontId::proportional(1.5 * m.space),
                             ink.ink,
                         );
                     }
@@ -1347,7 +1413,7 @@ impl ActCraftApp {
                         let bar = line_bars.get(k)?;
                         let n = bar.notes.get(ni)?;
                         let pos = clef.position(n.pitch?);
-                        let x = note_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n);
+                        let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
                         Some((x, pa.y(top, pos), pos))
                     };
                     for arc in arcs(&line_bars, (si + 1) as u8) {
@@ -1374,13 +1440,62 @@ impl ActCraftApp {
                         }
                     }
                 }
+                // Lyrics under each staff, verse by verse; a hyphen joins the syllables of a word.
+                for (si, _) in rows.staves.iter().enumerate() {
+                    let (Some(&top), Some(&verses)) = (tops.get(si), rows.verses.get(si)) else { continue };
+                    if verses == 0 {
+                        continue;
+                    }
+                    let top = y0 + top;
+                    let font = FontId::proportional(1.25 * m.space);
+                    // Per verse, the right edge of the last syllable and whether its word goes on.
+                    let mut last: Vec<Option<(f32, bool)>> = vec![None; verses];
+                    for (k, bar) in line_bars.iter().enumerate() {
+                        let (Some(&bx), Some(&w)) = (xs.get(k), sys.widths.get(k)) else { continue };
+                        for n in bar.notes.iter().filter(|n| usize::from(n.staff) == si + 1) {
+                            for l in &n.lyrics {
+                                let Some(slot) = last.get_mut(usize::from(l.verse).saturating_sub(1)) else {
+                                    continue;
+                                };
+                                let y = top + Rows::lyric_y(l.verse, m);
+                                let x = tick_x(bar, bx, w, m, n.start);
+                                let galley = painter.layout_no_wrap(l.text.clone(), font.clone(), ink.ink);
+                                let left = x - galley.size().x / 2.0;
+                                if let Some((right, true)) = *slot {
+                                    painter.text(
+                                        pos2((right + left) / 2.0, y),
+                                        Align2::CENTER_CENTER,
+                                        "-",
+                                        font.clone(),
+                                        ink.ink,
+                                    );
+                                }
+                                *slot = Some((left + galley.size().x, l.syllabic.continues()));
+                                painter.galley(pos2(left, y - galley.size().y / 2.0), galley, ink.ink);
+                            }
+                        }
+                    }
+                    // A word that goes on in the next line ends this one with a hyphen.
+                    for (v, slot) in last.iter().enumerate() {
+                        if let Some((right, true)) = *slot {
+                            let y = top + Rows::lyric_y((v + 1) as u8, m);
+                            painter.text(
+                                pos2(right + 0.8 * m.space, y),
+                                Align2::CENTER_CENTER,
+                                "-",
+                                font.clone(),
+                                ink.ink,
+                            );
+                        }
+                    }
+                }
                 // Hammer-ons, pull-offs and slides between frets on one string.
                 if rows.strings > 0 {
                     let fret = |(k, ni): NoteAt| {
                         let bar = line_bars.get(k)?;
                         let n = bar.notes.get(ni)?;
                         let s = f32::from(n.string?.saturating_sub(1));
-                        let x = note_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n);
+                        let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
                         Some((x, tab_y + s * m.tab_gap, n.fret.unwrap_or(0)))
                     };
                     for link in tab_links(&line_bars) {
@@ -1461,6 +1576,7 @@ mod tests {
             length: 3840,
             notes,
             flow: Default::default(),
+            chords: Vec::new(),
         }
     }
 
@@ -1571,13 +1687,45 @@ mod tests {
     fn tab_rows_follow_the_choice() {
         let mut part = Part { clefs: vec![Clef::GUITAR], tablature: true, ..Part::default() };
         part.bars.push(bar(vec![quarter(0)]));
-        assert_eq!(Rows::of(&part, NotationShow::Both), Rows { staves: vec![Clef::GUITAR], strings: 6 });
-        assert_eq!(Rows::of(&part, NotationShow::Tab), Rows { staves: vec![], strings: 6 });
-        assert_eq!(Rows::of(&part, NotationShow::Notes), Rows { staves: vec![Clef::GUITAR], strings: 0 });
+        let rows = |staves: Vec<Clef>, strings| Rows { verses: vec![0; staves.len()], staves, chords: false, strings };
+        assert_eq!(Rows::of(&part, NotationShow::Both), rows(vec![Clef::GUITAR], 6));
+        assert_eq!(Rows::of(&part, NotationShow::Tab), rows(vec![], 6));
+        assert_eq!(Rows::of(&part, NotationShow::Notes), rows(vec![Clef::GUITAR], 0));
         let m = Metrics::new(1.0);
         let (tops, tab_top, h) = Rows::of(&part, NotationShow::Both).layout(m);
         assert_eq!(tops.len(), 1);
         assert!(tab_top > tops[0] + 4.0 * m.space && h > tab_top + 5.0 * m.tab_gap);
+    }
+
+    #[test]
+    fn lyrics_and_chords_get_room_of_their_own() {
+        use actcraft_engine::notation::{ChordSymbol, Lyric, Syllabic};
+        let m = Metrics::new(1.0);
+        let mut part = Part { clefs: vec![Clef::TREBLE], ..Part::default() };
+        part.bars.push(bar(vec![quarter(0)]));
+        let plain = Rows::of(&part, NotationShow::Notes);
+        let lyric = |verse| Lyric { verse, text: "la".into(), syllabic: Syllabic::Single };
+        part.bars[0].notes[0].lyrics = vec![lyric(1), lyric(2)];
+        part.bars[0].chords = vec![ChordSymbol { start: 0, name: "C".into() }];
+        let sung = Rows::of(&part, NotationShow::Notes);
+        assert_eq!((sung.verses.clone(), sung.chords), (vec![2], true));
+        let (plain_tops, _, plain_h) = plain.layout(m);
+        let (tops, _, h) = sung.layout(m);
+        assert!(tops[0] > plain_tops[0], "chords push the staff down");
+        assert!(Rows::chord_y(m) < tops[0] - 3.0 * m.space, "chords sit above the ledger lines");
+        // Both verses fit inside the line, below the staff.
+        let last_verse = tops[0] + Rows::lyric_y(2, m);
+        assert!(last_verse > tops[0] + 4.0 * m.space && last_verse + m.space < h);
+        assert!(h > plain_h + 2.0 * LYRIC_LINE * m.space);
+        // Long words make the bar wider than its notes alone need.
+        let short = bar_width(&part.bars[0], m);
+        part.bars[0].notes[0].lyrics = vec![Lyric { verse: 1, text: "wonderfully".into(), syllabic: Syllabic::Single }];
+        part.bars[0].notes.push(Note { lyrics: vec![lyric(1)], ..quarter(960) });
+        let mut no_words = part.bars[0].clone();
+        for n in &mut no_words.notes {
+            n.lyrics.clear();
+        }
+        assert!(bar_width(&part.bars[0], m) > bar_width(&no_words, m), "{short}");
     }
 
     #[test]
