@@ -6,7 +6,7 @@ use crate::flow::{MAX_ENDING_NUMBERS, MAX_REPEAT_TIMES};
 use crate::tab::fill_frets;
 use crate::{
     Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_SLURS_PER_NOTE,
-    MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER, signature_ticks,
+    MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER, Tuplet, signature_ticks,
 };
 
 /// Entries a compressed score may hold.
@@ -368,6 +368,7 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
     let tied = tie("stop");
     let tie_start = tie("start");
     let slurs = notations.map(read_slurs).unwrap_or_default();
+    let tuplet = read_tuplet(el, notations);
     Some(Note {
         start,
         length,
@@ -379,9 +380,36 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
         tied,
         tie_start,
         slurs,
+        tuplet,
         voice: number(el.child_text("voice").as_deref()).map_or(1, |v| v.clamp(1.0, 64.0) as u8),
         staff: number(el.child_text("staff").as_deref()).map_or(1, |v| v.clamp(1.0, 8.0) as u8),
     })
+}
+
+/// A note's tuplet: its ratio from `<time-modification>`, and where the bracket starts and stops
+/// from `<notations><tuplet>`.
+fn read_tuplet(el: &El, notations: Option<&El>) -> Tuplet {
+    let Some(modification) = el.child("time-modification") else { return Tuplet::default() };
+    let count = |name: &str| {
+        number(modification.child_text(name).as_deref()).filter(|n| (1.0..=64.0).contains(n)).map_or(0, |n| n as u8)
+    };
+    let (actual, normal) = (count("actual-notes"), count("normal-notes"));
+    if actual < 2 || normal == 0 || actual == normal {
+        return Tuplet::default();
+    }
+    let marks: Vec<&El> = notations.map(|n| n.children("tuplet").collect()).unwrap_or_default();
+    let start = marks.iter().find(|t| t.attr("type") == Some("start"));
+    Tuplet {
+        actual,
+        normal,
+        start: start.is_some(),
+        stop: marks.iter().any(|t| t.attr("type") == Some("stop")),
+        bracket: start.and_then(|t| match t.attr("bracket") {
+            Some("yes") => Some(true),
+            Some("no") => Some(false),
+            _ => None,
+        }),
+    }
 }
 
 /// The slur starts and stops a note's `<notations>` hold; a "continue" only passes through.
@@ -676,6 +704,40 @@ mod tests {
             vec![Slur { number: 1, start: false, above: None }, Slur { number: 2, start: true, above: Some(true) }]
         );
         assert_eq!(n[3].slurs, vec![Slur { number: 16, start: false, above: None }], "numbers are bounded");
+    }
+
+    #[test]
+    fn tuplets_are_read_with_their_ratio_and_bracket() {
+        let note = |inner: &str| {
+            format!(
+                r#"<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><type>eighth</type>{inner}</note>"#
+            )
+        };
+        let ratio =
+            "<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>";
+        let notes = [
+            note(&format!(r#"{ratio}<notations><tuplet type="start" bracket="no"/></notations>"#)),
+            note(ratio),
+            note(&format!(r#"{ratio}<notations><tuplet type="stop"/></notations>"#)),
+            note("<time-modification><actual-notes>2</actual-notes><normal-notes>2</normal-notes></time-modification>"),
+            note(
+                "<time-modification><actual-notes>999</actual-notes><normal-notes>2</normal-notes></time-modification>",
+            ),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">
+            <measure number="1"><attributes><divisions>6</divisions></attributes>{notes}</measure></part></score-partwise>"#
+        );
+        let score = read(xml.as_bytes());
+        assert!(score.is_ok(), "{score:?}");
+        let Ok(score) = score else { return };
+        let t: Vec<Tuplet> = score.parts[0].bars[0].notes.iter().map(|n| n.tuplet).collect();
+        assert_eq!(t[0], Tuplet { actual: 3, normal: 2, start: true, stop: false, bracket: Some(false) });
+        assert_eq!(t[1], Tuplet { actual: 3, normal: 2, start: false, stop: false, bracket: None });
+        assert!(t[2].stop && !t[2].start);
+        assert_eq!(t[3], Tuplet::default(), "2 in the time of 2 is no tuplet");
+        assert_eq!(t[4], Tuplet::default(), "a ratio out of range is left out");
     }
 
     #[test]
