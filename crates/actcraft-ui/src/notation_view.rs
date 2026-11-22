@@ -220,6 +220,97 @@ fn bar_time(song: &Song, index: usize) -> f64 {
     clock.time_of_beat(index as f64 * f64::from(song.beats_per_bar.max(1)))
 }
 
+/// How a chord's stem is drawn.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Stem {
+    up: bool,
+    /// Where the stem ends (a beam's height); `None` for its natural length.
+    end: Option<f32>,
+    /// Draw flags (notes without a beam).
+    flags: bool,
+}
+
+/// Notes struck together in one voice on one staff.
+#[derive(Debug, Clone, PartialEq)]
+struct Event<'a> {
+    start: u32,
+    voice: u8,
+    notes: Vec<&'a Note>,
+}
+
+impl Event<'_> {
+    fn value(&self) -> NoteValue {
+        self.notes.first().map_or(NoteValue::Quarter, |n| n.value)
+    }
+
+    fn pitched(&self) -> bool {
+        self.notes.iter().any(|n| n.pitch.is_some())
+    }
+}
+
+/// The bar's notes on one staff, as chords by onset and voice.
+fn events(bar: &Bar, staff: u8) -> Vec<Event<'_>> {
+    let mut out: Vec<Event<'_>> = Vec::new();
+    for n in bar.notes.iter().filter(|n| n.staff == staff) {
+        match out.iter_mut().find(|e| e.start == n.start && e.voice == n.voice) {
+            Some(e) => e.notes.push(n),
+            None => out.push(Event { start: n.start, voice: n.voice, notes: vec![n] }),
+        }
+    }
+    out.sort_by_key(|e| (e.start, e.voice));
+    out
+}
+
+/// The span notes are beamed within: a dotted quarter in 3/8, 6/8, 9/8 and 12/8, else one beat.
+fn beam_span(bar: &Bar) -> u32 {
+    if bar.beat_type == 8 && bar.beats.is_multiple_of(3) {
+        TICKS_PER_QUARTER * 3 / 2
+    } else {
+        TICKS_PER_QUARTER * 4 / u32::from(bar.beat_type.max(1))
+    }
+}
+
+/// Runs of eighths and shorter in one voice and one beat, which share a beam (indexes into
+/// `events`, two or more each). A rest or a longer note ends a run.
+fn beam_groups(bar: &Bar, events: &[Event<'_>]) -> Vec<Vec<usize>> {
+    let span = beam_span(bar).max(1);
+    let mut voices: Vec<u8> = events.iter().map(|e| e.voice).collect();
+    voices.sort_unstable();
+    voices.dedup();
+    let mut groups = Vec::new();
+    for v in voices {
+        let mut run: Vec<usize> = Vec::new();
+        let mut beat = u32::MAX;
+        for (i, e) in events.iter().enumerate().filter(|(_, e)| e.voice == v) {
+            let beamable = e.pitched() && e.value().flags() > 0;
+            if !beamable || e.start / span != beat {
+                if run.len() > 1 {
+                    groups.push(std::mem::take(&mut run));
+                }
+                run.clear();
+            }
+            if beamable {
+                beat = e.start / span;
+                run.push(i);
+            }
+        }
+        if run.len() > 1 {
+            groups.push(run);
+        }
+    }
+    groups
+}
+
+/// A beam's height at each stem `(x, natural end)`: a straight line sloped like the notes (at most
+/// a quarter), moved so no stem gets shorter than its natural length.
+fn beam_line(stems: &[(f32, f32)], up: bool) -> Vec<f32> {
+    let (Some(&(x0, y0)), Some(&(x1, y1))) = (stems.first(), stems.last()) else { return Vec::new() };
+    let slope = if x1 > x0 { ((y1 - y0) / (x1 - x0)).clamp(-0.25, 0.25) } else { 0.0 };
+    let offsets = stems.iter().map(|&(x, y)| y - slope * (x - x0));
+    let base = if up { offsets.fold(f32::INFINITY, f32::min) } else { offsets.fold(f32::NEG_INFINITY, f32::max) };
+    stems.iter().map(|&(x, _)| base + slope * (x - x0)).collect()
+}
+
 /// Accidentals in force in one bar on one staff: the key's, then those written so far.
 struct Accidentals {
     key: [i8; 7],
@@ -382,9 +473,26 @@ impl Painter<'_> {
         }
     }
 
-    /// Notes struck together on one staff in one voice; `up` points the stem up.
-    fn chord(&self, x: f32, top: f32, clef: Clef, notes: &[&Note], up: bool, acc: &mut Accidentals) {
+    /// Where the stem of notes at `x` stands.
+    fn stem_x(&self, x: f32, up: bool) -> f32 {
+        let rx = 0.62 * self.m.space;
+        if up { x + rx * 0.95 } else { x - rx * 0.95 }
+    }
+
+    /// Where a stem ends with no beam: three and a half spaces past the furthest head.
+    fn natural_end(&self, top: f32, clef: Clef, notes: &[&Note], up: bool) -> f32 {
+        let positions = notes.iter().filter_map(|n| n.pitch).map(|p| clef.position(p));
+        if up {
+            self.y(top, positions.max().unwrap_or(4)) - 3.4 * self.m.space
+        } else {
+            self.y(top, positions.min().unwrap_or(4)) + 3.4 * self.m.space
+        }
+    }
+
+    /// Notes struck together on one staff in one voice, with their stem as planned.
+    fn chord(&self, x: f32, top: f32, clef: Clef, notes: &[&Note], stem: Stem, acc: &mut Accidentals) {
         let s = self.m.space;
+        let up = stem.up;
         let (rx, ry) = (0.62 * s, 0.45 * s);
         let mut heads: Vec<(i32, &Note, Pitch)> =
             notes.iter().filter_map(|n| n.pitch.map(|p| (clef.position(p), *n, p))).collect();
@@ -448,16 +556,56 @@ impl Painter<'_> {
         }
         let (Some(low), Some(high)) = (heads.first(), heads.last()) else { return };
         let stroke = Stroke::new(1.3, self.ink.ink);
-        let (sx, from, to) = if up {
-            (x + rx * 0.95, self.y(top, low.0), self.y(top, high.0) - 3.4 * s)
-        } else {
-            (x - rx * 0.95, self.y(top, high.0), self.y(top, low.0) + 3.4 * s)
-        };
+        let sx = self.stem_x(x, up);
+        let from = if up { self.y(top, low.0) } else { self.y(top, high.0) };
+        let to = stem.end.unwrap_or_else(|| self.natural_end(top, clef, notes, up));
         self.p.line_segment([pos2(sx, from), pos2(sx, to)], stroke);
         let dir = if up { 1.0 } else { -1.0 };
-        for k in 0..value.flags() {
+        let flags = if stem.flags { value.flags() } else { 0 };
+        for k in 0..flags {
             let y = to + dir * f32::from(k) * 0.8 * s;
             self.p.line_segment([pos2(sx, y), pos2(sx + 0.9 * s, y + dir * 1.3 * s)], Stroke::new(1.8, self.ink.ink));
+        }
+    }
+    /// Beams over stems `(x, end, flags)`: one per flag level, a short one for a note alone on
+    /// its level.
+    fn beam(&self, stems: &[(f32, f32, u8)], up: bool) {
+        let s = self.m.space;
+        let thick = 0.45 * s;
+        let dir = if up { 1.0 } else { -1.0 };
+        let at = |k: usize| stems.get(k).copied();
+        let levels = stems.iter().map(|t| t.2).max().unwrap_or(0);
+        for level in 1..=levels {
+            let off = dir * f32::from(level - 1) * 0.75 * s;
+            for k in 0..stems.len() {
+                let Some((x, y, f)) = at(k) else { continue };
+                if f < level {
+                    continue;
+                }
+                let segment = match at(k + 1) {
+                    Some((nx, ny, nf)) if nf >= level => Some((nx, ny)),
+                    _ => None,
+                };
+                let (to_x, to_y) = match segment {
+                    Some(p) => p,
+                    None => {
+                        // Already joined to the previous stem, or a stub toward a neighbour.
+                        if k > 0 && at(k - 1).is_some_and(|p| p.2 >= level) {
+                            continue;
+                        }
+                        let toward = if k + 1 < stems.len() { 1.2 * s } else { -1.2 * s };
+                        let slope = match (at(0), at(stems.len() - 1)) {
+                            (Some(a), Some(b)) if b.0 > a.0 => (b.1 - a.1) / (b.0 - a.0),
+                            _ => 0.0,
+                        };
+                        (x + toward, y + slope * toward)
+                    }
+                };
+                let a = pos2(x, y + off);
+                let b = pos2(to_x, to_y + off);
+                let pts = vec![a, b, pos2(b.x, b.y + dir * thick), pos2(a.x, a.y + dir * thick)];
+                self.p.add(Shape::convex_polygon(pts, self.ink.ink, Stroke::NONE));
+            }
         }
     }
 }
@@ -678,53 +826,58 @@ impl ActCraftApp {
                             Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
                         );
                     }
-                    // Notes on each staff, grouped by onset and voice.
+                    // Notes on each staff: chords by onset and voice, short notes beamed by beat.
                     for (si, clef) in rows.staves.iter().enumerate() {
                         let Some(&top) = tops.get(si) else { continue };
                         let top = y0 + top;
-                        let staff = (si + 1) as u8;
-                        let mut voices: Vec<u8> =
-                            bar.notes.iter().filter(|n| n.staff == staff).map(|n| n.voice).collect();
+                        let evs = events(bar, (si + 1) as u8);
+                        let mut voices: Vec<u8> = evs.iter().map(|e| e.voice).collect();
                         voices.sort_unstable();
                         voices.dedup();
                         let several = voices.len() > 1;
-                        let mut acc = Accidentals { key: key_alters(bar.fifths), written: Vec::new() };
-                        let on_staff: Vec<&Note> = bar.notes.iter().filter(|n| n.staff == staff).collect();
-                        let mut i = 0;
-                        while i < on_staff.len() {
-                            let Some(first) = on_staff.get(i) else { break };
-                            let group: Vec<&Note> = on_staff[i..]
+                        let leans_up = |notes: &mut dyn Iterator<Item = &Note>, voice: u8| {
+                            if several {
+                                return voice % 2 == 1;
+                            }
+                            let (sum, count) = notes
+                                .filter_map(|n| n.pitch)
+                                .fold((0i32, 0i32), |(s, c), p| (s + clef.position(p), c + 1));
+                            count == 0 || sum < 4 * count
+                        };
+                        let first_x = |ev: &Event<'_>| ev.notes.first().map_or(bx, |n| x_of(n));
+                        let mut plan: Vec<Stem> = evs
+                            .iter()
+                            .map(|ev| Stem {
+                                up: leans_up(&mut ev.notes.iter().copied(), ev.voice),
+                                end: None,
+                                flags: true,
+                            })
+                            .collect();
+                        let mut beams = Vec::new();
+                        for group in beam_groups(bar, &evs) {
+                            let members: Vec<&Event<'_>> = group.iter().filter_map(|&i| evs.get(i)).collect();
+                            let voice = members.first().map_or(1, |e| e.voice);
+                            let up = leans_up(&mut members.iter().flat_map(|e| e.notes.iter().copied()), voice);
+                            let stems: Vec<(f32, f32)> = members
                                 .iter()
-                                .take_while(|n| n.start == first.start)
-                                .filter(|n| n.voice == first.voice)
-                                .copied()
+                                .map(|ev| (pa.stem_x(first_x(ev), up), pa.natural_end(top, *clef, &ev.notes, up)))
                                 .collect();
-                            let taken = on_staff[i..].iter().take_while(|n| n.start == first.start).count().max(1);
-                            // Other voices at the same onset are drawn on their own pass.
-                            let rest_voices: Vec<&Note> = on_staff[i..]
-                                .iter()
-                                .take_while(|n| n.start == first.start)
-                                .filter(|n| n.voice != first.voice)
-                                .copied()
-                                .collect();
-                            for g in [group, rest_voices] {
-                                let mut by_voice = g;
-                                while let Some(v) = by_voice.first().map(|n| n.voice) {
-                                    let chord: Vec<&Note> = by_voice.iter().filter(|n| n.voice == v).copied().collect();
-                                    by_voice.retain(|n| n.voice != v);
-                                    let x = chord.first().map_or(bx, |n| x_of(n));
-                                    let up = if several {
-                                        v % 2 == 1
-                                    } else {
-                                        let avg =
-                                            chord.iter().filter_map(|n| n.pitch).map(|p| clef.position(p)).sum::<i32>()
-                                                / chord.len().max(1) as i32;
-                                        avg < 4
-                                    };
-                                    pa.chord(x, top, *clef, &chord, up, &mut acc);
+                            let ys = beam_line(&stems, up);
+                            let mut beam = Vec::with_capacity(group.len());
+                            for ((&i, &(sx, _)), &y) in group.iter().zip(&stems).zip(&ys) {
+                                if let (Some(p), Some(ev)) = (plan.get_mut(i), evs.get(i)) {
+                                    *p = Stem { up, end: Some(y), flags: false };
+                                    beam.push((sx, y, ev.value().flags()));
                                 }
                             }
-                            i += taken;
+                            beams.push((beam, up));
+                        }
+                        let mut acc = Accidentals { key: key_alters(bar.fifths), written: Vec::new() };
+                        for (ev, stem) in evs.iter().zip(&plan) {
+                            pa.chord(first_x(ev), top, *clef, &ev.notes, *stem, &mut acc);
+                        }
+                        for (beam, up) in &beams {
+                            pa.beam(beam, *up);
                         }
                     }
                     // Frets.
@@ -790,6 +943,68 @@ mod tests {
 
     fn quarter(start: u32) -> Note {
         Note { start, length: 960, pitch: Some(Pitch { step: 0, alter: 0, octave: 5 }), ..Note::default() }
+    }
+
+    fn eighth(start: u32, step: u8) -> Note {
+        Note {
+            start,
+            length: 480,
+            value: NoteValue::Eighth,
+            pitch: Some(Pitch { step, alter: 0, octave: 4 }),
+            ..Note::default()
+        }
+    }
+
+    #[test]
+    fn short_notes_are_beamed_by_beat_and_runs_break_at_rests() {
+        // 4/4: eighths on beat 1, an eighth and a rest on beat 2, a quarter, a 16th pair.
+        let mut notes = vec![eighth(0, 0), eighth(480, 2), eighth(960, 4)];
+        notes.push(Note { start: 1440, length: 480, value: NoteValue::Eighth, ..Note::default() });
+        notes.push(quarter(1920));
+        let mut s1 = eighth(2880, 0);
+        s1.value = NoteValue::Sixteenth;
+        let mut s2 = eighth(3120, 1);
+        s2.value = NoteValue::Sixteenth;
+        notes.extend([s1, s2, eighth(3360, 2)]);
+        let b = bar(notes);
+        let evs = events(&b, 1);
+        assert_eq!(evs.len(), 8);
+        assert_eq!(beam_groups(&b, &evs), vec![vec![0, 1], vec![5, 6, 7]]);
+        // 6/8: two groups of three eighths.
+        let six = Bar { beats: 6, beat_type: 8, length: 2880, ..bar((0..6).map(|i| eighth(i * 480, 0)).collect()) };
+        assert_eq!(beam_groups(&six, &events(&six, 1)), vec![vec![0, 1, 2], vec![3, 4, 5]]);
+        // Chord notes are one event; another voice is beamed on its own.
+        let mut chord = vec![eighth(0, 0), eighth(0, 2), eighth(480, 0)];
+        let mut v2 = eighth(0, 0);
+        v2.voice = 2;
+        let mut v2b = eighth(480, 0);
+        v2b.voice = 2;
+        chord.extend([v2, v2b]);
+        let c = bar(chord);
+        let evs = events(&c, 1);
+        assert_eq!(
+            evs.iter().map(|e| (e.start, e.voice, e.notes.len())).collect::<Vec<_>>(),
+            vec![(0, 1, 2), (0, 2, 1), (480, 1, 1), (480, 2, 1)]
+        );
+        assert_eq!(beam_groups(&c, &evs), vec![vec![0, 2], vec![1, 3]]);
+    }
+
+    #[test]
+    fn beams_slope_gently_and_keep_every_stem_long_enough() {
+        // Rising notes, stems up: the line rises at most a quarter and stays above every end.
+        let stems = [(0.0, 100.0), (20.0, 90.0), (40.0, 40.0)];
+        let ys = beam_line(&stems, true);
+        assert_eq!(ys.len(), 3);
+        assert!((ys[2] - ys[0] - (-10.0)).abs() < 1e-3, "slope capped at 0.25: {ys:?}");
+        for (y, (_, natural)) in ys.iter().zip(stems) {
+            assert!(*y <= natural + 1e-3, "{ys:?}");
+        }
+        let down = beam_line(&stems, false);
+        for (y, (_, natural)) in down.iter().zip(stems) {
+            assert!(*y >= natural - 1e-3, "{down:?}");
+        }
+        assert!(beam_line(&[], true).is_empty());
+        assert_eq!(beam_line(&[(5.0, 7.0)], true), vec![7.0]);
     }
 
     #[test]
