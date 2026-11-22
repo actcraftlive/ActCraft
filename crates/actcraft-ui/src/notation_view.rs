@@ -6,7 +6,7 @@
 use actcraft_engine::Engine;
 use actcraft_engine::notation::{Bar, Clef, ClefKind, Note, NoteValue, Part, Pitch, Score, TICKS_PER_QUARTER};
 use actcraft_show::Song;
-use egui::{Align2, Color32, FontId, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
+use egui::{Align2, Color32, FontId, Key, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use serde_json::json;
 
 use crate::{ActCraftApp, tr};
@@ -38,11 +38,13 @@ pub(crate) struct NotationLook {
     pub part: usize,
     pub show: NotationShow,
     pub zoom: f32,
+    /// The bar the keyboard has chosen (arrow keys on the score; Enter plays from it).
+    pub cursor: usize,
 }
 
 impl Default for NotationLook {
     fn default() -> Self {
-        Self { part: 0, show: NotationShow::Both, zoom: 1.0 }
+        Self { part: 0, show: NotationShow::Both, zoom: 1.0, cursor: 0 }
     }
 }
 
@@ -1057,18 +1059,44 @@ impl ActCraftApp {
             ui.ctx().request_repaint();
         }
         let mut seek: Option<usize> = None;
+        let mut cursor = look.cursor.min(part.bars.len() - 1);
         let bar_word = tr("bar");
-        let name = format!(
-            "{} {}, {}",
-            tr("Notation:"),
-            part.name,
-            match playing {
-                Some((b, _)) => format!("{bar_word} {} / {}", b + 1, part.bars.len()),
-                None => format!("{} {}", part.bars.len(), tr("bars")),
-            }
-        );
         area.show_viewport(ui, |ui, viewport| {
             let (rect, response) = ui.allocate_exact_size(vec2(width + 2.0 * margin, content), Sense::click());
+            // From the keyboard: arrow keys, Home and End choose a bar, Enter plays from it.
+            let focused = response.has_focus();
+            if focused {
+                let filter = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
+                ui.memory_mut(|mem| mem.set_focus_lock_filter(response.id, filter));
+                let keys = [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Home, Key::End];
+                let mut moved = false;
+                for key in keys {
+                    if ui.input(|i| i.key_pressed(key)) {
+                        cursor = move_cursor(cursor, key, &systems, part.bars.len());
+                        moved = true;
+                    }
+                }
+                if moved && let Some(line) = line_of(&systems, cursor) {
+                    let top = rect.top() + margin + line as f32 * line_h;
+                    ui.scroll_to_rect(Rect::from_min_size(pos2(rect.left(), top), vec2(width, line_h)), None);
+                }
+                if ui.input(|i| i.key_pressed(Key::Enter)) {
+                    seek = Some(cursor);
+                }
+            }
+            let mut name = format!(
+                "{} {}, {}",
+                tr("Notation:"),
+                part.name,
+                match playing {
+                    Some((b, _)) => format!("{bar_word} {} / {}", b + 1, part.bars.len()),
+                    None => format!("{} {}", part.bars.len(), tr("bars")),
+                }
+            );
+            if focused {
+                let chosen = actcraft_engine::fill(tr("selected: bar {bar}"), &[("bar", &(cursor + 1).to_string())]);
+                name = format!("{name}, {chosen}");
+            }
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &name));
             let painter = ui.painter_at(rect);
             painter.rect_filled(rect, 4.0, ink.paper);
@@ -1098,6 +1126,14 @@ impl ActCraftApp {
                     painter.rect_filled(r, 2.0, ink.mark.gamma_multiply(0.18));
                     let cx = bx + (bx1 - bx) * frac.clamp(0.0, 1.0);
                     painter.line_segment([pos2(cx, r.top()), pos2(cx, r.bottom())], Stroke::new(2.0, ink.mark));
+                }
+                // The keyboard's bar, outlined while the score has focus.
+                if focused
+                    && cursor >= sys.first
+                    && let (Some(&bx), Some(&bx1)) = (xs.get(cursor - sys.first), xs.get(cursor - sys.first + 1))
+                {
+                    let r = Rect::from_min_max(pos2(bx, y0 + 2.0 * m.space), pos2(bx1, y0 + line_h - m.space));
+                    painter.rect_stroke(r, 2.0, Stroke::new(2.0, ink.mark), egui::StrokeKind::Inside);
                 }
                 let first_bar = part.bars.get(sys.first);
                 // Staves: lines, clef, key, time.
@@ -1528,22 +1564,54 @@ impl ActCraftApp {
                         }
                     }
                 }
-                // Clicking a bar plays from its start.
+                // Clicking a bar plays from its start and makes it the keyboard's bar. Only a
+                // pointer click: Enter on the focused score also counts as a click.
                 if response.clicked()
+                    && ui.input(|i| i.pointer.any_click())
                     && let Some(at) = response.interact_pointer_pos()
                     && at.y >= y0
                     && at.y < y0 + line_h
                     && let Some(k) = xs.windows(2).position(|w| at.x >= w[0] && at.x < w[1])
                 {
                     seek = Some(sys.first + k);
+                    cursor = sys.first + k;
                 }
             }
-            response.on_hover_text(tr("Click a bar to play from there"));
+            response
+                .on_hover_text(tr("Click a bar to play from there, or choose one with the arrow keys and press Enter"));
         });
+        self.notation_look.cursor = cursor;
         if let Some(k) = seek.and_then(|bar| played_index(order, bar, played.map(|p| p.0))) {
             let at = bar_time(song, k).max(0.0);
             self.run(e, "transport.seek", json!({"seconds": at}));
         }
+    }
+}
+
+/// The line a bar is drawn on.
+fn line_of(systems: &[System], bar: usize) -> Option<usize> {
+    systems.iter().position(|s| bar >= s.first && bar < s.first + s.widths.len())
+}
+
+/// Where the keyboard's bar goes for a key: one bar left or right, the same place one line up or
+/// down, the first or the last bar. Other keys leave it.
+fn move_cursor(cursor: usize, key: Key, systems: &[System], bars: usize) -> usize {
+    let last = bars.saturating_sub(1);
+    let cursor = cursor.min(last);
+    let line_step = |down: bool| {
+        let Some(line) = line_of(systems, cursor) else { return cursor };
+        let target = if down { line + 1 } else { line.wrapping_sub(1) };
+        let (Some(from), Some(to)) = (systems.get(line), systems.get(target)) else { return cursor };
+        to.first + (cursor - from.first).min(to.widths.len().saturating_sub(1))
+    };
+    match key {
+        Key::ArrowLeft => cursor.saturating_sub(1),
+        Key::ArrowRight => (cursor + 1).min(last),
+        Key::ArrowUp => line_step(false),
+        Key::ArrowDown => line_step(true),
+        Key::Home => 0,
+        Key::End => last,
+        _ => cursor,
     }
 }
 
@@ -1765,6 +1833,28 @@ mod tests {
                 TabLink { from: (0, 4), to: None, kind: LinkKind::Slide },
             ]
         );
+    }
+
+    #[test]
+    fn the_keyboard_moves_through_bars_and_lines() {
+        // Two lines: bars 0-3 and 4-5.
+        let systems = vec![
+            System { first: 0, widths: vec![10.0; 4], header: 0.0 },
+            System { first: 4, widths: vec![10.0; 2], header: 0.0 },
+        ];
+        let go = |cursor, key| move_cursor(cursor, key, &systems, 6);
+        assert_eq!(go(0, Key::ArrowLeft), 0, "stays at the first bar");
+        assert_eq!(go(0, Key::ArrowRight), 1);
+        assert_eq!(go(3, Key::ArrowRight), 4, "on to the next line");
+        assert_eq!(go(5, Key::ArrowRight), 5, "stays at the last bar");
+        assert_eq!(go(1, Key::ArrowDown), 5, "same place on the next line");
+        assert_eq!(go(3, Key::ArrowDown), 5, "or its last bar when the line is shorter");
+        assert_eq!(go(5, Key::ArrowUp), 1);
+        assert_eq!(go(2, Key::ArrowUp), 2, "no line above");
+        assert_eq!(go(4, Key::ArrowDown), 4, "no line below");
+        assert_eq!((go(3, Key::Home), go(1, Key::End)), (0, 5));
+        assert_eq!(go(99, Key::A), 5, "a cursor past the end comes back");
+        assert_eq!((line_of(&systems, 4), line_of(&systems, 9)), (Some(1), None));
     }
 
     #[test]

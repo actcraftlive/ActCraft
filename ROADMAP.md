@@ -23,14 +23,13 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Notation: keyboard way to move to a bar (M2, accessibility)
-2. Second window shows sheet music too: PDF and notation (M2)
-3. PDF annotations (M2)
-4. Lyrics editor: timecode-aware undo (M2)
-5. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-6. Show package of a single song or playlist (M1)
-7. Command errors that carry a value (file name, number) in the window's language
-8. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. Second window shows sheet music too: PDF and notation (M2)
+2. PDF annotations (M2)
+3. Lyrics editor: timecode-aware undo (M2)
+4. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+5. Show package of a single song or playlist (M1)
+6. Command errors that carry a value (file name, number) in the window's language
+7. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -121,8 +120,9 @@ details are in the milestone sections further down.
     pull-offs, palm mute, harmonics, vibrato, tapping
   - ✅ Triplets and other tuplets marked with their number, and a bracket where the notes have
     no beam (or where the file asks for one)
-  - ⬜ Keyboard way to move to a bar (today only a click): e.g. bar number field or arrow keys
-    on the score, with the playing bar announced
+  - ✅ Keyboard way to move to a bar: with the score focused, the arrow keys choose a bar (up and
+    down by line), Home and End the first and last, Enter plays from it; the chosen bar is
+    outlined and named for screen readers, as is the playing bar
   - ⬜ Notation in the second window (large, follows playback), like the lyrics window
   - Not planned: native files of tablature editors are not read, their formats are not publicly documented
     (clean room); they export MusicXML, which is read
