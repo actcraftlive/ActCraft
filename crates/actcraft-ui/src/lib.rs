@@ -603,6 +603,10 @@ impl ActCraftApp {
                                 ui.close();
                             }
                         }
+                        if ui.button(tr("Export song package\u{2026}")).clicked() {
+                            self.ask_export_package(e, Some(id), None);
+                            ui.close();
+                        }
                         ui.separator();
                         if ui.button(tr("Delete song\u{2026}")).clicked() {
                             let title = e.show.song(id).map_or_else(String::new, |s| s.title.clone());
@@ -653,6 +657,13 @@ impl ActCraftApp {
                             }
                             if ui.button(tr("Queue all")).clicked() {
                                 self.run(e, "queue.from_playlist", json!({"playlist": i}));
+                            }
+                            if ui
+                                .button(tr("Export package\u{2026}"))
+                                .on_hover_text(tr("This playlist and its songs with their files in one package"))
+                                .clicked()
+                            {
+                                self.ask_export_package(e, None, Some(i));
                             }
                         });
                         let songs = actcraft_engine::commands::playlist_songs(&e.show, pl);

@@ -24,14 +24,31 @@ pub const PACKAGE_EXTENSIONS: &[&str] = &["actcraftpack"];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileAsk {
     OpenShow,
-    SaveShowAs { then: AfterSave },
+    SaveShowAs {
+        then: AfterSave,
+    },
     AddSongs,
-    AddTrack { song: u64 },
-    TrackFile { song: u64, track: usize },
-    ImportLyrics { song: u64 },
-    AttachPdf { song: u64 },
-    AttachNotation { song: u64 },
-    ExportPackage,
+    AddTrack {
+        song: u64,
+    },
+    TrackFile {
+        song: u64,
+        track: usize,
+    },
+    ImportLyrics {
+        song: u64,
+    },
+    AttachPdf {
+        song: u64,
+    },
+    AttachNotation {
+        song: u64,
+    },
+    /// A package of the show, or of one song (`song`) or playlist (`playlist`) of it.
+    ExportPackage {
+        song: Option<u64>,
+        playlist: Option<usize>,
+    },
     OpenPackage,
 }
 
@@ -123,6 +140,8 @@ pub fn handled_by_window(id: &str) -> bool {
             | "app.commands"
             | "song.duplicates"
             | "show.export_package"
+            | "song.export_package"
+            | "playlist.export_package"
             | "show.open_package"
     )
 }
@@ -176,12 +195,19 @@ impl ActCraftApp {
                     self.centre_tab = crate::CentreTab::Sheet;
                 }
             }
-            FileAsk::ExportPackage => {
+            FileAsk::ExportPackage { song, playlist } => {
                 let mut path = first;
                 if !has_ext(&path, PACKAGE_EXTENSIONS) {
                     path.set_extension("actcraftpack");
                 }
-                let _ = e.run("show.export_package", &json!({"path": path_string(&path)}));
+                let mut prm = json!({"path": path_string(&path)});
+                if let Some(id) = song {
+                    prm["song"] = json!(id);
+                }
+                if let Some(i) = playlist {
+                    prm["playlist"] = json!(i);
+                }
+                let _ = e.run("show.export_package", &prm);
             }
             FileAsk::OpenPackage => {
                 let _ = e.run("show.open_package", &json!({"path": path_string(&first), "discard": true}));
@@ -256,12 +282,23 @@ impl ActCraftApp {
         });
     }
 
-    fn ask_export_package(&mut self, e: &Engine) {
-        let name = if e.show.name.trim().is_empty() { tr("My show").to_owned() } else { e.show.name.clone() };
+    /// Asks where to save a package of the show, or of one song or playlist; the file is named
+    /// after what goes in it.
+    pub(crate) fn ask_export_package(&mut self, e: &Engine, song: Option<u64>, playlist: Option<usize>) {
+        let (name, title) = match (song.and_then(|id| e.show.song(id)), playlist.and_then(|i| e.show.playlists.get(i)))
+        {
+            (Some(s), _) => (s.title.clone(), tr("Export song package")),
+            (None, Some(pl)) => (pl.name.clone(), tr("Export playlist package")),
+            _ => (e.show.name.clone(), tr("Export show package")),
+        };
+        let name = if name.trim().is_empty() { tr("My show").to_owned() } else { name };
+        // A title may hold characters no file name can.
+        let name: String =
+            name.chars().map(|c| if r#"/\:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect();
         self.ask_file(FileRequest {
-            ask: FileAsk::ExportPackage,
+            ask: FileAsk::ExportPackage { song, playlist },
             kind: FileKind::Save,
-            title: tr("Export show package"),
+            title,
             filters: vec![(tr("ActCraft show package"), PACKAGE_EXTENSIONS)],
             file_name: Some(format!("{name}.actcraftpack")),
             directory: show_dir(e),
@@ -344,7 +381,9 @@ impl ActCraftApp {
             "show.open" => self.guard_unsaved(e, AfterDiscard::OpenShow),
             "show.save" => self.save(e, AfterSave::Nothing),
             "show.save_as" => self.ask_save_as(e, AfterSave::Nothing),
-            "show.export_package" => self.ask_export_package(e),
+            "show.export_package" => self.ask_export_package(e, None, None),
+            "song.export_package" => self.ask_export_package(e, e.current_song, None),
+            "playlist.export_package" => self.ask_export_package(e, None, e.current_playlist),
             "show.open_package" => self.guard_unsaved(e, AfterDiscard::OpenPackage),
             "show.rename" => {
                 self.modal = Some(Modal::Text {

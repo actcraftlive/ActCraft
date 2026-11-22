@@ -25,9 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. Show package of a single song or playlist (M1)
-3. Command errors that carry a value (file name, number) in the window's language
-4. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+2. Command errors that carry a value (file name, number) in the window's language
+3. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -75,9 +74,11 @@ details are in the milestone sections further down.
   to the nearest beat when "Snap to beat" is on
 - ⬜ MIDI file per song in sync (with M3)
 - ⬜ Effect plugins per track and bus (format chosen after its licence check)
-- 🔶 Show package (`.actcraftpack`): the show and all its audio and MIDI files in one file, for
-  backup or another computer; opening it unpacks the files beside it (done). Export of a single
-  song or playlist to do
+- ✅ Show package (`.actcraftpack`): the show and all its audio, MIDI, PDF and score files in one
+  file, for backup or another computer; opening it unpacks the files beside it. A package can
+  also hold one song or one playlist with its songs (Song and Playlist menus, the song's
+  context menu, the playlist's Export package button; `song.export_package`,
+  `playlist.export_package`, `show.export_package {song|playlist}`)
 - ✅ Reorder songs in a set by dragging (a line shows where it lands) or with the Up/Down buttons
 
 ## M2 Lyrics, regions, sheet music 🔶 in progress
