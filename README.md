@@ -6,6 +6,8 @@
 your stage lighting from one program and one show file, on one shared clock: a song, its audio,
 its lyrics and its lighting cues belong together.
 
+Website: [actcraft.org](https://actcraft.org)
+
 Native desktop app for Windows, macOS and Linux, written in Rust. Open source under
 `MIT OR Apache-2.0`.
 

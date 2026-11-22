@@ -81,7 +81,11 @@ pub(crate) enum Modal {
     Confirm { title: &'static str, text: String, button: &'static str, command: &'static str, params: Value },
     Smart { name: String, match_all: bool, rules: Vec<(String, String, String)>, error: Option<String> },
     Info { title: &'static str, lines: Vec<String> },
+    About,
 }
+
+/// ActCraft's website, shown in the About window.
+pub const WEBSITE: &str = "https://actcraft.org";
 
 fn show_dir(e: &Engine) -> Option<PathBuf> {
     e.show_path.as_deref().and_then(|p| Path::new(p).parent()).map(Path::to_path_buf)
@@ -407,14 +411,7 @@ impl ActCraftApp {
                 }
             }
             "app.about" => {
-                self.modal = Some(Modal::Info {
-                    title: tr("About ActCraft"),
-                    lines: vec![
-                        format!("ActCraft {}", env!("CARGO_PKG_VERSION")),
-                        tr("Backing tracks and lighting in one show.").to_owned(),
-                        tr("Licence: MIT OR Apache-2.0").to_owned(),
-                    ],
-                });
+                self.modal = Some(Modal::About);
             }
             "app.commands" => {
                 let lines = registry()
@@ -501,6 +498,13 @@ impl ActCraftApp {
     pub(crate) fn modal_ui(&mut self, ctx: &egui::Context, e: &mut Engine) {
         let Some(mut modal) = self.modal.take() else { return };
         let danger = self.tokens.danger;
+        if self.logo.is_none()
+            && let Some((w, h, rgba)) = &self.platform.logo
+        {
+            let image = egui::ColorImage::from_rgba_unmultiplied([*w, *h], rgba);
+            self.logo = Some(ctx.load_texture("actcraft-logo", image, egui::TextureOptions::LINEAR));
+        }
+        let logo = self.logo.clone();
         let mut keep = true;
         let response = egui::Modal::new(egui::Id::unique("actcraft-modal")).show(ctx, |ui| {
             ui.set_min_width(380.0);
@@ -648,6 +652,36 @@ impl ActCraftApp {
                         keep = false;
                     }
                 }
+                Modal::About => {
+                    ui.set_max_width(460.0);
+                    ui.horizontal(|ui| {
+                        if let Some(logo) = &logo {
+                            ui.add(
+                                egui::Image::new((logo.id(), egui::vec2(72.0, 72.0)))
+                                    .alt_text(tr("ActCraft logo: a drawn octopus")),
+                            );
+                        }
+                        ui.vertical(|ui| {
+                            ui.heading("ActCraft");
+                            ui.label(format!("{} {}", tr("Version"), env!("CARGO_PKG_VERSION")));
+                            ui.hyperlink_to(WEBSITE.trim_start_matches("https://"), WEBSITE);
+                        });
+                    });
+                    ui.add_space(8.0);
+                    ui.label(tr("ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, and (coming) MIDI and DMX lighting, all on one clock and in one show file."));
+                    ui.add_space(4.0);
+                    ui.label(tr("Free and open source for Windows, macOS and Linux."));
+                    ui.add_space(8.0);
+                    ui.label(RichText::new(tr("Licence: MIT OR Apache-2.0")).small());
+                    ui.add_space(8.0);
+                    let close = ui.button(tr("Close"));
+                    if ui.memory(|m| m.focused().is_none()) {
+                        close.request_focus();
+                    }
+                    if close.clicked() {
+                        keep = false;
+                    }
+                }
             }
         });
         // Esc or a click outside closes the dialog, as on every platform.
@@ -717,5 +751,16 @@ mod tests {
         assert!(has_ext(Path::new("C:/a/Song.WAV"), AUDIO_EXTENSIONS));
         assert!(has_ext(Path::new("gig.actcraft"), SHOW_EXTENSIONS));
         assert!(!has_ext(Path::new("notes.txt"), AUDIO_EXTENSIONS));
+    }
+
+    #[test]
+    fn about_opens_its_own_window_with_the_website() {
+        let ctx = egui::Context::default();
+        let engine = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let mut app = ActCraftApp::new(&ctx, std::sync::Arc::new(std::sync::Mutex::new(engine)), Default::default());
+        let mut e = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        app.activate(&mut e, "app.about");
+        assert!(matches!(app.modal, Some(Modal::About)));
+        assert_eq!(WEBSITE, "https://actcraft.org");
     }
 }

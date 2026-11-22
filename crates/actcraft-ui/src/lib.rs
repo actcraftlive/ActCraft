@@ -217,6 +217,11 @@ impl ActCraftApp {
         self.settings_open = true;
     }
 
+    /// Shows the About window (`--about`, for screenshots).
+    pub fn show_about(&mut self) {
+        self.modal = Some(flows::Modal::About);
+    }
+
     /// Shows the Spoken cues tab (`--cues`, for screenshots).
     pub fn show_cues(&mut self) {
         self.centre_tab = CentreTab::Cues;
