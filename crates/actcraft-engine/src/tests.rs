@@ -549,6 +549,52 @@ const SCORE: &str = r#"<?xml version="1.0"?>
 </measure></part></score-partwise>"#;
 
 #[test]
+fn pdf_marks_are_added_checked_removed_and_saved() {
+    let mut e = Engine::new(Box::new(MemoryServices::default()));
+    let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    let stroke = json!({"song": id, "page": 1, "points": [[0.1, 0.2], [0.3, 0.4], [0.5, 0.4]]});
+    assert_eq!(e.run("pdf.mark", &stroke).ok(), Some(json!({"mark": 0})));
+    let r = e.run(
+        "pdf.mark",
+        &json!({"song": id, "page": 0, "kind": "highlight", "points": [[0.1, 0.1], [0.9, 0.2]], "colour": "#f2b43c"}),
+    );
+    assert_eq!(r.ok(), Some(json!({"mark": 1})));
+    let note = json!({"song": id, "page": 1, "kind": "note", "points": [[0.5, 0.5]], "text": " Capo 2 "});
+    assert_eq!(e.run("pdf.mark", &note).ok(), Some(json!({"mark": 2})));
+    // Refused, changing nothing: outside the page, too few points, no words, a bad colour or kind.
+    for bad in [
+        json!({"song": id, "page": 0, "points": [[1.5, 0.2], [0.3, 0.4]]}),
+        json!({"song": id, "page": 0, "points": [[0.1, 0.2]]}),
+        json!({"song": id, "page": 0, "kind": "highlight", "points": [[0.1, 0.2], [0.2, 0.3], [0.3, 0.4]]}),
+        json!({"song": id, "page": 0, "kind": "note", "points": [[0.1, 0.2]]}),
+        json!({"song": id, "page": 0, "points": [[0.1, 0.2], [0.3, 0.4]], "colour": "red"}),
+        json!({"song": id, "page": 0, "kind": "circle", "points": [[0.1, 0.2], [0.3, 0.4]]}),
+        json!({"song": id, "page": -1, "points": [[0.1, 0.2], [0.3, 0.4]]}),
+    ] {
+        assert!(e.run("pdf.mark", &bad).is_err(), "{bad}");
+    }
+    let song = e.show.song(id).cloned().unwrap_or_default();
+    assert_eq!(song.pdf_marks.len(), 3);
+    assert_eq!(song.pdf_marks[2].text, "Capo 2");
+    assert_eq!(song.pdf_marks[1].colour, "#f2b43c");
+    // The marks go into the show file and come back.
+    let saved = e.show.to_bytes();
+    let back = actcraft_show::Show::from_bytes(&saved).ok().and_then(|s| s.song(id).cloned()).unwrap_or_default();
+    assert_eq!(back.pdf_marks, song.pdf_marks);
+    // Removing one, then a page's marks, then all; clearing asks for confirmation.
+    assert!(e.run("pdf.unmark", &json!({"song": id, "mark": 0})).is_ok());
+    assert!(e.run("pdf.unmark", &json!({"song": id, "mark": 9})).is_err());
+    assert!(e.run("pdf.clear_marks", &json!({"song": id, "page": 1})).is_err(), "needs confirm");
+    assert_eq!(
+        e.run("pdf.clear_marks", &json!({"song": id, "page": 1, "confirm": true})).ok(),
+        Some(json!({"removed": 1}))
+    );
+    assert_eq!(e.show.song(id).map(|s| s.pdf_marks.len()), Some(1));
+    assert_eq!(e.run("pdf.clear_marks", &json!({"song": id, "confirm": true})).ok(), Some(json!({"removed": 1})));
+    assert_eq!(e.show.song(id).map(|s| s.pdf_marks.len()), Some(0));
+}
+
+#[test]
 fn notation_attaches_reads_and_travels_in_packages() {
     let mut files = MemoryServices::default();
     files.files.insert("/gig/night.musicxml".into(), SCORE.as_bytes().to_vec());

@@ -146,6 +146,14 @@ pub struct ActCraftApp {
     /// The open PDF of the Sheet music tab.
     sheet: Option<sheet_view::SheetDoc>,
     sheet_view: sheet_view::SheetLook,
+    /// Marking on the PDF: tool, colour, the mark being drawn.
+    mark_edit: sheet_view::MarkEdit,
+    /// The note being written for a spot on the PDF: song, page, spot, words.
+    note_prompt: Option<(u64, u32, [f32; 2], String)>,
+    /// "Remove all marks" waits for a second click.
+    confirm_clear_marks: bool,
+    /// The first PDF page in view (where a note added without a pointer goes).
+    sheet_top_page: usize,
     /// Notation or PDF, when a song has both.
     sheet_source: sheet_view::SheetSource,
     /// The open score of the Sheet music tab.
@@ -198,6 +206,10 @@ impl ActCraftApp {
             stage: None,
             sheet: None,
             sheet_view: sheet_view::SheetLook::default(),
+            mark_edit: sheet_view::MarkEdit::default(),
+            note_prompt: None,
+            confirm_clear_marks: false,
+            sheet_top_page: 0,
             sheet_source: sheet_view::SheetSource::default(),
             notation: None,
             notation_look: notation_view::NotationLook::default(),

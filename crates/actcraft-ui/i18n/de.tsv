@@ -563,3 +563,26 @@
 	that score has no notes	Diese Partitur enthält keine Noten
 	the song has no notation	Der Song hat keine Partitur
 	{bpm} BPM	{bpm} BPM
+	Mark the PDF	PDF markieren
+	Remove a PDF mark	PDF-Markierung entfernen
+	Remove PDF marks	PDF-Markierungen entfernen
+	Mark	Markieren
+	Look	Ansehen
+	Look at the pages and scroll them	Die Seiten ansehen und blättern
+	Pen	Stift
+	Draw on the page with the pointer	Mit der Maus auf die Seite zeichnen
+	Highlighter	Textmarker
+	Drag a box over what you want to stand out	Einen Rahmen über das ziehen, was hervorstechen soll
+	Note	Notiz
+	Click where a note goes, then write it	Dorthin klicken, wo die Notiz hin soll, dann schreiben
+	Red	Rot
+	Blue	Blau
+	Green	Grün
+	Yellow	Gelb
+	Add note…	Notiz hinzufügen …
+	Write a note at the top of the first page in view	Eine Notiz oben auf die erste sichtbare Seite schreiben
+	Remove last mark	Letzte Markierung entfernen
+	Take back the mark made last	Die zuletzt gemachte Markierung zurücknehmen
+	Remove all marks…	Alle Markierungen entfernen …
+	Remove all {count} marks?	Alle {count} Markierungen entfernen?
+	Note on page {page}	Notiz auf Seite {page}

@@ -53,6 +53,12 @@ pub mod limits {
     pub const MAX_LYRICS: usize = 512 * 1024;
     /// Longest song, seconds (24 h).
     pub const MAX_SECONDS: f64 = 86_400.0;
+    /// Marks on one song's PDF.
+    pub const MAX_PDF_MARKS: usize = 4_000;
+    /// Points in one pen stroke.
+    pub const MAX_MARK_POINTS: usize = 4_096;
+    /// Highest PDF page a mark may sit on (0-based).
+    pub const MAX_PDF_PAGE: u32 = 9_999;
     /// Earliest song bar a score's first bar may sit on (a long lead-in before the anchor).
     pub const MIN_SCORE_FIRST_BAR: i32 = -999;
     /// Latest song bar a score's first bar may sit on.
@@ -186,6 +192,8 @@ pub struct Song {
     pub midi_file: Option<String>,
     /// A PDF shown in the Sheet music tab (sheet music, lyrics, notes).
     pub pdf_file: Option<String>,
+    /// Marks drawn on the PDF's pages: pen strokes, highlights, notes.
+    pub pdf_marks: Vec<PdfMark>,
     /// A score (MusicXML) shown as notes and tablature in the Sheet music tab.
     pub notation_file: Option<String>,
     /// The song bar (beat grid numbering: 1 at the beat anchor, 0 and below before it) where
@@ -231,6 +239,7 @@ impl Default for Song {
             lyrics_scroll: LyricsScroll::default(),
             midi_file: None,
             pdf_file: None,
+            pdf_marks: Vec::new(),
             notation_file: None,
             score_first_bar: 1,
             autoplay: false,
@@ -309,6 +318,70 @@ impl EqBand {
             EqBand { freq: 2500.0, gain_db: 0.0, q: 1.0 },
             EqBand { freq: 8000.0, gain_db: 0.0, q: 0.7 },
         ]
+    }
+}
+
+/// What a mark on a PDF page is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PdfMarkKind {
+    /// A free-hand stroke through its points.
+    #[default]
+    Pen,
+    /// A see-through box between its two corner points.
+    Highlight,
+    /// A text note at its point.
+    Note,
+}
+
+/// A mark on a page of a song's PDF. Points are fractions of the page (0..1 from the top left),
+/// so a mark stays on its spot at any zoom.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PdfMark {
+    /// Page, 0-based.
+    pub page: u32,
+    pub kind: PdfMarkKind,
+    /// `#rrggbb`.
+    pub colour: String,
+    pub points: Vec<[f32; 2]>,
+    /// The note's words (notes only).
+    pub text: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for PdfMark {
+    fn default() -> Self {
+        Self {
+            page: 0,
+            kind: PdfMarkKind::Pen,
+            colour: "#e5484d".to_owned(),
+            points: Vec::new(),
+            text: String::new(),
+            extra: Map::new(),
+        }
+    }
+}
+
+impl PdfMark {
+    /// Points it needs at least: two for a stroke or a box, one for a note.
+    pub fn min_points(&self) -> usize {
+        if self.kind == PdfMarkKind::Note { 1 } else { 2 }
+    }
+
+    fn normalise(&mut self) {
+        use limits::*;
+        self.page = self.page.min(MAX_PDF_PAGE);
+        fix_colour(&mut self.colour, "#e5484d");
+        self.points.retain(|p| p.iter().all(|v| v.is_finite()));
+        self.points.truncate(if self.kind == PdfMarkKind::Pen { MAX_MARK_POINTS } else { self.min_points() });
+        for p in &mut self.points {
+            for v in p.iter_mut() {
+                *v = v.clamp(0.0, 1.0);
+            }
+        }
+        cut(&mut self.text, MAX_TEXT);
     }
 }
 
@@ -727,6 +800,11 @@ impl Song {
         if let Some(m) = &mut self.pdf_file {
             cut(m, MAX_TEXT);
         }
+        self.pdf_marks.truncate(MAX_PDF_MARKS);
+        for m in &mut self.pdf_marks {
+            m.normalise();
+        }
+        self.pdf_marks.retain(|m| m.points.len() >= m.min_points());
         if let Some(m) = &mut self.notation_file {
             cut(m, MAX_TEXT);
         }
@@ -926,6 +1004,23 @@ mod tests {
     fn old_file_without_version_loads() {
         let show = Show::from_bytes(br#"{"format":"actcraft-show","songs":[{"title":"x"}]}"#);
         assert!(show.is_ok_and(|s| s.version == 1 && s.songs.first().is_some_and(|x| x.id != 0)));
+    }
+
+    #[test]
+    fn hostile_pdf_marks_are_bounded_or_dropped() {
+        let src = br##"{"format":"actcraft-show","version":1,"songs":[{"id":1,"pdf_marks":[
+            {"page":4000000000,"kind":"pen","colour":"red","points":[[-1,0.5],[0.5,9],[1e40,0.2]]},
+            {"page":1,"kind":"highlight","points":[[0.1,0.1],[0.2,0.2],[0.3,0.3]]},
+            {"page":1,"kind":"note","points":[],"text":"lost"},
+            {"page":1,"kind":"pen","points":[[0.1,0.1]]}]}]}"##;
+        let show = Show::from_bytes(src);
+        assert!(show.is_ok(), "{show:?}");
+        let marks = show.ok().and_then(|s| s.songs.first().map(|x| x.pdf_marks.clone())).unwrap_or_default();
+        assert_eq!(marks.len(), 2, "marks without enough points are dropped: {marks:?}");
+        assert_eq!(marks[0].page, limits::MAX_PDF_PAGE);
+        assert_eq!(marks[0].colour, "#e5484d");
+        assert_eq!(marks[0].points, vec![[0.0, 0.5], [0.5, 1.0]], "kept inside the page; the infinite point left out");
+        assert_eq!(marks[1].points.len(), 2, "a box keeps two corners");
     }
 
     #[test]
