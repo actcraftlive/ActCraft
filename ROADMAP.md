@@ -23,11 +23,10 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Lyrics editor: timecode-aware undo (M2)
-2. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-3. Show package of a single song or playlist (M1)
-4. Command errors that carry a value (file name, number) in the window's language
-5. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+2. Show package of a single song or playlist (M1)
+3. Command errors that carry a value (file name, number) in the window's language
+4. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -83,8 +82,9 @@ details are in the milestone sections further down.
 - ✅ Chords in ChordPro syntax above the words; transpose, capo, hide chords; directives, chorus
 - ✅ Timecoded lines: the playing line is highlighted; per song the lyrics jump to the line,
   glide smoothly between timecodes, scroll at constant speed over the song, or stay put
-- 🔶 Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
-  position, find and replace (also `lyrics.replace`); timecode-aware undo still to do
+- ✅ Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
+  position, find and replace (also `lyrics.replace`); undo and redo (buttons, Ctrl+Z, Ctrl+Y)
+  for typing and every button alike, so a time stamp or a replacement goes back as one step
 - 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
 - ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
   (Parts bar), leave a loop after its pass (L)
