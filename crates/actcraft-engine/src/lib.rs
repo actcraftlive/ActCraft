@@ -25,6 +25,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod error_text;
 pub mod notation_commands;
 pub mod package_commands;
 pub mod pdf_commands;
@@ -232,9 +233,13 @@ impl Engine {
     pub fn run(&mut self, id: &str, params: &Value) -> CommandResult {
         let result = registry().dispatch(self, id, params);
         if let Err(e) = &result {
-            // The window shows (and translates) the message alone; the full text stays for the
-            // CLI, logs and the control channel.
-            self.push_message(e.message().to_owned(), Vec::new(), e.to_string(), true);
+            // The window shows (and translates) the message alone, a text with values through
+            // its template; the full text stays for the CLI, logs and the control channel.
+            let (template, args) = match error_text::template_of(e.message()) {
+                Some((template, args)) => (template.to_owned(), args),
+                None => (e.message().to_owned(), Vec::new()),
+            };
+            self.push_message(template, args, e.to_string(), true);
         }
         result
     }

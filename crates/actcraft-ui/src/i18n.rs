@@ -133,6 +133,15 @@ mod tests {
         let shown = error.as_ref().map(crate::message_text);
         set_language("en");
         assert_eq!(shown.as_deref(), Some("Kein Audioausgang läuft"));
+        // An error that carries a value is translated around it.
+        assert!(e.run("song.set", &serde_json::json!({"song": 42, "title": "x"})).is_err());
+        let error = e.messages.back().cloned();
+        assert_eq!(error.as_ref().map(|m| m.text.as_str()), Some("invalid params: no song with id 42"));
+        assert_eq!(error.as_ref().map(crate::message_text).as_deref(), Some("no song with id 42"));
+        set_language("de");
+        let shown = error.as_ref().map(crate::message_text);
+        set_language("en");
+        assert_eq!(shown.as_deref(), Some("kein Song mit der ID 42"));
     }
 
     /// Reads a Rust string literal body up to its closing quote: (text, bytes used).
@@ -183,6 +192,8 @@ mod tests {
             out.push(crate::flows::op_label(o).to_owned());
         }
         out.extend(crate::sheet_view::MARK_COLOURS.iter().map(|c| c.0.to_owned()));
+        // Command errors with values are shown through these templates.
+        out.extend(actcraft_engine::error_text::TEMPLATES.iter().map(|t| (*t).to_owned()));
         for m in [
             actcraft_show::RegionMode::Play,
             actcraft_show::RegionMode::Loop,

@@ -25,8 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. Command errors that carry a value (file name, number) in the window's language
-3. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+2. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -167,5 +166,7 @@ all platforms.
   this computer. A test fails when a language file lacks a window text.
 - ✅ Status messages (show opened, songs added, tempo detected, audio errors...) in the window's
   language; the CLI and the control channel keep the English text
-- 🔶 Command errors show in the window without their kind and translated; errors that carry a
-  value (a file name, a number) are still English
+- ✅ Command errors show in the window without their kind and translated, also those that carry
+  a value (a song id, a limit, a file name): the window finds the English template the text was
+  made from (`error_text::TEMPLATES`, checked against every such error in the source) and
+  translates it around the value
