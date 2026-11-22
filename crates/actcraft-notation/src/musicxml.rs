@@ -5,9 +5,9 @@ use craft_xml::{El, Options};
 use crate::flow::{MAX_ENDING_NUMBERS, MAX_REPEAT_TIMES};
 use crate::tab::fill_frets;
 use crate::{
-    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_BEND, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS,
-    MAX_SLURS_PER_NOTE, MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER,
-    Technique, Tuplet, signature_ticks,
+    Bar, ChordSymbol, Clef, ClefKind, Error, Flow, Lyric, MAX_BARS, MAX_BEND, MAX_CHORDS_PER_BAR, MAX_FRET, MAX_INPUT,
+    MAX_NOTES, MAX_PARTS, MAX_SLURS_PER_NOTE, MAX_STAVES, MAX_STRINGS, MAX_VERSES, MAX_WORD, Note, NoteValue, Part,
+    Pitch, Score, Slur, Syllabic, TICKS_PER_QUARTER, Technique, Tuplet, signature_ticks,
 };
 
 /// Entries a compressed score may hold.
@@ -146,6 +146,7 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
     let mut last_start: u32 = 0;
     let mut reach: u32 = 0;
     let mut flow = Flow::default();
+    let mut chords: Vec<ChordSymbol> = Vec::new();
     let mut ending_ends = false;
     for child in measure.elements() {
         match child.local() {
@@ -169,6 +170,22 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
                 sound_flow(child, &mut flow);
             }
             "barline" => ending_ends |= read_barline(child, state, &mut flow),
+            "harmony" => {
+                if chords.len() < MAX_CHORDS_PER_BAR
+                    && let Some(name) = chord_name(child)
+                {
+                    // `<offset>` moves the change away from where it is written, either way.
+                    let offset = child.child_text("offset");
+                    let offset = offset.as_deref().map(str::trim).unwrap_or_default();
+                    let shift = ticks(Some(offset.trim_start_matches('-')), state);
+                    let start = if offset.starts_with('-') {
+                        cursor.saturating_sub(shift)
+                    } else {
+                        cursor.saturating_add(shift)
+                    };
+                    chords.push(ChordSymbol { start, name });
+                }
+            }
             "backup" => cursor = cursor.saturating_sub(ticks(child.child_text("duration").as_deref(), state)),
             "forward" => {
                 cursor = cursor.saturating_add(ticks(child.child_text("duration").as_deref(), state));
@@ -201,6 +218,7 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
     notes.sort_by(|a: &Note, b: &Note| {
         a.start.cmp(&b.start).then_with(|| b.pitch.map(Pitch::midi).cmp(&a.pitch.map(Pitch::midi)))
     });
+    chords.sort_by_key(|c| c.start);
     let signature = signature_ticks(state.beats, state.beat_type);
     flow.endings = state.ending.clone().unwrap_or_default();
     if ending_ends {
@@ -215,6 +233,7 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
         length: if reach == 0 { signature } else { reach },
         notes,
         flow,
+        chords,
     }
 }
 
@@ -384,9 +403,107 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
         slurs,
         tuplet,
         technique,
+        lyrics: read_lyrics(el),
         voice: number(el.child_text("voice").as_deref()).map_or(1, |v| v.clamp(1.0, 64.0) as u8),
         staff: number(el.child_text("staff").as_deref()).map_or(1, |v| v.clamp(1.0, 8.0) as u8),
     })
+}
+
+/// The words sung on a note (`<lyric>`), one per verse (the `number` attribute, 1 when missing);
+/// several `<text>` parts of one lyric (an elision) are joined.
+fn read_lyrics(el: &El) -> Vec<Lyric> {
+    let mut out: Vec<Lyric> = Vec::new();
+    for (k, lyric) in el.children("lyric").enumerate() {
+        let verse = number(lyric.attr("number"))
+            .filter(|v| (1.0..=f64::from(MAX_VERSES)).contains(v))
+            .map_or_else(|| u8::try_from(k + 1).unwrap_or(MAX_VERSES), |v| v as u8)
+            .min(MAX_VERSES);
+        let text: String = lyric
+            .children("text")
+            .map(|t| t.text().trim().to_owned())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(MAX_WORD)
+            .collect();
+        if text.is_empty() || out.iter().any(|l| l.verse == verse) {
+            continue;
+        }
+        let syllabic = match lyric.child_text("syllabic").as_deref().map(str::trim) {
+            Some("begin") => Syllabic::Begin,
+            Some("middle") => Syllabic::Middle,
+            Some("end") => Syllabic::End,
+            _ => Syllabic::Single,
+        };
+        out.push(Lyric { verse, text, syllabic });
+    }
+    out
+}
+
+/// A `<harmony>` as a chord symbol: root, its kind ("m7", "sus4"...) and a bass after a slash;
+/// the file's own `text` for the kind wins. `None` for a hidden one or one without a root.
+fn chord_name(el: &El) -> Option<String> {
+    if el.attr("print-object") == Some("no") {
+        return None;
+    }
+    let kind = el.child("kind");
+    let value = kind.map(|k| k.text().trim().to_owned()).unwrap_or_default();
+    if value == "none" {
+        return Some("N.C.".to_owned());
+    }
+    let note = |el: &El, step: &str, alter: &str| -> Option<String> {
+        let letter = el.child_text(step)?.trim().chars().next().filter(char::is_ascii_alphabetic)?;
+        let sign = match number(el.child_text(alter).as_deref()).map(|a| a.round() as i32) {
+            Some(1) => "#",
+            Some(2) => "##",
+            Some(-1) => "b",
+            Some(-2) => "bb",
+            _ => "",
+        };
+        Some(format!("{}{sign}", letter.to_ascii_uppercase()))
+    };
+    let root = note(el.child("root")?, "root-step", "root-alter")?;
+    let suffix = match kind.and_then(|k| k.attr("text")) {
+        Some(text) => text.trim().to_owned(),
+        None => kind_suffix(&value).to_owned(),
+    };
+    let bass = el.child("bass").and_then(|b| note(b, "bass-step", "bass-alter"));
+    let name = match bass {
+        Some(b) => format!("{root}{suffix}/{b}"),
+        None => format!("{root}{suffix}"),
+    };
+    Some(name.chars().take(MAX_WORD).collect())
+}
+
+/// The short form of a MusicXML chord kind.
+fn kind_suffix(kind: &str) -> &'static str {
+    match kind {
+        "minor" => "m",
+        "augmented" => "+",
+        "diminished" => "dim",
+        "dominant" => "7",
+        "major-seventh" => "maj7",
+        "minor-seventh" => "m7",
+        "diminished-seventh" => "dim7",
+        "augmented-seventh" => "+7",
+        "half-diminished" => "m7b5",
+        "major-minor" => "m(maj7)",
+        "major-sixth" => "6",
+        "minor-sixth" => "m6",
+        "dominant-ninth" => "9",
+        "major-ninth" => "maj9",
+        "minor-ninth" => "m9",
+        "dominant-11th" => "11",
+        "major-11th" => "maj11",
+        "minor-11th" => "m11",
+        "dominant-13th" => "13",
+        "major-13th" => "maj13",
+        "minor-13th" => "m13",
+        "suspended-second" => "sus2",
+        "suspended-fourth" => "sus4",
+        "power" => "5",
+        _ => "",
+    }
 }
 
 /// The playing techniques in a note's `<notations>`: bends, hammer-ons, pull-offs, harmonics and
@@ -735,6 +852,49 @@ mod tests {
             vec![Slur { number: 1, start: false, above: None }, Slur { number: 2, start: true, above: Some(true) }]
         );
         assert_eq!(n[3].slurs, vec![Slur { number: 16, start: false, above: None }], "numbers are bounded");
+    }
+
+    #[test]
+    fn lyrics_and_chord_symbols_are_read() {
+        let body = [
+            r#"<harmony><root><root-step>A</root-step></root><kind>minor-seventh</kind></harmony>"#.to_owned(),
+            r#"<note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration>
+                <lyric number="1"><syllabic>begin</syllabic><text>Hel</text></lyric>
+                <lyric number="2"><text>Oh</text></lyric></note>"#
+                .to_owned(),
+            r#"<harmony><root><root-step>F</root-step><root-alter>1</root-alter></root><kind text="sus4">suspended-fourth</kind>
+                <bass><bass-step>C</bass-step><bass-alter>1</bass-alter></bass></harmony>"#
+                .to_owned(),
+            r#"<note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration>
+                <lyric><syllabic>end</syllabic><text>lo</text></lyric></note>"#
+                .to_owned(),
+            r#"<harmony><root><root-step>G</root-step><root-alter>-1</root-alter></root><kind>dominant</kind><offset>1</offset></harmony>"#.to_owned(),
+            r#"<harmony print-object="no"><root><root-step>D</root-step></root><kind>major</kind></harmony>"#.to_owned(),
+            r#"<harmony><root><root-step>E</root-step></root><kind>none</kind></harmony>"#.to_owned(),
+            r#"<note><rest/><duration>2</duration></note>"#.to_owned(),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">
+            <measure number="1"><attributes><divisions>1</divisions></attributes>{body}</measure></part></score-partwise>"#
+        );
+        let score = read(xml.as_bytes());
+        assert!(score.is_ok(), "{score:?}");
+        let Ok(score) = score else { return };
+        let bar = &score.parts[0].bars[0];
+        let chords: Vec<(u32, &str)> = bar.chords.iter().map(|c| (c.start, c.name.as_str())).collect();
+        // The file's kind text wins; a hidden chord is left out; an offset moves the change.
+        assert_eq!(chords, vec![(0, "Am7"), (960, "F#sus4/C#"), (1920, "N.C."), (2880, "Gb7")]);
+        let n = &bar.notes;
+        assert_eq!(
+            n[0].lyrics,
+            vec![
+                Lyric { verse: 1, text: "Hel".into(), syllabic: Syllabic::Begin },
+                Lyric { verse: 2, text: "Oh".into(), syllabic: Syllabic::Single },
+            ]
+        );
+        assert_eq!(n[1].lyrics, vec![Lyric { verse: 1, text: "lo".into(), syllabic: Syllabic::End }]);
+        assert!(Syllabic::Begin.continues() && !Syllabic::End.continues());
     }
 
     #[test]
