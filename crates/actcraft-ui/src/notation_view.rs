@@ -955,23 +955,9 @@ impl ActCraftApp {
     pub(crate) fn notation_view(&mut self, ui: &mut Ui, e: &mut Engine, song: &Song) {
         let t = self.tokens;
         let Some(path) = song.notation_file.clone() else { return };
-        if self.notation.as_ref().map(|d| d.path.as_str()) != Some(path.as_str()) {
-            self.notation = None;
-            match actcraft_engine::notation_commands::load_score(e, &path) {
-                Ok(score) => {
-                    let orders = score.parts.iter().map(|p| actcraft_engine::notation::play_order(&p.bars)).collect();
-                    self.notation = Some(NotationDoc { path: path.clone(), score, orders });
-                    self.notation_look.part = 0;
-                }
-                Err(err) => {
-                    let why = tr(err.message()).to_owned();
-                    ui.label(
-                        egui::RichText::new(format!("{} {why}", tr("The notation could not be opened:")))
-                            .color(t.danger),
-                    );
-                    return;
-                }
-            }
+        if let Err(why) = self.load_notation(e, &path) {
+            ui.label(egui::RichText::new(format!("{} {why}", tr("The notation could not be opened:"))).color(t.danger));
+            return;
         }
         let Some(doc) = self.notation.as_ref() else { return };
         let look = &mut self.notation_look;
@@ -1032,560 +1018,610 @@ impl ActCraftApp {
         }
         ui.separator();
         let Some(doc) = self.notation.as_ref() else { return };
-        let look = self.notation_look;
-        let Some(part) = doc.score.parts.get(look.part) else { return };
-        if part.bars.is_empty() {
-            return;
+        let view =
+            ScoreView { look: self.notation_look, follow: self.sheet_view.follow, keyboard: true, salt: "notation" };
+        let out = score_canvas(ui, t, doc, song, (e.status.time, e.status.playing), view);
+        self.notation_look.cursor = out.cursor;
+        if let Some(at) = out.seek {
+            self.run(e, "transport.seek", json!({"seconds": at}));
         }
-        let m = Metrics::new(look.zoom);
-        let rows = Rows::of(part, look.show);
-        let (tops, tab_top, line_h) = rows.layout(m);
-        let margin = 8.0;
-        let width = (ui.available_width() - 2.0 * margin).max(200.0);
-        let systems = break_lines(part, &rows, width, m);
-        let content = systems.len() as f32 * line_h + 2.0 * margin;
-        let order = doc.orders.get(look.part).map(Vec::as_slice).unwrap_or_default();
-        let played = playing_bar(song, e.status.time, order.len());
-        // The written bar that plays.
-        let playing = played.and_then(|(k, frac)| order.get(k).map(|&b| (b, frac)));
-        let ink = Ink { paper: t.surface, ink: t.text, line: t.text_dim, mark: t.accent };
-        let mut area = egui::ScrollArea::vertical().id_salt(("notation", song.id)).auto_shrink([false, false]);
-        if self.sheet_view.follow && e.status.playing {
-            if let Some((bar, _)) = playing
-                && let Some(line) = systems.iter().position(|s| bar >= s.first && bar < s.first + s.widths.len())
-            {
-                area = area.vertical_scroll_offset((line as f32 * line_h - line_h * 0.3).max(0.0));
-            }
-            ui.ctx().request_repaint();
+    }
+
+    /// Opens the song's score into the cache unless it is already there; the error says why not.
+    pub(crate) fn load_notation(&mut self, e: &Engine, path: &str) -> Result<(), String> {
+        if load_notation_into(&mut self.notation, e, path)? {
+            self.notation_look.part = 0;
         }
-        let mut seek: Option<usize> = None;
-        let mut cursor = look.cursor.min(part.bars.len() - 1);
-        let bar_word = tr("bar");
-        area.show_viewport(ui, |ui, viewport| {
-            let (rect, response) = ui.allocate_exact_size(vec2(width + 2.0 * margin, content), Sense::click());
-            // From the keyboard: arrow keys, Home and End choose a bar, Enter plays from it.
-            let focused = response.has_focus();
-            if focused {
-                let filter = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
-                ui.memory_mut(|mem| mem.set_focus_lock_filter(response.id, filter));
-                let keys = [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Home, Key::End];
-                let mut moved = false;
-                for key in keys {
-                    if ui.input(|i| i.key_pressed(key)) {
-                        cursor = move_cursor(cursor, key, &systems, part.bars.len());
-                        moved = true;
-                    }
-                }
-                if moved && let Some(line) = line_of(&systems, cursor) {
-                    let top = rect.top() + margin + line as f32 * line_h;
-                    ui.scroll_to_rect(Rect::from_min_size(pos2(rect.left(), top), vec2(width, line_h)), None);
-                }
-                if ui.input(|i| i.key_pressed(Key::Enter)) {
-                    seek = Some(cursor);
+        Ok(())
+    }
+}
+
+/// Opens the score at `path` into `slot` unless it is already there; true when it was opened
+/// now. The error says why it could not be; a failed file is tried again on the next call.
+pub(crate) fn load_notation_into(slot: &mut Option<NotationDoc>, e: &Engine, path: &str) -> Result<bool, String> {
+    if slot.as_ref().is_some_and(|d| d.path == path) {
+        return Ok(false);
+    }
+    *slot = None;
+    let score = actcraft_engine::notation_commands::load_score(e, path).map_err(|err| tr(err.message()).to_owned())?;
+    let orders = score.parts.iter().map(|p| actcraft_engine::notation::play_order(&p.bars)).collect();
+    *slot = Some(NotationDoc { path: path.to_owned(), score, orders });
+    Ok(true)
+}
+
+/// How a score is shown: its part, display and zoom, whether the view follows playback, and
+/// whether it takes clicks and keys (the main window) or only shows (the second window).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ScoreView {
+    pub look: NotationLook,
+    pub follow: bool,
+    pub keyboard: bool,
+    /// Tells this view's scroll position apart from another one's.
+    pub salt: &'static str,
+}
+
+/// What a score view did: where the keyboard's bar is now, and a time to play from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ScoreOutput {
+    pub cursor: usize,
+    pub seek: Option<f64>,
+}
+
+/// Draws one part of a score as staves and tablature, in lines across the space, with the bar
+/// playing at `status` (time, playing) marked.
+pub(crate) fn score_canvas(
+    ui: &mut Ui,
+    t: crate::theme::Tokens,
+    doc: &NotationDoc,
+    song: &Song,
+    status: (f64, bool),
+    view: ScoreView,
+) -> ScoreOutput {
+    let look = view.look;
+    let unchanged = ScoreOutput { cursor: look.cursor, seek: None };
+    let Some(part) = doc.score.parts.get(look.part) else { return unchanged };
+    if part.bars.is_empty() {
+        return unchanged;
+    }
+    let (time, playing_now) = status;
+    let m = Metrics::new(look.zoom);
+    let rows = Rows::of(part, look.show);
+    let (tops, tab_top, line_h) = rows.layout(m);
+    let margin = 8.0;
+    let width = (ui.available_width() - 2.0 * margin).max(200.0);
+    let systems = break_lines(part, &rows, width, m);
+    let content = systems.len() as f32 * line_h + 2.0 * margin;
+    let order = doc.orders.get(look.part).map(Vec::as_slice).unwrap_or_default();
+    let played = playing_bar(song, time, order.len());
+    // The written bar that plays.
+    let playing = played.and_then(|(k, frac)| order.get(k).map(|&b| (b, frac)));
+    let ink = Ink { paper: t.surface, ink: t.text, line: t.text_dim, mark: t.accent };
+    let mut area = egui::ScrollArea::vertical().id_salt((view.salt, song.id)).auto_shrink([false, false]);
+    if view.follow && playing_now {
+        if let Some((bar, _)) = playing
+            && let Some(line) = systems.iter().position(|s| bar >= s.first && bar < s.first + s.widths.len())
+        {
+            area = area.vertical_scroll_offset((line as f32 * line_h - line_h * 0.3).max(0.0));
+        }
+        ui.ctx().request_repaint();
+    }
+    let mut seek: Option<usize> = None;
+    let mut cursor = look.cursor.min(part.bars.len() - 1);
+    let bar_word = tr("bar");
+    area.show_viewport(ui, |ui, viewport| {
+        let sense = if view.keyboard { Sense::click() } else { Sense::hover() };
+        let (rect, response) = ui.allocate_exact_size(vec2(width + 2.0 * margin, content), sense);
+        // From the keyboard: arrow keys, Home and End choose a bar, Enter plays from it.
+        let focused = response.has_focus();
+        if focused {
+            let filter = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
+            ui.memory_mut(|mem| mem.set_focus_lock_filter(response.id, filter));
+            let keys = [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Home, Key::End];
+            let mut moved = false;
+            for key in keys {
+                if ui.input(|i| i.key_pressed(key)) {
+                    cursor = move_cursor(cursor, key, &systems, part.bars.len());
+                    moved = true;
                 }
             }
-            let mut name = format!(
-                "{} {}, {}",
-                tr("Notation:"),
-                part.name,
-                match playing {
-                    Some((b, _)) => format!("{bar_word} {} / {}", b + 1, part.bars.len()),
-                    None => format!("{} {}", part.bars.len(), tr("bars")),
-                }
-            );
-            if focused {
-                let chosen = actcraft_engine::fill(tr("selected: bar {bar}"), &[("bar", &(cursor + 1).to_string())]);
-                name = format!("{name}, {chosen}");
+            if moved && let Some(line) = line_of(&systems, cursor) {
+                let top = rect.top() + margin + line as f32 * line_h;
+                ui.scroll_to_rect(Rect::from_min_size(pos2(rect.left(), top), vec2(width, line_h)), None);
             }
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &name));
-            let painter = ui.painter_at(rect);
-            painter.rect_filled(rect, 4.0, ink.paper);
-            let pa = Painter { p: &painter, m, ink };
-            for (li, sys) in systems.iter().enumerate() {
-                let y0 = rect.top() + margin + li as f32 * line_h;
-                let local = Rect::from_min_size(pos2(0.0, y0 - rect.top()), vec2(width, line_h));
-                if !local.intersects(viewport) {
-                    continue;
-                }
-                let x0 = rect.left() + margin;
-                let x_end = x0 + sys.header + sys.widths.iter().sum::<f32>();
-                // Bar positions.
-                let mut xs = Vec::with_capacity(sys.widths.len() + 1);
-                let mut x = x0 + sys.header;
-                for w in &sys.widths {
-                    xs.push(x);
-                    x += w;
-                }
+            if ui.input(|i| i.key_pressed(Key::Enter)) {
+                seek = Some(cursor);
+            }
+        }
+        let mut name = format!(
+            "{} {}, {}",
+            tr("Notation:"),
+            part.name,
+            match playing {
+                Some((b, _)) => format!("{bar_word} {} / {}", b + 1, part.bars.len()),
+                None => format!("{} {}", part.bars.len(), tr("bars")),
+            }
+        );
+        if focused {
+            let chosen = actcraft_engine::fill(tr("selected: bar {bar}"), &[("bar", &(cursor + 1).to_string())]);
+            name = format!("{name}, {chosen}");
+        }
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &name));
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 4.0, ink.paper);
+        let pa = Painter { p: &painter, m, ink };
+        for (li, sys) in systems.iter().enumerate() {
+            let y0 = rect.top() + margin + li as f32 * line_h;
+            let local = Rect::from_min_size(pos2(0.0, y0 - rect.top()), vec2(width, line_h));
+            if !local.intersects(viewport) {
+                continue;
+            }
+            let x0 = rect.left() + margin;
+            let x_end = x0 + sys.header + sys.widths.iter().sum::<f32>();
+            // Bar positions.
+            let mut xs = Vec::with_capacity(sys.widths.len() + 1);
+            let mut x = x0 + sys.header;
+            for w in &sys.widths {
                 xs.push(x);
-                // The playing bar, under everything else.
-                if let Some((pb, frac)) = playing
-                    && pb >= sys.first
-                    && let (Some(&bx), Some(&bx1)) = (xs.get(pb - sys.first), xs.get(pb - sys.first + 1))
-                {
-                    let r = Rect::from_min_max(pos2(bx, y0 + 2.0 * m.space), pos2(bx1, y0 + line_h - m.space));
-                    painter.rect_filled(r, 2.0, ink.mark.gamma_multiply(0.18));
-                    let cx = bx + (bx1 - bx) * frac.clamp(0.0, 1.0);
-                    painter.line_segment([pos2(cx, r.top()), pos2(cx, r.bottom())], Stroke::new(2.0, ink.mark));
-                }
-                // The keyboard's bar, outlined while the score has focus.
-                if focused
-                    && cursor >= sys.first
-                    && let (Some(&bx), Some(&bx1)) = (xs.get(cursor - sys.first), xs.get(cursor - sys.first + 1))
-                {
-                    let r = Rect::from_min_max(pos2(bx, y0 + 2.0 * m.space), pos2(bx1, y0 + line_h - m.space));
-                    painter.rect_stroke(r, 2.0, Stroke::new(2.0, ink.mark), egui::StrokeKind::Inside);
-                }
-                let first_bar = part.bars.get(sys.first);
-                // Staves: lines, clef, key, time.
-                for (si, clef) in rows.staves.iter().enumerate() {
-                    let Some(&top) = tops.get(si) else { continue };
-                    let top = y0 + top;
-                    pa.staff_lines(x0, x_end, top);
-                    pa.clef(x0 + 0.2 * m.space, top, *clef);
-                    if let Some(bar) = first_bar {
-                        let mut kx = x0 + 4.0 * m.space;
-                        for pos in key_positions(*clef, bar.fifths) {
-                            pa.accidental(kx, pa.y(top, pos), if bar.fifths > 0 { 1 } else { -1 });
-                            kx += 1.1 * m.space;
-                        }
-                        let time_changes = sys.first == 0
-                            || part
-                                .bars
-                                .get(sys.first - 1)
-                                .is_some_and(|p| (p.beats, p.beat_type) != (bar.beats, bar.beat_type));
-                        if time_changes {
-                            pa.time_signature(kx + 0.9 * m.space, top, bar);
-                        }
+                x += w;
+            }
+            xs.push(x);
+            // The playing bar, under everything else.
+            if let Some((pb, frac)) = playing
+                && pb >= sys.first
+                && let (Some(&bx), Some(&bx1)) = (xs.get(pb - sys.first), xs.get(pb - sys.first + 1))
+            {
+                let r = Rect::from_min_max(pos2(bx, y0 + 2.0 * m.space), pos2(bx1, y0 + line_h - m.space));
+                painter.rect_filled(r, 2.0, ink.mark.gamma_multiply(0.18));
+                let cx = bx + (bx1 - bx) * frac.clamp(0.0, 1.0);
+                painter.line_segment([pos2(cx, r.top()), pos2(cx, r.bottom())], Stroke::new(2.0, ink.mark));
+            }
+            // The keyboard's bar, outlined while the score has focus.
+            if focused
+                && cursor >= sys.first
+                && let (Some(&bx), Some(&bx1)) = (xs.get(cursor - sys.first), xs.get(cursor - sys.first + 1))
+            {
+                let r = Rect::from_min_max(pos2(bx, y0 + 2.0 * m.space), pos2(bx1, y0 + line_h - m.space));
+                painter.rect_stroke(r, 2.0, Stroke::new(2.0, ink.mark), egui::StrokeKind::Inside);
+            }
+            let first_bar = part.bars.get(sys.first);
+            // Staves: lines, clef, key, time.
+            for (si, clef) in rows.staves.iter().enumerate() {
+                let Some(&top) = tops.get(si) else { continue };
+                let top = y0 + top;
+                pa.staff_lines(x0, x_end, top);
+                pa.clef(x0 + 0.2 * m.space, top, *clef);
+                if let Some(bar) = first_bar {
+                    let mut kx = x0 + 4.0 * m.space;
+                    for pos in key_positions(*clef, bar.fifths) {
+                        pa.accidental(kx, pa.y(top, pos), if bar.fifths > 0 { 1 } else { -1 });
+                        kx += 1.1 * m.space;
+                    }
+                    let time_changes = sys.first == 0
+                        || part
+                            .bars
+                            .get(sys.first - 1)
+                            .is_some_and(|p| (p.beats, p.beat_type) != (bar.beats, bar.beat_type));
+                    if time_changes {
+                        pa.time_signature(kx + 0.9 * m.space, top, bar);
                     }
                 }
-                // Tablature lines.
-                let tab_y = y0 + tab_top;
-                for k in 0..rows.strings {
-                    let y = tab_y + k as f32 * m.tab_gap;
-                    painter.line_segment([pos2(x0, y), pos2(x_end, y)], Stroke::new(1.0, ink.line));
+            }
+            // Tablature lines.
+            let tab_y = y0 + tab_top;
+            for k in 0..rows.strings {
+                let y = tab_y + k as f32 * m.tab_gap;
+                painter.line_segment([pos2(x0, y), pos2(x_end, y)], Stroke::new(1.0, ink.line));
+            }
+            if rows.strings > 0 {
+                let mid = tab_y + (rows.strings - 1) as f32 * m.tab_gap / 2.0;
+                for (k, letter) in ["T", "A", "B"].iter().enumerate() {
+                    let y = mid + (k as f32 - 1.0) * 1.1 * m.tab_gap.min(1.6 * m.space);
+                    painter.text(
+                        pos2(x0 + 1.0 * m.space, y),
+                        Align2::CENTER_CENTER,
+                        *letter,
+                        FontId::proportional(1.3 * m.space),
+                        ink.ink,
+                    );
                 }
-                if rows.strings > 0 {
-                    let mid = tab_y + (rows.strings - 1) as f32 * m.tab_gap / 2.0;
-                    for (k, letter) in ["T", "A", "B"].iter().enumerate() {
-                        let y = mid + (k as f32 - 1.0) * 1.1 * m.tab_gap.min(1.6 * m.space);
-                        painter.text(
-                            pos2(x0 + 1.0 * m.space, y),
-                            Align2::CENTER_CENTER,
-                            *letter,
-                            FontId::proportional(1.3 * m.space),
-                            ink.ink,
-                        );
-                    }
+            }
+            // Bars.
+            for (k, w) in sys.widths.iter().enumerate() {
+                let index = sys.first + k;
+                let Some(bar) = part.bars.get(index) else { continue };
+                let (Some(&bx), Some(&bx1)) = (xs.get(k), xs.get(k + 1)) else { continue };
+                let x_of = |n: &Note| tick_x(bar, bx, *w, m, n.start);
+                // Bar number, the signs a jump goes to, and tempo above the line, one after
+                // the other.
+                let label_y = y0 + 1.6 * m.space;
+                let mut label_x = bx + 2.0;
+                if !bar.number.is_empty() {
+                    let r = painter.text(
+                        pos2(label_x, label_y),
+                        Align2::LEFT_CENTER,
+                        &bar.number,
+                        FontId::proportional(1.1 * m.space),
+                        ink.line,
+                    );
+                    label_x = r.right() + 0.6 * m.space;
                 }
-                // Bars.
-                for (k, w) in sys.widths.iter().enumerate() {
-                    let index = sys.first + k;
-                    let Some(bar) = part.bars.get(index) else { continue };
-                    let (Some(&bx), Some(&bx1)) = (xs.get(k), xs.get(k + 1)) else { continue };
-                    let x_of = |n: &Note| tick_x(bar, bx, *w, m, n.start);
-                    // Bar number, the signs a jump goes to, and tempo above the line, one after
-                    // the other.
-                    let label_y = y0 + 1.6 * m.space;
-                    let mut label_x = bx + 2.0;
-                    if !bar.number.is_empty() {
+                for (on, word) in [(bar.flow.segno, tr("Segno")), (bar.flow.coda, tr("Coda"))] {
+                    if on {
                         let r = painter.text(
                             pos2(label_x, label_y),
                             Align2::LEFT_CENTER,
-                            &bar.number,
-                            FontId::proportional(1.1 * m.space),
-                            ink.line,
+                            word,
+                            FontId::proportional(1.2 * m.space),
+                            ink.ink,
                         );
                         label_x = r.right() + 0.6 * m.space;
                     }
-                    for (on, word) in [(bar.flow.segno, tr("Segno")), (bar.flow.coda, tr("Coda"))] {
-                        if on {
-                            let r = painter.text(
-                                pos2(label_x, label_y),
-                                Align2::LEFT_CENTER,
-                                word,
-                                FontId::proportional(1.2 * m.space),
-                                ink.ink,
-                            );
-                            label_x = r.right() + 0.6 * m.space;
-                        }
-                    }
-                    if let Some(tempo) = bar.tempo {
-                        let text = actcraft_engine::fill(tr("{bpm} BPM"), &[("bpm", &format!("{tempo:.0}"))]);
-                        painter.text(
-                            pos2(label_x.max(bx + 3.0 * m.space), label_y),
-                            Align2::LEFT_CENTER,
-                            text,
-                            FontId::proportional(1.3 * m.space),
-                            ink.ink,
-                        );
-                    }
-                    // Chord symbols above the first row, where each chord changes.
-                    for chord in &bar.chords {
-                        painter.text(
-                            pos2(tick_x(bar, bx, *w, m, chord.start) - 0.6 * m.space, y0 + Rows::chord_y(m)),
-                            Align2::LEFT_CENTER,
-                            &chord.name,
-                            FontId::proportional(1.5 * m.space),
-                            ink.ink,
-                        );
-                    }
-                    // Bar lines.
-                    let end_line = index + 1 == part.bars.len();
-                    for (si, _) in rows.staves.iter().enumerate() {
-                        let Some(&top) = tops.get(si) else { continue };
+                }
+                if let Some(tempo) = bar.tempo {
+                    let text = actcraft_engine::fill(tr("{bpm} BPM"), &[("bpm", &format!("{tempo:.0}"))]);
+                    painter.text(
+                        pos2(label_x.max(bx + 3.0 * m.space), label_y),
+                        Align2::LEFT_CENTER,
+                        text,
+                        FontId::proportional(1.3 * m.space),
+                        ink.ink,
+                    );
+                }
+                // Chord symbols above the first row, where each chord changes.
+                for chord in &bar.chords {
+                    painter.text(
+                        pos2(tick_x(bar, bx, *w, m, chord.start) - 0.6 * m.space, y0 + Rows::chord_y(m)),
+                        Align2::LEFT_CENTER,
+                        &chord.name,
+                        FontId::proportional(1.5 * m.space),
+                        ink.ink,
+                    );
+                }
+                // Bar lines.
+                let end_line = index + 1 == part.bars.len();
+                for (si, _) in rows.staves.iter().enumerate() {
+                    let Some(&top) = tops.get(si) else { continue };
+                    let top = y0 + top;
+                    painter.line_segment(
+                        [pos2(bx1, top), pos2(bx1, top + 4.0 * m.space)],
+                        Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
+                    );
+                }
+                if rows.strings > 0 {
+                    let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
+                    painter.line_segment(
+                        [pos2(bx1, tab_y), pos2(bx1, bottom)],
+                        Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
+                    );
+                }
+                // Repeat signs on every staff and the tablature.
+                let flow = &bar.flow;
+                let mut spans: Vec<(f32, f32, [f32; 2])> = rows
+                    .staves
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(si, _)| tops.get(si))
+                    .map(|&top| {
                         let top = y0 + top;
-                        painter.line_segment(
-                            [pos2(bx1, top), pos2(bx1, top + 4.0 * m.space)],
-                            Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
-                        );
+                        (top, top + 4.0 * m.space, [pa.y(top, 5), pa.y(top, 3)])
+                    })
+                    .collect();
+                if rows.strings > 1 {
+                    let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
+                    let mid = (tab_y + bottom) / 2.0;
+                    spans.push((tab_y, bottom, [mid - 0.5 * m.tab_gap, mid + 0.5 * m.tab_gap]));
+                }
+                for &(top, bottom, dots) in &spans {
+                    if flow.repeat_start {
+                        pa.repeat_sign(bx, top, bottom, dots, true);
                     }
-                    if rows.strings > 0 {
-                        let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
-                        painter.line_segment(
-                            [pos2(bx1, tab_y), pos2(bx1, bottom)],
-                            Stroke::new(if end_line { 3.0 } else { 1.2 }, ink.ink),
-                        );
+                    if flow.repeat_end.is_some() {
+                        pa.repeat_sign(bx1, top, bottom, dots, false);
                     }
-                    // Repeat signs on every staff and the tablature.
-                    let flow = &bar.flow;
-                    let mut spans: Vec<(f32, f32, [f32; 2])> = rows
-                        .staves
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(si, _)| tops.get(si))
-                        .map(|&top| {
-                            let top = y0 + top;
-                            (top, top + 4.0 * m.space, [pa.y(top, 5), pa.y(top, 3)])
-                        })
-                        .collect();
-                    if rows.strings > 1 {
-                        let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
-                        let mid = (tab_y + bottom) / 2.0;
-                        spans.push((tab_y, bottom, [mid - 0.5 * m.tab_gap, mid + 0.5 * m.tab_gap]));
-                    }
-                    for &(top, bottom, dots) in &spans {
-                        if flow.repeat_start {
-                            pa.repeat_sign(bx, top, bottom, dots, true);
-                        }
-                        if flow.repeat_end.is_some() {
-                            pa.repeat_sign(bx1, top, bottom, dots, false);
-                        }
-                    }
-                    // An ending's bracket over its bars, numbered where it starts.
-                    if !flow.endings.is_empty() {
-                        let y = y0 + 2.6 * m.space;
-                        let stroke = Stroke::new(1.2, ink.ink);
-                        painter.line_segment([pos2(bx + 1.0, y), pos2(bx1 - 0.4 * m.space, y)], stroke);
-                        if flow.ending_start || k == 0 {
-                            painter.line_segment([pos2(bx + 1.0, y), pos2(bx + 1.0, y + 1.4 * m.space)], stroke);
-                            let numbers: Vec<String> = flow.endings.iter().map(|n| format!("{n}.")).collect();
-                            painter.text(
-                                pos2(bx + 0.5 * m.space, y + 0.2 * m.space),
-                                Align2::LEFT_TOP,
-                                numbers.join(" "),
-                                FontId::proportional(1.2 * m.space),
-                                ink.ink,
-                            );
-                        }
-                        if flow.repeat_end.is_some() {
-                            let x = bx1 - 0.4 * m.space;
-                            painter.line_segment([pos2(x, y), pos2(x, y + 1.4 * m.space)], stroke);
-                        }
-                    }
-                    // Jumps and repeat counts, at the bar's end above the staff.
-                    let mut words: Vec<String> = Vec::new();
-                    for (on, word) in [
-                        (flow.to_coda, tr("To Coda")),
-                        (flow.dal_segno, tr("D.S.")),
-                        (flow.da_capo, tr("D.C.")),
-                        (flow.fine, tr("Fine")),
-                    ] {
-                        if on {
-                            words.push(word.to_owned());
-                        }
-                    }
-                    if let Some(times) = flow.repeat_end.filter(|t| *t > 2) {
-                        words.push(actcraft_engine::fill(tr("{times}\u{d7}"), &[("times", &times.to_string())]));
-                    }
-                    if !words.is_empty() {
+                }
+                // An ending's bracket over its bars, numbered where it starts.
+                if !flow.endings.is_empty() {
+                    let y = y0 + 2.6 * m.space;
+                    let stroke = Stroke::new(1.2, ink.ink);
+                    painter.line_segment([pos2(bx + 1.0, y), pos2(bx1 - 0.4 * m.space, y)], stroke);
+                    if flow.ending_start || k == 0 {
+                        painter.line_segment([pos2(bx + 1.0, y), pos2(bx + 1.0, y + 1.4 * m.space)], stroke);
+                        let numbers: Vec<String> = flow.endings.iter().map(|n| format!("{n}.")).collect();
                         painter.text(
-                            pos2(bx1 - 2.0, label_y),
-                            Align2::RIGHT_CENTER,
-                            words.join("  "),
+                            pos2(bx + 0.5 * m.space, y + 0.2 * m.space),
+                            Align2::LEFT_TOP,
+                            numbers.join(" "),
                             FontId::proportional(1.2 * m.space),
                             ink.ink,
                         );
                     }
-                    // Notes on each staff: chords by onset and voice, short notes beamed by beat.
-                    for (si, clef) in rows.staves.iter().enumerate() {
-                        let Some(&top) = tops.get(si) else { continue };
-                        let top = y0 + top;
-                        let evs = events(bar, (si + 1) as u8);
-                        let mut voices: Vec<u8> = evs.iter().map(|e| e.voice).collect();
-                        voices.sort_unstable();
-                        voices.dedup();
-                        let several = voices.len() > 1;
-                        let leans_up = |notes: &mut dyn Iterator<Item = &Note>, voice: u8| {
-                            if several {
-                                return voice % 2 == 1;
-                            }
-                            let (sum, count) = notes
-                                .filter_map(|n| n.pitch)
-                                .fold((0i32, 0i32), |(s, c), p| (s + clef.position(p), c + 1));
-                            count == 0 || sum < 4 * count
-                        };
-                        let first_x = |ev: &Event<'_>| ev.notes.first().map_or(bx, |n| x_of(n));
-                        let mut plan: Vec<Stem> = evs
-                            .iter()
-                            .map(|ev| Stem {
-                                up: leans_up(&mut ev.notes.iter().copied(), ev.voice),
-                                end: None,
-                                flags: true,
-                            })
-                            .collect();
-                        let mut beams = Vec::new();
-                        for group in beam_groups(bar, &evs) {
-                            let members: Vec<&Event<'_>> = group.iter().filter_map(|&i| evs.get(i)).collect();
-                            let voice = members.first().map_or(1, |e| e.voice);
-                            let up = leans_up(&mut members.iter().flat_map(|e| e.notes.iter().copied()), voice);
-                            let stems: Vec<(f32, f32)> = members
-                                .iter()
-                                .map(|ev| (pa.stem_x(first_x(ev), up), pa.natural_end(top, *clef, &ev.notes, up)))
-                                .collect();
-                            let ys = beam_line(&stems, up);
-                            let mut beam = Vec::with_capacity(group.len());
-                            for ((&i, &(sx, _)), &y) in group.iter().zip(&stems).zip(&ys) {
-                                if let (Some(p), Some(ev)) = (plan.get_mut(i), evs.get(i)) {
-                                    *p = Stem { up, end: Some(y), flags: false };
-                                    beam.push((sx, y, ev.value().flags()));
-                                }
-                            }
-                            beams.push((beam, up));
-                        }
-                        let mut acc = Accidentals { key: key_alters(bar.fifths), written: Vec::new() };
-                        for (ev, stem) in evs.iter().zip(&plan) {
-                            pa.chord(first_x(ev), top, *clef, &ev.notes, *stem, &mut acc);
-                        }
-                        for (beam, up) in &beams {
-                            pa.beam(beam, *up);
-                        }
-                        // Tuplets: their number, with a bracket, above the notes and stems.
-                        for g in tuplet_groups(&evs) {
-                            let mut y = top - 0.8 * m.space;
-                            for (ev, stem) in evs.iter().zip(&plan).take(g.last + 1).skip(g.first) {
-                                let head_top = ev
-                                    .notes
-                                    .iter()
-                                    .filter_map(|n| n.pitch)
-                                    .map(|p| pa.y(top, clef.position(p)))
-                                    .fold(f32::INFINITY, f32::min);
-                                let reach = if stem.up {
-                                    stem.end.unwrap_or_else(|| pa.natural_end(top, *clef, &ev.notes, true))
-                                } else {
-                                    head_top - 0.6 * m.space
-                                };
-                                y = y.min(reach - 0.9 * m.space);
-                            }
-                            let (Some(a), Some(b)) = (evs.get(g.first), evs.get(g.last)) else { continue };
-                            let x0 = first_x(a) - 0.7 * m.space;
-                            let x1 = first_x(b) + 0.7 * m.space;
-                            pa.tuplet(x0, x1, y, g.actual, g.bracket);
-                        }
-                    }
-                    // Frets.
-                    if rows.strings > 0 {
-                        let font = FontId::proportional(1.25 * m.space);
-                        for n in &bar.notes {
-                            let (Some(s), Some(f)) = (n.string, n.fret) else { continue };
-                            let s = usize::from(s);
-                            if s == 0 || s > rows.strings {
-                                continue;
-                            }
-                            let y = tab_y + (s - 1) as f32 * m.tab_gap;
-                            let tech = n.technique;
-                            // A harmonic's fret in angle brackets, a tied one in parentheses.
-                            let text = match (tech.harmonic, n.tied) {
-                                (true, _) => format!("<{f}>"),
-                                (false, true) => format!("({f})"),
-                                (false, false) => f.to_string(),
-                            };
-                            let x = x_of(n);
-                            let galley = painter.layout_no_wrap(text, font.clone(), ink.ink);
-                            let r = Rect::from_center_size(pos2(x, y), galley.size() + vec2(2.0, 0.0));
-                            painter.rect_filled(r, 0.0, ink.paper);
-                            painter.galley(r.min + vec2(1.0, 0.0), galley, ink.ink);
-                            let above_tab = tab_y - 1.2 * m.tab_gap;
-                            let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
-                            if let Some(bend) = tech.bend {
-                                pa.bend(pos2(r.right(), y), above_tab, &bend_label(bend), tech.release);
-                            }
-                            if tech.vibrato {
-                                pa.vibrato(x, x + 2.4 * m.space, above_tab + 0.4 * m.tab_gap);
-                            }
-                            for (on, word, at_y) in
-                                [(tech.palm_mute, tr("P.M."), bottom + 1.1 * m.tab_gap), (tech.tap, tr("T"), above_tab)]
-                            {
-                                if on {
-                                    painter.text(
-                                        pos2(x, at_y),
-                                        Align2::CENTER_CENTER,
-                                        word,
-                                        FontId::proportional(1.1 * m.space),
-                                        ink.ink,
-                                    );
-                                }
-                            }
-                        }
+                    if flow.repeat_end.is_some() {
+                        let x = bx1 - 0.4 * m.space;
+                        painter.line_segment([pos2(x, y), pos2(x, y + 1.4 * m.space)], stroke);
                     }
                 }
-                // Ties and slurs over the line's bars; one whose other end is on another line runs
-                // to the line's edge.
-                let line_bars: Vec<&Bar> = (0..sys.widths.len()).filter_map(|k| part.bars.get(sys.first + k)).collect();
-                let line_start = xs.first().copied().unwrap_or(x0);
+                // Jumps and repeat counts, at the bar's end above the staff.
+                let mut words: Vec<String> = Vec::new();
+                for (on, word) in [
+                    (flow.to_coda, tr("To Coda")),
+                    (flow.dal_segno, tr("D.S.")),
+                    (flow.da_capo, tr("D.C.")),
+                    (flow.fine, tr("Fine")),
+                ] {
+                    if on {
+                        words.push(word.to_owned());
+                    }
+                }
+                if let Some(times) = flow.repeat_end.filter(|t| *t > 2) {
+                    words.push(actcraft_engine::fill(tr("{times}\u{d7}"), &[("times", &times.to_string())]));
+                }
+                if !words.is_empty() {
+                    painter.text(
+                        pos2(bx1 - 2.0, label_y),
+                        Align2::RIGHT_CENTER,
+                        words.join("  "),
+                        FontId::proportional(1.2 * m.space),
+                        ink.ink,
+                    );
+                }
+                // Notes on each staff: chords by onset and voice, short notes beamed by beat.
                 for (si, clef) in rows.staves.iter().enumerate() {
                     let Some(&top) = tops.get(si) else { continue };
                     let top = y0 + top;
-                    let head = |(k, ni): NoteAt| {
-                        let bar = line_bars.get(k)?;
-                        let n = bar.notes.get(ni)?;
-                        let pos = clef.position(n.pitch?);
-                        let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
-                        Some((x, pa.y(top, pos), pos))
-                    };
-                    for arc in arcs(&line_bars, (si + 1) as u8) {
-                        let (from, to) = (arc.from.and_then(head), arc.to.and_then(head));
-                        let Some((_, y_ref, pos)) = from.or(to) else { continue };
-                        // Away from the stems: above for high notes, below for low ones.
-                        let above = arc.above.unwrap_or(pos >= 4);
-                        let off = if above { -0.8 } else { 0.8 } * m.space;
-                        // A tie whose other note is on another line is a short half tie toward the
-                        // line's edge; a slur runs to the edge.
-                        let a = from.map(|(x, y, _)| pos2(x + 0.5 * m.space, y));
-                        let b = to.map(|(x, y, _)| pos2(x - 0.5 * m.space, y));
-                        let stub = 3.0 * m.space;
-                        let a = a.unwrap_or_else(|| {
-                            let edge = b.map_or(line_start, |b| if arc.tie { b.x - stub } else { line_start });
-                            pos2(edge.max(line_start), y_ref)
-                        });
-                        let b = b.unwrap_or_else(|| {
-                            let edge = if arc.tie { a.x + stub } else { x_end };
-                            pos2(edge.min(x_end), y_ref)
-                        });
-                        if b.x > a.x {
-                            pa.arc(a + vec2(0.0, off), b + vec2(0.0, off), above);
+                    let evs = events(bar, (si + 1) as u8);
+                    let mut voices: Vec<u8> = evs.iter().map(|e| e.voice).collect();
+                    voices.sort_unstable();
+                    voices.dedup();
+                    let several = voices.len() > 1;
+                    let leans_up = |notes: &mut dyn Iterator<Item = &Note>, voice: u8| {
+                        if several {
+                            return voice % 2 == 1;
                         }
-                    }
-                }
-                // Lyrics under each staff, verse by verse; a hyphen joins the syllables of a word.
-                for (si, _) in rows.staves.iter().enumerate() {
-                    let (Some(&top), Some(&verses)) = (tops.get(si), rows.verses.get(si)) else { continue };
-                    if verses == 0 {
-                        continue;
-                    }
-                    let top = y0 + top;
-                    let font = FontId::proportional(1.25 * m.space);
-                    // Per verse, the right edge of the last syllable and whether its word goes on.
-                    let mut last: Vec<Option<(f32, bool)>> = vec![None; verses];
-                    for (k, bar) in line_bars.iter().enumerate() {
-                        let (Some(&bx), Some(&w)) = (xs.get(k), sys.widths.get(k)) else { continue };
-                        for n in bar.notes.iter().filter(|n| usize::from(n.staff) == si + 1) {
-                            for l in &n.lyrics {
-                                let Some(slot) = last.get_mut(usize::from(l.verse).saturating_sub(1)) else {
-                                    continue;
-                                };
-                                let y = top + Rows::lyric_y(l.verse, m);
-                                let x = tick_x(bar, bx, w, m, n.start);
-                                let galley = painter.layout_no_wrap(l.text.clone(), font.clone(), ink.ink);
-                                let left = x - galley.size().x / 2.0;
-                                if let Some((right, true)) = *slot {
-                                    painter.text(
-                                        pos2((right + left) / 2.0, y),
-                                        Align2::CENTER_CENTER,
-                                        "-",
-                                        font.clone(),
-                                        ink.ink,
-                                    );
-                                }
-                                *slot = Some((left + galley.size().x, l.syllabic.continues()));
-                                painter.galley(pos2(left, y - galley.size().y / 2.0), galley, ink.ink);
+                        let (sum, count) =
+                            notes.filter_map(|n| n.pitch).fold((0i32, 0i32), |(s, c), p| (s + clef.position(p), c + 1));
+                        count == 0 || sum < 4 * count
+                    };
+                    let first_x = |ev: &Event<'_>| ev.notes.first().map_or(bx, |n| x_of(n));
+                    let mut plan: Vec<Stem> = evs
+                        .iter()
+                        .map(|ev| Stem {
+                            up: leans_up(&mut ev.notes.iter().copied(), ev.voice),
+                            end: None,
+                            flags: true,
+                        })
+                        .collect();
+                    let mut beams = Vec::new();
+                    for group in beam_groups(bar, &evs) {
+                        let members: Vec<&Event<'_>> = group.iter().filter_map(|&i| evs.get(i)).collect();
+                        let voice = members.first().map_or(1, |e| e.voice);
+                        let up = leans_up(&mut members.iter().flat_map(|e| e.notes.iter().copied()), voice);
+                        let stems: Vec<(f32, f32)> = members
+                            .iter()
+                            .map(|ev| (pa.stem_x(first_x(ev), up), pa.natural_end(top, *clef, &ev.notes, up)))
+                            .collect();
+                        let ys = beam_line(&stems, up);
+                        let mut beam = Vec::with_capacity(group.len());
+                        for ((&i, &(sx, _)), &y) in group.iter().zip(&stems).zip(&ys) {
+                            if let (Some(p), Some(ev)) = (plan.get_mut(i), evs.get(i)) {
+                                *p = Stem { up, end: Some(y), flags: false };
+                                beam.push((sx, y, ev.value().flags()));
                             }
                         }
+                        beams.push((beam, up));
                     }
-                    // A word that goes on in the next line ends this one with a hyphen.
-                    for (v, slot) in last.iter().enumerate() {
-                        if let Some((right, true)) = *slot {
-                            let y = top + Rows::lyric_y((v + 1) as u8, m);
-                            painter.text(
-                                pos2(right + 0.8 * m.space, y),
-                                Align2::CENTER_CENTER,
-                                "-",
-                                font.clone(),
-                                ink.ink,
-                            );
+                    let mut acc = Accidentals { key: key_alters(bar.fifths), written: Vec::new() };
+                    for (ev, stem) in evs.iter().zip(&plan) {
+                        pa.chord(first_x(ev), top, *clef, &ev.notes, *stem, &mut acc);
+                    }
+                    for (beam, up) in &beams {
+                        pa.beam(beam, *up);
+                    }
+                    // Tuplets: their number, with a bracket, above the notes and stems.
+                    for g in tuplet_groups(&evs) {
+                        let mut y = top - 0.8 * m.space;
+                        for (ev, stem) in evs.iter().zip(&plan).take(g.last + 1).skip(g.first) {
+                            let head_top = ev
+                                .notes
+                                .iter()
+                                .filter_map(|n| n.pitch)
+                                .map(|p| pa.y(top, clef.position(p)))
+                                .fold(f32::INFINITY, f32::min);
+                            let reach = if stem.up {
+                                stem.end.unwrap_or_else(|| pa.natural_end(top, *clef, &ev.notes, true))
+                            } else {
+                                head_top - 0.6 * m.space
+                            };
+                            y = y.min(reach - 0.9 * m.space);
                         }
+                        let (Some(a), Some(b)) = (evs.get(g.first), evs.get(g.last)) else { continue };
+                        let x0 = first_x(a) - 0.7 * m.space;
+                        let x1 = first_x(b) + 0.7 * m.space;
+                        pa.tuplet(x0, x1, y, g.actual, g.bracket);
                     }
                 }
-                // Hammer-ons, pull-offs and slides between frets on one string.
+                // Frets.
                 if rows.strings > 0 {
-                    let fret = |(k, ni): NoteAt| {
-                        let bar = line_bars.get(k)?;
-                        let n = bar.notes.get(ni)?;
-                        let s = f32::from(n.string?.saturating_sub(1));
-                        let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
-                        Some((x, tab_y + s * m.tab_gap, n.fret.unwrap_or(0)))
-                    };
-                    for link in tab_links(&line_bars) {
-                        let Some((x0, y, f0)) = fret(link.from) else { continue };
-                        let to = link.to.and_then(fret);
-                        let a = pos2(x0 + 0.7 * m.space, y);
-                        let b = to
-                            .map_or(pos2((a.x + 3.0 * m.space).min(x_end), y), |(x, y, _)| pos2(x - 0.7 * m.space, y));
-                        if b.x <= a.x {
+                    let font = FontId::proportional(1.25 * m.space);
+                    for n in &bar.notes {
+                        let (Some(s), Some(f)) = (n.string, n.fret) else { continue };
+                        let s = usize::from(s);
+                        if s == 0 || s > rows.strings {
                             continue;
                         }
-                        match link.kind {
-                            LinkKind::Slide => {
-                                let rising = to.is_none_or(|(_, _, f1)| f1 >= f0);
-                                let d = if rising { 0.3 } else { -0.3 } * m.tab_gap;
-                                painter.line_segment([a + vec2(0.0, d), b - vec2(0.0, d)], Stroke::new(1.3, ink.ink));
-                            }
-                            LinkKind::HammerOn | LinkKind::PullOff => {
-                                let lift = vec2(0.0, -0.45 * m.tab_gap);
-                                pa.arc(a + lift, b + lift, true);
-                                let word = if link.kind == LinkKind::HammerOn { tr("H") } else { tr("P") };
+                        let y = tab_y + (s - 1) as f32 * m.tab_gap;
+                        let tech = n.technique;
+                        // A harmonic's fret in angle brackets, a tied one in parentheses.
+                        let text = match (tech.harmonic, n.tied) {
+                            (true, _) => format!("<{f}>"),
+                            (false, true) => format!("({f})"),
+                            (false, false) => f.to_string(),
+                        };
+                        let x = x_of(n);
+                        let galley = painter.layout_no_wrap(text, font.clone(), ink.ink);
+                        let r = Rect::from_center_size(pos2(x, y), galley.size() + vec2(2.0, 0.0));
+                        painter.rect_filled(r, 0.0, ink.paper);
+                        painter.galley(r.min + vec2(1.0, 0.0), galley, ink.ink);
+                        let above_tab = tab_y - 1.2 * m.tab_gap;
+                        let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
+                        if let Some(bend) = tech.bend {
+                            pa.bend(pos2(r.right(), y), above_tab, &bend_label(bend), tech.release);
+                        }
+                        if tech.vibrato {
+                            pa.vibrato(x, x + 2.4 * m.space, above_tab + 0.4 * m.tab_gap);
+                        }
+                        for (on, word, at_y) in
+                            [(tech.palm_mute, tr("P.M."), bottom + 1.1 * m.tab_gap), (tech.tap, tr("T"), above_tab)]
+                        {
+                            if on {
                                 painter.text(
-                                    pos2((a.x + b.x) / 2.0, y - 1.5 * m.tab_gap),
+                                    pos2(x, at_y),
                                     Align2::CENTER_CENTER,
                                     word,
-                                    FontId::proportional(1.0 * m.space),
+                                    FontId::proportional(1.1 * m.space),
                                     ink.ink,
                                 );
                             }
                         }
                     }
                 }
-                // Clicking a bar plays from its start and makes it the keyboard's bar. Only a
-                // pointer click: Enter on the focused score also counts as a click.
-                if response.clicked()
-                    && ui.input(|i| i.pointer.any_click())
-                    && let Some(at) = response.interact_pointer_pos()
-                    && at.y >= y0
-                    && at.y < y0 + line_h
-                    && let Some(k) = xs.windows(2).position(|w| at.x >= w[0] && at.x < w[1])
-                {
-                    seek = Some(sys.first + k);
-                    cursor = sys.first + k;
+            }
+            // Ties and slurs over the line's bars; one whose other end is on another line runs
+            // to the line's edge.
+            let line_bars: Vec<&Bar> = (0..sys.widths.len()).filter_map(|k| part.bars.get(sys.first + k)).collect();
+            let line_start = xs.first().copied().unwrap_or(x0);
+            for (si, clef) in rows.staves.iter().enumerate() {
+                let Some(&top) = tops.get(si) else { continue };
+                let top = y0 + top;
+                let head = |(k, ni): NoteAt| {
+                    let bar = line_bars.get(k)?;
+                    let n = bar.notes.get(ni)?;
+                    let pos = clef.position(n.pitch?);
+                    let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
+                    Some((x, pa.y(top, pos), pos))
+                };
+                for arc in arcs(&line_bars, (si + 1) as u8) {
+                    let (from, to) = (arc.from.and_then(head), arc.to.and_then(head));
+                    let Some((_, y_ref, pos)) = from.or(to) else { continue };
+                    // Away from the stems: above for high notes, below for low ones.
+                    let above = arc.above.unwrap_or(pos >= 4);
+                    let off = if above { -0.8 } else { 0.8 } * m.space;
+                    // A tie whose other note is on another line is a short half tie toward the
+                    // line's edge; a slur runs to the edge.
+                    let a = from.map(|(x, y, _)| pos2(x + 0.5 * m.space, y));
+                    let b = to.map(|(x, y, _)| pos2(x - 0.5 * m.space, y));
+                    let stub = 3.0 * m.space;
+                    let a = a.unwrap_or_else(|| {
+                        let edge = b.map_or(line_start, |b| if arc.tie { b.x - stub } else { line_start });
+                        pos2(edge.max(line_start), y_ref)
+                    });
+                    let b = b.unwrap_or_else(|| {
+                        let edge = if arc.tie { a.x + stub } else { x_end };
+                        pos2(edge.min(x_end), y_ref)
+                    });
+                    if b.x > a.x {
+                        pa.arc(a + vec2(0.0, off), b + vec2(0.0, off), above);
+                    }
                 }
             }
-            response
-                .on_hover_text(tr("Click a bar to play from there, or choose one with the arrow keys and press Enter"));
-        });
-        self.notation_look.cursor = cursor;
-        if let Some(k) = seek.and_then(|bar| played_index(order, bar, played.map(|p| p.0))) {
-            let at = bar_time(song, k).max(0.0);
-            self.run(e, "transport.seek", json!({"seconds": at}));
+            // Lyrics under each staff, verse by verse; a hyphen joins the syllables of a word.
+            for (si, _) in rows.staves.iter().enumerate() {
+                let (Some(&top), Some(&verses)) = (tops.get(si), rows.verses.get(si)) else { continue };
+                if verses == 0 {
+                    continue;
+                }
+                let top = y0 + top;
+                let font = FontId::proportional(1.25 * m.space);
+                // Per verse, the right edge of the last syllable and whether its word goes on.
+                let mut last: Vec<Option<(f32, bool)>> = vec![None; verses];
+                for (k, bar) in line_bars.iter().enumerate() {
+                    let (Some(&bx), Some(&w)) = (xs.get(k), sys.widths.get(k)) else { continue };
+                    for n in bar.notes.iter().filter(|n| usize::from(n.staff) == si + 1) {
+                        for l in &n.lyrics {
+                            let Some(slot) = last.get_mut(usize::from(l.verse).saturating_sub(1)) else {
+                                continue;
+                            };
+                            let y = top + Rows::lyric_y(l.verse, m);
+                            let x = tick_x(bar, bx, w, m, n.start);
+                            let galley = painter.layout_no_wrap(l.text.clone(), font.clone(), ink.ink);
+                            let left = x - galley.size().x / 2.0;
+                            if let Some((right, true)) = *slot {
+                                painter.text(
+                                    pos2((right + left) / 2.0, y),
+                                    Align2::CENTER_CENTER,
+                                    "-",
+                                    font.clone(),
+                                    ink.ink,
+                                );
+                            }
+                            *slot = Some((left + galley.size().x, l.syllabic.continues()));
+                            painter.galley(pos2(left, y - galley.size().y / 2.0), galley, ink.ink);
+                        }
+                    }
+                }
+                // A word that goes on in the next line ends this one with a hyphen.
+                for (v, slot) in last.iter().enumerate() {
+                    if let Some((right, true)) = *slot {
+                        let y = top + Rows::lyric_y((v + 1) as u8, m);
+                        painter.text(pos2(right + 0.8 * m.space, y), Align2::CENTER_CENTER, "-", font.clone(), ink.ink);
+                    }
+                }
+            }
+            // Hammer-ons, pull-offs and slides between frets on one string.
+            if rows.strings > 0 {
+                let fret = |(k, ni): NoteAt| {
+                    let bar = line_bars.get(k)?;
+                    let n = bar.notes.get(ni)?;
+                    let s = f32::from(n.string?.saturating_sub(1));
+                    let x = tick_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n.start);
+                    Some((x, tab_y + s * m.tab_gap, n.fret.unwrap_or(0)))
+                };
+                for link in tab_links(&line_bars) {
+                    let Some((x0, y, f0)) = fret(link.from) else { continue };
+                    let to = link.to.and_then(fret);
+                    let a = pos2(x0 + 0.7 * m.space, y);
+                    let b =
+                        to.map_or(pos2((a.x + 3.0 * m.space).min(x_end), y), |(x, y, _)| pos2(x - 0.7 * m.space, y));
+                    if b.x <= a.x {
+                        continue;
+                    }
+                    match link.kind {
+                        LinkKind::Slide => {
+                            let rising = to.is_none_or(|(_, _, f1)| f1 >= f0);
+                            let d = if rising { 0.3 } else { -0.3 } * m.tab_gap;
+                            painter.line_segment([a + vec2(0.0, d), b - vec2(0.0, d)], Stroke::new(1.3, ink.ink));
+                        }
+                        LinkKind::HammerOn | LinkKind::PullOff => {
+                            let lift = vec2(0.0, -0.45 * m.tab_gap);
+                            pa.arc(a + lift, b + lift, true);
+                            let word = if link.kind == LinkKind::HammerOn { tr("H") } else { tr("P") };
+                            painter.text(
+                                pos2((a.x + b.x) / 2.0, y - 1.5 * m.tab_gap),
+                                Align2::CENTER_CENTER,
+                                word,
+                                FontId::proportional(1.0 * m.space),
+                                ink.ink,
+                            );
+                        }
+                    }
+                }
+            }
+            // Clicking a bar plays from its start and makes it the keyboard's bar. Only a
+            // pointer click: Enter on the focused score also counts as a click.
+            if response.clicked()
+                && ui.input(|i| i.pointer.any_click())
+                && let Some(at) = response.interact_pointer_pos()
+                && at.y >= y0
+                && at.y < y0 + line_h
+                && let Some(k) = xs.windows(2).position(|w| at.x >= w[0] && at.x < w[1])
+            {
+                seek = Some(sys.first + k);
+                cursor = sys.first + k;
+            }
         }
-    }
+        response.on_hover_text(tr("Click a bar to play from there, or choose one with the arrow keys and press Enter"));
+    });
+    let seek = seek.and_then(|bar| played_index(order, bar, played.map(|p| p.0))).map(|k| bar_time(song, k).max(0.0));
+    ScoreOutput { cursor, seek }
 }
 
 /// The line a bar is drawn on.

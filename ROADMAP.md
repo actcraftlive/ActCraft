@@ -23,13 +23,12 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Second window shows sheet music too: PDF and notation (M2)
-2. PDF annotations (M2)
-3. Lyrics editor: timecode-aware undo (M2)
-4. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-5. Show package of a single song or playlist (M1)
-6. Command errors that carry a value (file name, number) in the window's language
-7. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. PDF annotations (M2)
+2. Lyrics editor: timecode-aware undo (M2)
+3. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+4. Show package of a single song or playlist (M1)
+5. Command errors that carry a value (file name, number) in the window's language
+6. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -98,13 +97,12 @@ details are in the milestone sections further down.
   just before a cue to hear it
 - 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
   colours, scroll with playback (done); annotations to do
-- 🔶 Notation per song in the Sheet music tab (done): a MusicXML score (`.musicxml`, `.xml`,
+- ✅ Notation per song in the Sheet music tab: a MusicXML score (`.musicxml`, `.xml`,
   compressed `.mxl`, as notation and tablature editors export it) drawn as staves and tablature,
   part by part; frets come from the file or are placed on the part's tuning; eighths and shorter
   notes beamed by beat; the playing bar is marked on the song's beat grid, the view follows
   playback, a click on a bar plays from there (`notation.attach`, `notation.read`,
-  `song.set {notation_file}`); drop a score on the window to attach it. Follow-ups, the open
-  ones in order:
+  `song.set {notation_file}`); drop a score on the window to attach it. Follow-ups:
   - ✅ Bar offset between score and audio: "Score bar 1 is song bar N" per song (0 or less for
     a pickup bar), used by the playing-bar mark, follow and click-to-bar
     (`song.set {score_first_bar}`)
@@ -123,11 +121,13 @@ details are in the milestone sections further down.
   - ✅ Keyboard way to move to a bar: with the score focused, the arrow keys choose a bar (up and
     down by line), Home and End the first and last, Enter plays from it; the chosen bar is
     outlined and named for screen readers, as is the playing bar
-  - ⬜ Notation in the second window (large, follows playback), like the lyrics window
+  - ✅ Notation in the second window (large, follows playback), like the lyrics
   - Not planned: native files of tablature editors are not read, their formats are not publicly documented
     (clean room); they export MusicXML, which is read
-- 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
-  sheet music follows with PDF
+- ✅ Second window (Stage window, opened from the Lyrics or the Sheet music tab): lyrics (large
+  text, chords) or sheet music (the score at its own zoom, or the PDF at the window's width with
+  inverted colours), full screen, follows playback; it keeps its own files, so it can show
+  another song than the main window
 
 ## M3 MIDI and remote ⬜
 
