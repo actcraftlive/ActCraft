@@ -17,6 +17,7 @@ actcraft-show = { path = "../crates/actcraft-show" }
 actcraft-library = { path = "../crates/actcraft-library" }
 actcraft-audio = { path = "../crates/actcraft-audio" }
 actcraft-lyrics = { path = "../crates/actcraft-lyrics" }
+actcraft-notation = { path = "../crates/actcraft-notation" }
 
 [[bin]]
 name = "lyrics"
@@ -45,5 +46,11 @@ doc = false
 [[bin]]
 name = "audio_decode"
 path = "fuzz_targets/audio_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "notation"
+path = "fuzz_targets/notation.rs"
 test = false
 doc = false

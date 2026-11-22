@@ -28,6 +28,7 @@ actcraft-command = { path = "crates/actcraft-command" }
 actcraft-show = { path = "crates/actcraft-show" }
 actcraft-library = { path = "crates/actcraft-library" }
 actcraft-lyrics = { path = "crates/actcraft-lyrics" }
+actcraft-notation = { path = "crates/actcraft-notation" }
 actcraft-audio = { path = "crates/actcraft-audio" }
 actcraft-engine = { path = "crates/actcraft-engine" }
 actcraft-platform = { path = "crates/actcraft-platform" }
@@ -48,6 +49,7 @@ craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "8048f8
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-i18n = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-zip = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+craft-xml = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", features = ["raster"] }
 craft-audio = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", default-features = false, features = ["decode-native"] }
 

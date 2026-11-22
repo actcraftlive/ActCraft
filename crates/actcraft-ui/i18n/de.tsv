@@ -81,7 +81,7 @@
 	Down a semitone	Einen Halbton tiefer
 	Downbeat earlier	Taktanfang früher
 	Downbeat later	Taktanfang später
-	Drop audio files to add songs, or a show file to open it	Audiodateien ablegen, um Songs hinzuzufügen, oder eine Show-Datei, um sie zu öffnen
+	Drop audio files to add songs, a show file to open it, or a score or PDF to attach it to the song	Audiodateien ablegen, um Songs hinzuzufügen, eine Show-Datei, um sie zu öffnen, oder Noten (Partitur oder PDF), um sie an den Song anzuhängen
 	Duplicate songs	Doppelte Songs
 	EQ	EQ
 	Each song sets when its click sounds (whole song, count-in only, visual only or off) and how many bars it counts in: see the song details above the mixer.	Jeder Song legt fest, wann sein Klick erklingt (ganzer Song, nur Einzähler, nur optisch oder aus) und wie viele Takte er einzählt: siehe Songdetails über dem Mixer.
@@ -453,7 +453,7 @@
 	Attach PDF…	PDF anhängen…
 	Choose another PDF…	Andere PDF wählen…
 	Invert colours	Farben umkehren
-	No PDF yet. Attach sheet music, a lyrics sheet or notes as a PDF to see them here while you play.	Noch keine PDF. Hänge Noten, ein Textblatt oder Notizen als PDF an, um sie hier beim Spielen zu sehen.
+	No sheet music yet. Attach a PDF (sheet music, a lyrics sheet or notes) or a score as MusicXML (notes and tablature) to see it here while you play.	Noch keine Noten. Hänge eine PDF (Noten, ein Textblatt oder Notizen) oder eine Partitur als MusicXML (Noten und Tabulatur) an, um sie hier beim Spielen zu sehen.
 	PDF file	PDF-Datei
 	Page {page}	Seite {page}
 	Remove PDF	PDF entfernen
@@ -516,3 +516,33 @@
 	ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, and (coming) MIDI and DMX lighting, all on one clock and in one show file.	ActCraft ist eine Showsteuerung für Live-Musiker: Backing-Tracks mit Songtexten, Akkorden, Noten, Ansagen, Setlisten und Klick, und (in Arbeit) MIDI und DMX-Licht, alles auf einer Uhr und in einer Show-Datei.
 	Free and open source for Windows, macOS and Linux.	Frei und quelloffen für Windows, macOS und Linux.
 	Version	Version
+# Notation (MusicXML scores as notes and tablature)
+	ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl)	ActCraft liest Noten aus MusicXML-Dateien (.musicxml, .xml, .mxl)
+	Attach Notation…	Partitur anhängen…
+	Attach notation	Partitur anhängen
+	Attach notation…	Partitur anhängen…
+	Choose another score…	Andere Partitur wählen…
+	Click a bar to play from there	Einen Takt anklicken, um ab dort zu spielen
+	Display	Darstellung
+	Instrument	Instrument
+	Keep the playing bar in view while the song plays	Den gespielten Takt beim Abspielen im Blick behalten
+	MusicXML score	MusicXML-Partitur
+	Notation	Partitur
+	Notation attached: {parts} parts, {bars} bars	Partitur angehängt: {parts} Stimmen, {bars} Takte
+	Notation:	Partitur:
+	Notes	Noten
+	Notes and tab	Noten und Tab
+	Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl); notation and tab editors can export it	Noten und Tabulatur als MusicXML-Datei (.musicxml, .xml oder .mxl); Noten- und Tab-Programme können sie exportieren
+	PDF	PDF
+	Read notation	Partitur lesen
+	Remove notation	Partitur entfernen
+	Tab	Tab
+	The notation could not be opened:	Die Partitur ließ sich nicht öffnen:
+	`notation_file` must be a .musicxml, .xml or .mxl file	`notation_file` muss eine .musicxml-, .xml- oder .mxl-Datei sein
+	that compressed file holds no MusicXML score	Diese komprimierte Datei enthält keine MusicXML-Partitur
+	that file is not a MusicXML score	Diese Datei ist keine MusicXML-Partitur
+	that notation file cannot be read	Diese Partitur-Datei lässt sich nicht lesen
+	that notation file is too large	Diese Partitur-Datei ist zu groß
+	that score has no notes	Diese Partitur enthält keine Noten
+	the song has no notation	Der Song hat keine Partitur
+	{bpm} BPM	{bpm} BPM

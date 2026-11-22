@@ -228,6 +228,7 @@ fn main() {
     let edit_lyrics = args.iter().any(|a| a == "--edit-lyrics");
     let stage = args.iter().any(|a| a == "--stage");
     let cues = args.iter().any(|a| a == "--cues");
+    let sheet = args.iter().any(|a| a == "--sheet");
     let about = args.iter().any(|a| a == "--about");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
@@ -265,6 +266,9 @@ fn main() {
             }
             if show_lyrics {
                 app.show_lyrics();
+            }
+            if sheet {
+                app.show_sheet();
             }
             if edit_lyrics {
                 app.edit_lyrics();

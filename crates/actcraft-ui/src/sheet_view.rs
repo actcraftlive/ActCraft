@@ -29,6 +29,14 @@ const MAX_TEXTURES: usize = 24;
 type PageKey = (usize, u32, bool);
 type Done = Arc<Mutex<Vec<(PageKey, Result<ColorImage, String>)>>>;
 
+/// What the Sheet music tab shows when a song has both a PDF and a score.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum SheetSource {
+    #[default]
+    Notation,
+    Pdf,
+}
+
 /// How the Sheet music tab shows pages.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SheetLook {
@@ -192,7 +200,19 @@ impl ActCraftApp {
                 }
             }
         }
+        let score = song.notation_file.is_some();
+        // With both a PDF and a score, the person picks which one shows.
+        let source = match (wanted.is_some(), score) {
+            (true, false) => SheetSource::Pdf,
+            (false, true) => SheetSource::Notation,
+            _ => self.sheet_source,
+        };
         ui.horizontal_wrapped(|ui| {
+            if wanted.is_some() && score {
+                ui.selectable_value(&mut self.sheet_source, SheetSource::Notation, tr("Notation"));
+                ui.selectable_value(&mut self.sheet_source, SheetSource::Pdf, tr("PDF"));
+                ui.separator();
+            }
             let attach = if wanted.is_some() { tr("Choose another PDF\u{2026}") } else { tr("Attach PDF\u{2026}") };
             if ui.button(attach).on_hover_text(tr("Sheet music, lyrics or notes as a PDF file")).clicked() {
                 self.ask_file(FileRequest {
@@ -207,8 +227,33 @@ impl ActCraftApp {
             if wanted.is_some() && ui.button(tr("Remove PDF")).clicked() {
                 self.run(e, "song.set", json!({"song": song.id, "pdf_file": null}));
             }
-            if let Some(doc) = &self.sheet {
-                ui.separator();
+            let attach =
+                if score { tr("Choose another score\u{2026}") } else { tr("Attach notation\u{2026}") };
+            if ui
+                .button(attach)
+                .on_hover_text(tr("Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl); notation and tab editors can export it"))
+                .clicked()
+            {
+                self.ask_file(FileRequest {
+                    ask: FileAsk::AttachNotation { song: song.id },
+                    kind: FileKind::Open,
+                    title: tr("Attach notation"),
+                    filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
+                    file_name: None,
+                    directory: None,
+                });
+            }
+            if score && ui.button(tr("Remove notation")).clicked() {
+                self.run(e, "song.set", json!({"song": song.id, "notation_file": null}));
+            }
+        });
+        if score && source == SheetSource::Notation {
+            ui.separator();
+            self.notation_view(ui, e, song);
+            return;
+        }
+        if let Some(doc) = &self.sheet {
+            ui.horizontal_wrapped(|ui| {
                 let n = doc.pages.len().to_string();
                 ui.label(actcraft_engine::fill(tr("{count} pages"), &[("count", &n)]));
                 ui.spacing_mut().slider_width = 120.0;
@@ -217,13 +262,13 @@ impl ActCraftApp {
                     .on_hover_text(tr("White on black, for a dark stage"));
                 ui.checkbox(&mut self.sheet_view.follow, tr("Follow playback"))
                     .on_hover_text(tr("Scroll through the pages at a constant speed while the song plays"));
-            }
-        });
+            });
+        }
         ui.separator();
         let Some(doc) = self.sheet.as_mut() else {
             if wanted.is_none() {
                 ui.add_space(20.0);
-                ui.label(RichText::new(tr("No PDF yet. Attach sheet music, a lyrics sheet or notes as a PDF to see them here while you play.")).color(t.text_dim));
+                ui.label(RichText::new(tr("No sheet music yet. Attach a PDF (sheet music, a lyrics sheet or notes) or a score as MusicXML (notes and tablature) to see it here while you play.")).color(t.text_dim));
             }
             return;
         };

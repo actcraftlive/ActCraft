@@ -102,7 +102,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, announce_title?: bool, fade_out?, midi_file?, pdf_file?: text|null, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, announce_title?: bool, fade_out?, midi_file?, pdf_file?: text|null, notation_file?: text|null (.musicxml, .xml, .mxl), lyrics?, lyrics_scroll?: line|smooth|constant|off}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -171,6 +171,22 @@ pub fn all() -> Vec<Command<Engine>> {
             None,
             "{song?: id, path: text} (.txt, .cho/.chopro/.chordpro/.crd/.pro, .lrc)",
             lyrics_import,
+        )),
+        with_songs(cmd(
+            "notation.attach",
+            "Attach notation",
+            "Song/Attach Notation…",
+            None,
+            "{song?: id, path: text} (MusicXML: .musicxml, .xml, .mxl)",
+            crate::notation_commands::notation_attach,
+        )),
+        with_songs(cmd(
+            "notation.read",
+            "Read notation",
+            "",
+            None,
+            "{song?: id} -> {title, composer, tempo, parts: [{name, bars, notes, tablature, strings, capo}]}",
+            crate::notation_commands::notation_read,
         )),
         with_songs(cmd(
             "lyrics.stamp_line",
@@ -712,6 +728,14 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
             return Err(invalid("`pdf_file` must be a .pdf file"));
         }
         next.pdf_file = Some(v.to_owned());
+    }
+    if prm.get("notation_file").is_some_and(Value::is_null) {
+        next.notation_file = None;
+    } else if let Some(v) = p::opt_str_max(prm, "notation_file", MAX_TEXT)? {
+        if !crate::notation_commands::is_notation_path(v) {
+            return Err(invalid("`notation_file` must be a .musicxml, .xml or .mxl file"));
+        }
+        next.notation_file = Some(v.to_owned());
     }
     if prm.get("midi_file").is_some_and(Value::is_null) {
         next.midi_file = None;

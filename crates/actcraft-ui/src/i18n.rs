@@ -88,6 +88,7 @@ mod tests {
             include_str!("lyrics_view.rs"),
             include_str!("regions_view.rs"),
             include_str!("sheet_view.rs"),
+            include_str!("notation_view.rs"),
             include_str!("cues_view.rs"),
         ];
         let engine = [
@@ -95,6 +96,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/commands.rs"),
             include_str!("../../actcraft-engine/src/region_commands.rs"),
             include_str!("../../actcraft-engine/src/package_commands.rs"),
+            include_str!("../../actcraft-engine/src/notation_commands.rs"),
             include_str!("../../actcraft-engine/src/voice.rs"),
             include_str!("../../actcraft/src/main.rs"),
         ];

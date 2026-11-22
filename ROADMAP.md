@@ -74,6 +74,12 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
   just before a cue to hear it
 - 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
   colours, scroll with playback (done); annotations to do
+- ✅ Notation per song in the Sheet music tab: a MusicXML score (`.musicxml`, `.xml`, compressed
+  `.mxl`, as notation and tablature editors export it) drawn as staves and tablature, part by
+  part; frets come from the file or are placed on the part's tuning; the playing bar is marked
+  on the song's beat grid, the view follows playback, a click on a bar plays from there
+  (`notation.attach`, `notation.read`, `song.set {notation_file}`); drop a score on the window to
+  attach it. Beams, slurs, lyrics under the notes and repeats still to do
 - 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
   sheet music follows with PDF
 

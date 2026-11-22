@@ -30,6 +30,7 @@ pub enum FileAsk {
     TrackFile { song: u64, track: usize },
     ImportLyrics { song: u64 },
     AttachPdf { song: u64 },
+    AttachNotation { song: u64 },
     ExportPackage,
     OpenPackage,
 }
@@ -110,6 +111,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "show.rename"
             | "song.import_files"
             | "lyrics.import"
+            | "notation.attach"
             | "song.add"
             | "song.remove"
             | "track.add"
@@ -197,6 +199,14 @@ impl ActCraftApp {
             FileAsk::ImportLyrics { song } => {
                 if e.run("lyrics.import", &json!({"song": song, "path": path_string(&first)})).is_ok() {
                     self.centre_tab = crate::CentreTab::Lyrics;
+                }
+            }
+            FileAsk::AttachNotation { song } => {
+                if e.run("notation.attach", &json!({"song": song, "path": path_string(&first)})).is_ok() {
+                    self.centre_tab = crate::CentreTab::Sheet;
+                    self.sheet_source = crate::sheet_view::SheetSource::Notation;
+                    // Read again, also when the same file was edited and attached once more.
+                    self.notation = None;
                 }
             }
         }
@@ -346,6 +356,18 @@ impl ActCraftApp {
                 });
             }
             "song.import_files" => self.ask_add_songs(e),
+            "notation.attach" => {
+                if let Some(song) = current {
+                    self.ask_file(FileRequest {
+                        ask: FileAsk::AttachNotation { song },
+                        kind: FileKind::Open,
+                        title: tr("Attach notation"),
+                        filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
+                        file_name: None,
+                        directory: show_dir(e),
+                    });
+                }
+            }
             "lyrics.import" => {
                 if let Some(song) = current {
                     self.ask_file(FileRequest {
@@ -443,7 +465,8 @@ impl ActCraftApp {
         }
     }
 
-    /// Files dropped on the window: a show opens, audio files become songs.
+    /// Files dropped on the window: a show opens, a score or PDF is attached to the song on screen,
+    /// audio files become songs.
     pub(crate) fn handle_drops(&mut self, ctx: &egui::Context, e: &mut Engine) {
         let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
         if dropped.is_empty() {
@@ -458,6 +481,25 @@ impl ActCraftApp {
                 let _ = e.run("show.open", &json!({"path": path_string(show)}));
             }
             return;
+        }
+        // A score or a PDF goes to the song on screen, in its Sheet music tab.
+        if let Some(song) = e.current_song {
+            if let Some(score) = dropped.iter().find(|p| has_ext(p, crate::notation_view::NOTATION_EXTENSIONS)) {
+                if e.run("notation.attach", &json!({"song": song, "path": path_string(score)})).is_ok() {
+                    self.centre_tab = crate::CentreTab::Sheet;
+                    self.sheet_source = crate::sheet_view::SheetSource::Notation;
+                    // Read again, also when the same file was edited and attached once more.
+                    self.notation = None;
+                }
+                return;
+            }
+            if let Some(pdf) = dropped.iter().find(|p| has_ext(p, crate::sheet_view::PDF_EXTENSIONS)) {
+                if e.run("song.set", &json!({"song": song, "pdf_file": path_string(pdf)})).is_ok() {
+                    self.centre_tab = crate::CentreTab::Sheet;
+                    self.sheet_source = crate::sheet_view::SheetSource::Pdf;
+                }
+                return;
+            }
         }
         self.add_songs(e, &dropped);
     }
@@ -475,7 +517,7 @@ impl ActCraftApp {
         painter.text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
-            tr("Drop audio files to add songs, or a show file to open it"),
+            tr("Drop audio files to add songs, a show file to open it, or a score or PDF to attach it to the song"),
             egui::FontId::proportional(24.0),
             t.text,
         );

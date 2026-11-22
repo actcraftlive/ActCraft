@@ -25,6 +25,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod notation_commands;
 pub mod package_commands;
 pub mod region_commands;
 pub mod services;
@@ -34,6 +35,7 @@ pub use actcraft_audio::tempo;
 pub use actcraft_audio::{BeatClock, GridLine};
 pub use actcraft_command::{CommandError, CommandSpec, guard};
 pub use actcraft_lyrics as lyrics;
+pub use actcraft_notation as notation;
 pub use services::{MemoryServices, Services};
 
 /// Messages kept for the status line and screen readers.
