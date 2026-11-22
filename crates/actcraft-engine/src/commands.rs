@@ -751,6 +751,10 @@ fn song_set(e: &mut Engine, prm: &Value) -> CommandResult {
     apply_song_fields(s, prm)?;
     e.mark_changed();
     e.push_song_settings(id);
+    // The title, tempo or first beat place the spoken cues.
+    if ["announce_title", "title", "bpm", "beats_per_bar", "beat_anchor", "start"].iter().any(|k| p::has(prm, k)) {
+        e.voices_changed(id);
+    }
     ok()
 }
 

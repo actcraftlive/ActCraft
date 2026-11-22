@@ -137,6 +137,8 @@ pub struct Engine {
     peaks: BTreeMap<String, Arc<Peaks>>,
     /// Spoken cues, ready and in the making.
     voices: voice::Voices,
+    /// A loaded song to load again (when stopped) because its spoken cues changed.
+    voice_reload: Option<u64>,
     services: Box<dyn Services>,
     // Background decoding: files in flight, files that failed, and what waits for them.
     load_tx: Sender<LoadResult>,
@@ -204,6 +206,7 @@ impl Engine {
             clips: BTreeMap::new(),
             peaks: BTreeMap::new(),
             voices: voice::Voices::default(),
+            voice_reload: None,
             services,
         }
     }
@@ -488,6 +491,9 @@ impl Engine {
         let mut load =
             SongLoad::new(slots, song.start, song.end, BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor));
         load.loop_song = song.loop_song;
+        // The spoken title plays when the song starts, with its count-in.
+        load.announce =
+            self.announce_track(&song).map(|(clip, track)| TrackSlot::new(Some(clip), self.track_params(&track)));
         load.fade_out = song.fade_out;
         load.song_gain = actcraft_audio::dsp::db_to_gain(song.volume_db);
         load.count_in_bars = song.count_in_bars;
@@ -766,6 +772,8 @@ impl Engine {
             let table = Box::new(region_table(s));
             self.send(Msg::Regions(table));
         }
+        // Region words or times may have changed: the voice track follows.
+        self.voices_changed(id);
     }
 
     pub(crate) fn send_msg(&mut self, msg: Msg) -> bool {

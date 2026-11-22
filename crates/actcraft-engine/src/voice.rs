@@ -48,14 +48,25 @@ fn voice_key(language: &str, text: &str) -> String {
     format!("voice1|{language}|{text}")
 }
 
-/// Where a song's phrases are spoken: (song time, text), in time order. The title at the song's
-/// start; each region's words `lead_beats` before it (never before the song's start).
+/// The title to say when the song is started (with its count-in), if it's announced.
+pub fn announced_title(song: &Song) -> Option<String> {
+    let title = song.title.trim();
+    (song.announce_title && !title.is_empty()).then(|| title.to_owned())
+}
+
+/// Every phrase a song needs: its announced title and its regions' words.
+pub fn voice_texts(song: &Song, lead_beats: u8) -> Vec<String> {
+    let mut out: Vec<String> = announced_title(song).into_iter().collect();
+    out.extend(voice_cues(song, lead_beats).into_iter().map(|(_, t)| t));
+    out
+}
+
+/// Where a song's region words are spoken: (song time, text), in time order, each
+/// `lead_beats` before its region (never before the song's start). The title isn't here: it
+/// plays when the song is started, with the count-in ([`announced_title`]).
 pub fn voice_cues(song: &Song, lead_beats: u8) -> Vec<(f64, String)> {
     let mut out = Vec::new();
     let start = song.start.max(0.0);
-    if song.announce_title && !song.title.trim().is_empty() {
-        out.push((start, song.title.trim().to_owned()));
-    }
     let clock = BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
     let lead = f64::from(lead_beats) * clock.beat_len();
     for r in &song.regions {
@@ -110,7 +121,7 @@ impl Engine {
             return 0;
         }
         let language = self.show.voice.language.clone();
-        let texts: Vec<String> = voice_cues(song, self.show.voice.lead_beats).into_iter().map(|(_, t)| t).collect();
+        let texts = voice_texts(song, self.show.voice.lead_beats);
         for text in texts {
             let key = voice_key(&language, &text);
             if self.voices.clips.contains_key(&key)
@@ -169,13 +180,46 @@ impl Engine {
                 }
             }
         }
-        if got
+        if got && let Some(id) = self.loaded_song_pub() {
+            self.voice_reload = Some(id);
+        }
+        // A loaded song whose cues changed is loaded again once it's stopped and its phrases are
+        // ready, so what plays is what the cues say.
+        if let Some(id) = self.voice_reload
             && self.voices.pending.is_empty()
             && !self.status.playing
-            && let Some(id) = self.loaded_song_pub()
         {
-            self.load_into_renderer(id);
+            self.voice_reload = None;
+            if self.loaded_song_pub() == Some(id) {
+                self.load_into_renderer(id);
+            }
         }
+    }
+
+    /// A song's spoken cues changed (words, title, timing): speak what's new and load the song
+    /// again when it's stopped.
+    pub(crate) fn voices_changed(&mut self, id: u64) {
+        if self.loaded_song_pub() != Some(id) {
+            return;
+        }
+        self.voice_reload = Some(id);
+        self.request_voices(id);
+    }
+
+    /// The spoken title, played when the song is started (with its count-in).
+    pub(crate) fn announce_track(&self, song: &Song) -> Option<(Arc<Clip>, Track)> {
+        let v = &self.show.voice;
+        if !v.enabled {
+            return None;
+        }
+        let title = announced_title(song)?;
+        let clip = self.voices.clips.get(&voice_key(&v.language, &title))?;
+        Some((Arc::clone(clip), self.voice_bus_track()))
+    }
+
+    fn voice_bus_track(&self) -> Track {
+        let v = &self.show.voice;
+        Track { name: "Voice".to_owned(), bus: v.bus, volume_db: v.volume_db, mono_to_stereo: true, ..Track::default() }
     }
 
     /// The song's voice track, from the phrases ready now.
@@ -189,14 +233,7 @@ impl Engine {
             .filter_map(|(t, text)| self.voices.clips.get(&voice_key(&v.language, &text)).map(|c| (t, Arc::clone(c))))
             .collect();
         let clip = lay_out(&cues)?;
-        let track = Track {
-            name: "Voice".to_owned(),
-            bus: v.bus,
-            volume_db: v.volume_db,
-            mono_to_stereo: true,
-            ..Track::default()
-        };
-        Some((clip, track))
+        Some((clip, self.voice_bus_track()))
     }
 
     /// Phrases still being spoken.
@@ -234,9 +271,8 @@ pub fn voice_set(e: &mut Engine, prm: &Value) -> CommandResult {
     e.mark_changed();
     if let Some(id) = e.current_song {
         e.request_voices(id);
-        if !e.status.playing && e.loaded_song_pub() == Some(id) {
-            e.load_into_renderer(id);
-        }
+        e.voices_changed(id);
+        e.drain_voices();
     }
     Ok(json!({"enabled": e.show.voice.enabled}))
 }
@@ -285,8 +321,12 @@ mod tests {
         }
         // Four beats at 120 BPM: two seconds early.
         let cues = voice_cues(&song, 4);
-        assert_eq!(cues, vec![(0.0, "Asgard".to_owned()), (0.0, "Strophe".to_owned()), (8.0, "Refrain".to_owned())]);
+        assert_eq!(cues, vec![(0.0, "Strophe".to_owned()), (8.0, "Refrain".to_owned())]);
+        // The title isn't placed in the song: it plays when the song is started.
+        assert_eq!(announced_title(&song).as_deref(), Some("Asgard"));
+        assert_eq!(voice_texts(&song, 4), ["Asgard", "Strophe", "Refrain"]);
         song.announce_title = false;
+        assert_eq!(announced_title(&song), None);
         assert_eq!(voice_cues(&song, 0).first().map(|c| c.0), Some(1.0));
     }
 

@@ -502,14 +502,14 @@
 	Play or click the waveform to the place where the part starts ({time}), then pick a word or type your own.	Spiele bis zur Stelle, an der der Teil beginnt, oder klicke dort in die Wellenform ({time}); dann wähle ein Wort oder tippe ein eigenes.
 	Say its name	Namen sagen
 	Say nothing before this part	Vor diesem Teil nichts sagen
-	Say the title at the start:	Titel am Anfang ansagen:
+	Say the title when the song is started:	Titel beim Starten des Songs ansagen:
 	Settings > Spoken cues	Einstellungen > Ansagen
 	Solo	Solo
 	Spoken cues are switched off for this show.	Ansagen sind für diese Show ausgeschaltet.
 	Spoken cues •	Ansagen •
 	Starts at	Beginnt bei
 	Switch on	Einschalten
-	The computer's voice says these words on the voice bus while the song plays: the title at the start, and each part's words a few beats before the part begins.	Die Stimme des Computers sagt diese Worte auf dem Stimmen-Bus, während der Song läuft: den Titel am Anfang und vor jedem Teil dessen Worte, ein paar Schläge bevor er beginnt.
+	The computer's voice says these words on the voice bus: the title when you start the song (as the count-in begins), and each part's words a few beats before the part begins.	Die Stimme des Computers sagt diese Worte auf dem Stimmen-Bus: den Titel, wenn du den Song startest (mit Beginn des Einzählens), und vor jedem Teil dessen Worte, ein paar Schläge bevor er beginnt.
 	Verse	Strophe
 	Voice, bus and timing…	Stimme, Bus und Timing…
 	Your own words	Eigene Worte

@@ -158,6 +158,11 @@ pub struct SongLoad {
     pub count_in_bars: u8,
     /// Loop, skip and stop-after regions.
     pub regions: RegionTable,
+    /// Played from the moment the song is started from its beginning (with its count-in, if
+    /// any), whatever the song time: the spoken title.
+    pub announce: Option<TrackSlot>,
+    /// Frames of the announcement played so far; `None` when it isn't playing.
+    announce_at: Option<u64>,
     // Runtime: song time = origin + elapsed / sample_rate.
     origin: f64,
     elapsed: u64,
@@ -183,6 +188,8 @@ impl SongLoad {
             clock,
             count_in_bars: 0,
             regions: RegionTable::default(),
+            announce: None,
+            announce_at: None,
             origin: start,
             elapsed: 0,
             audible_from: f64::NEG_INFINITY,
@@ -557,6 +564,8 @@ impl Renderer {
                 from = s.start;
             }
             let latency = self.metronome.latency;
+            // The announcement plays when the song starts from its beginning, not after a pause.
+            s.announce_at = if s.announce.is_some() && (from - s.start).abs() < 0.05 { Some(0) } else { None };
             let start_at = if count_in && s.count_in_bars > 0 {
                 // The count-in ends on the song's next beat, so its last click leads straight
                 // into the music's beat (the audio from `from` plays as a pickup).
@@ -710,6 +719,19 @@ impl Renderer {
                     }
                     s.elapsed += 1;
                 }
+                // The announcement runs on its own clock from the start of playback.
+                if let Some(k) = s.announce_at
+                    && let Some(slot) = &mut s.announce
+                {
+                    let at = k as f64 / sr;
+                    let len = slot.clip.as_ref().map_or(0.0, |c| c.seconds());
+                    if at < len {
+                        mix_slot(slot, at, s.song_gain, mute_mask, bus_buf, f);
+                        s.announce_at = Some(k + 1);
+                    } else {
+                        s.announce_at = None;
+                    }
+                }
             }
             if stopped_by_region {
                 self.playing = false;
@@ -860,7 +882,14 @@ fn sane_gain(g: f32) -> f32 {
 fn mix_song(s: &mut SongLoad, t: f64, fade: f32, mute_mask: u8, bus_buf: &mut [f32], _n: usize, f: usize) {
     let song_gain = s.song_gain * fade;
     for slot in s.tracks.iter_mut() {
-        let Some(clip) = &slot.clip else { continue };
+        mix_slot(slot, t, song_gain, mute_mask, bus_buf, f);
+    }
+}
+
+/// Mixes one track's sample at time `t` (seconds into its clip) into its bus.
+fn mix_slot(slot: &mut TrackSlot, t: f64, song_gain: f32, mute_mask: u8, bus_buf: &mut [f32], f: usize) {
+    {
+        let Some(clip) = &slot.clip else { return };
         let p = slot.params;
         let muted = p.mute || (p.mute_groups & mute_mask) != 0;
         let (gl, gr) = if clip.channels >= 2 {
@@ -874,7 +903,7 @@ fn mix_song(s: &mut SongLoad, t: f64, fade: f32, mute_mask: u8, bus_buf: &mut [f
         slot.cur_l += (g * gl - slot.cur_l) * SMOOTH * 8.0;
         slot.cur_r += (g * gr - slot.cur_r) * SMOOTH * 8.0;
         if slot.cur_l.abs() < 1e-6 && slot.cur_r.abs() < 1e-6 && muted {
-            continue;
+            return;
         }
         // The read head comes from the shared clock every frame: no accumulated drift.
         let pos = t * f64::from(clip.sample_rate);
@@ -986,6 +1015,42 @@ mod tests {
             r.process(&mut buf, 2);
         }
         assert!(buf.iter().all(|s| s.abs() < 1e-3), "mute group silences its tracks");
+    }
+
+    #[test]
+    fn the_announcement_starts_with_the_count_in_not_with_the_file() {
+        // Regression: the spoken title sat at the start of the audio, after the count-in.
+        let (mut ctl, mut r) = link(48_000);
+        let silent = Arc::new(Clip { sample_rate: 48_000, channels: 1, data: vec![0.0; 48_000 * 10] });
+        let voice = Arc::new(Clip { sample_rate: 48_000, channels: 1, data: vec![0.5; 4_800] });
+        let mut song = SongLoad::new(
+            vec![TrackSlot::new(Some(silent), TrackParams::default())],
+            0.0,
+            None,
+            BeatClock::new(120.0, 4, 0.0),
+        );
+        song.count_in_bars = 1;
+        song.announce = Some(TrackSlot::new(Some(voice), TrackParams::default()));
+        assert!(ctl.send(Msg::Load(Box::new(song))));
+        assert!(ctl.send(Msg::Play { count_in: true, quantized: false }));
+        let mut buf = vec![0.0; 2 * 2400];
+        r.process(&mut buf, 2);
+        assert!(ctl.poll().counting_in);
+        assert!(buf.iter().any(|s| s.abs() > 0.1), "the title sounds while counting in");
+        for _ in 0..4 {
+            r.process(&mut buf, 2);
+        }
+        assert!(buf.iter().all(|s| s.abs() < 1e-3), "and is over after its length");
+        // After a pause in the song (past the 2 s count-in), Play goes on without announcing again.
+        for _ in 0..50 {
+            r.process(&mut buf, 2);
+        }
+        assert!(!ctl.poll().counting_in);
+        assert!(ctl.send(Msg::Stop));
+        r.process(&mut buf, 2);
+        assert!(ctl.send(Msg::Play { count_in: false, quantized: false }));
+        r.process(&mut buf, 2);
+        assert!(buf.iter().all(|s| s.abs() < 1e-3), "no title in the middle of the song");
     }
 
     /// Sample indexes where a click starts (signal rises above the threshold after silence).

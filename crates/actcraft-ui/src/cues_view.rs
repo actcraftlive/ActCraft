@@ -21,7 +21,7 @@ impl ActCraftApp {
         let id = song.id;
         let voice = e.show.voice.clone();
         ui.label(
-            RichText::new(tr("The computer's voice says these words on the voice bus while the song plays: the title at the start, and each part's words a few beats before the part begins."))
+            RichText::new(tr("The computer's voice says these words on the voice bus: the title when you start the song (as the count-in begins), and each part's words a few beats before the part begins."))
                 .color(t.text_dim),
         );
         if !voice.enabled {
@@ -37,7 +37,10 @@ impl ActCraftApp {
         // The title.
         let mut announce = song.announce_title;
         if ui
-            .checkbox(&mut announce, format!("{} \u{201c}{}\u{201d}", tr("Say the title at the start:"), song.title))
+            .checkbox(
+                &mut announce,
+                format!("{} \u{201c}{}\u{201d}", tr("Say the title when the song is started:"), song.title),
+            )
             .changed()
         {
             self.run(e, "song.set", json!({"song": id, "announce_title": announce}));
