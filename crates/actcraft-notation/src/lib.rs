@@ -172,9 +172,25 @@ pub struct Note {
     pub tie_start: bool,
     /// Slurs that start or end at this note.
     pub slurs: Vec<Slur>,
+    /// Part of a triplet or another tuplet.
+    pub tuplet: Tuplet,
     pub voice: u8,
     /// Staff of a part written on several staves (piano), 1-based.
     pub staff: u8,
+}
+
+/// A note's place in a tuplet: `actual` notes in the time of `normal` ones (3 in 2 for a triplet).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Tuplet {
+    /// Notes played (the number shown); 0 when the note is in no tuplet.
+    pub actual: u8,
+    /// Notes whose time they take.
+    pub normal: u8,
+    /// The tuplet's bracket starts or ends at this note.
+    pub start: bool,
+    pub stop: bool,
+    /// Draw a bracket (`Some(true)`), only the number (`Some(false)`), or decide by the notes.
+    pub bracket: Option<bool>,
 }
 
 impl Default for Note {
@@ -191,6 +207,7 @@ impl Default for Note {
             tied: false,
             tie_start: false,
             slurs: Vec::new(),
+            tuplet: Tuplet::default(),
             voice: 1,
             staff: 1,
         }

@@ -23,7 +23,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Notation: tuplets, techniques in the tab (M2)
+1. Notation: techniques in the tab (M2)
 2. Notation: lyrics under the notes and chord symbols above them (M2)
 3. Notation: keyboard way to move to a bar (M2, accessibility)
 4. Second window shows sheet music too: PDF and notation (M2)
@@ -119,7 +119,8 @@ details are in the milestone sections further down.
     the tab
   - ⬜ Lyrics under the notes (`<lyric>`), and chord symbols above the staff (`<harmony>`)
   - ⬜ Techniques in the tab: bends, slides, hammer-on/pull-off, palm mute, harmonics, vibrato
-  - ⬜ Triplets and other tuplets marked with their number and bracket
+  - ✅ Triplets and other tuplets marked with their number, and a bracket where the notes have
+    no beam (or where the file asks for one)
   - ⬜ Keyboard way to move to a bar (today only a click): e.g. bar number field or arrow keys
     on the score, with the playing bar announced
   - ⬜ Notation in the second window (large, follows playback), like the lyrics window

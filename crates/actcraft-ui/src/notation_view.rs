@@ -342,6 +342,42 @@ fn events(bar: &Bar, staff: u8) -> Vec<Event<'_>> {
     out
 }
 
+/// A tuplet drawn over events `first..=last` (indexes into one staff's events).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TupletGroup {
+    first: usize,
+    last: usize,
+    actual: u8,
+    bracket: bool,
+}
+
+/// The tuplets of one staff's events, per voice from the note that starts the bracket to the one
+/// that stops it. Without a word from the file, a bracket is drawn when a note in it has no beam
+/// (a quarter or longer, or a rest).
+fn tuplet_groups(events: &[Event<'_>]) -> Vec<TupletGroup> {
+    let mut out = Vec::new();
+    let mut open: Vec<(u8, usize, u8, Option<bool>)> = Vec::new();
+    for (i, ev) in events.iter().enumerate() {
+        let Some(t) = ev.notes.iter().map(|n| n.tuplet).find(|t| t.actual > 0) else { continue };
+        if t.start && !open.iter().any(|o| o.0 == ev.voice) {
+            open.push((ev.voice, i, t.actual, t.bracket));
+        }
+        if t.stop
+            && let Some(k) = open.iter().position(|o| o.0 == ev.voice)
+        {
+            let (voice, first, actual, bracket) = open.remove(k);
+            let unbeamed = events
+                .iter()
+                .take(i + 1)
+                .skip(first)
+                .filter(|e| e.voice == voice)
+                .any(|e| e.notes.iter().any(|n| n.pitch.is_none() || n.value.flags() == 0));
+            out.push(TupletGroup { first, last: i, actual, bracket: bracket.unwrap_or(unbeamed) });
+        }
+    }
+    out
+}
+
 /// The span notes are beamed within: a dotted quarter in 3/8, 6/8, 9/8 and 12/8, else one beat.
 fn beam_span(bar: &Bar) -> u32 {
     if bar.beat_type == 8 && bar.beats.is_multiple_of(3) {
@@ -662,6 +698,24 @@ impl Painter<'_> {
             self.p.line_segment([pos2(sx, y), pos2(sx + 0.9 * s, y + dir * 1.3 * s)], Stroke::new(1.8, self.ink.ink));
         }
     }
+    /// A tuplet's number over `x0..x1` at height `y`, in a bracket open toward the notes.
+    fn tuplet(&self, x0: f32, x1: f32, y: f32, actual: u8, bracket: bool) {
+        let s = self.m.space;
+        let mid = (x0 + x1) / 2.0;
+        let text = actual.to_string();
+        let galley = self.p.layout_no_wrap(text, FontId::proportional(1.3 * s), self.ink.ink);
+        let half = galley.size().x / 2.0 + 0.3 * s;
+        if bracket && x1 - x0 > 2.0 * half {
+            let stroke = Stroke::new(1.2, self.ink.ink);
+            let hook = 0.6 * s;
+            self.p.line_segment([pos2(x0, y + hook), pos2(x0, y)], stroke);
+            self.p.line_segment([pos2(x0, y), pos2(mid - half, y)], stroke);
+            self.p.line_segment([pos2(mid + half, y), pos2(x1, y)], stroke);
+            self.p.line_segment([pos2(x1, y), pos2(x1, y + hook)], stroke);
+        }
+        self.p.galley(pos2(mid - galley.size().x / 2.0, y - galley.size().y / 2.0), galley, self.ink.ink);
+    }
+
     /// A tie or slur from `a` to `b`, bowed up or down; two close curves make it thicker in the
     /// middle than at its ends.
     fn arc(&self, a: egui::Pos2, b: egui::Pos2, above: bool) {
@@ -1101,6 +1155,28 @@ impl ActCraftApp {
                         for (beam, up) in &beams {
                             pa.beam(beam, *up);
                         }
+                        // Tuplets: their number, with a bracket, above the notes and stems.
+                        for g in tuplet_groups(&evs) {
+                            let mut y = top - 0.8 * m.space;
+                            for (ev, stem) in evs.iter().zip(&plan).take(g.last + 1).skip(g.first) {
+                                let head_top = ev
+                                    .notes
+                                    .iter()
+                                    .filter_map(|n| n.pitch)
+                                    .map(|p| pa.y(top, clef.position(p)))
+                                    .fold(f32::INFINITY, f32::min);
+                                let reach = if stem.up {
+                                    stem.end.unwrap_or_else(|| pa.natural_end(top, *clef, &ev.notes, true))
+                                } else {
+                                    head_top - 0.6 * m.space
+                                };
+                                y = y.min(reach - 0.9 * m.space);
+                            }
+                            let (Some(a), Some(b)) = (evs.get(g.first), evs.get(g.last)) else { continue };
+                            let x0 = first_x(a) - 0.7 * m.space;
+                            let x1 = first_x(b) + 0.7 * m.space;
+                            pa.tuplet(x0, x1, y, g.actual, g.bracket);
+                        }
                     }
                     // Frets.
                     if rows.strings > 0 {
@@ -1334,6 +1410,32 @@ mod tests {
         assert_eq!(playing_bar(&song, 4.0, 10), Some((1, 0.5)), "two seconds per bar");
         assert_eq!(playing_bar(&song, 100.0, 10), None, "after the last bar");
         assert!((bar_time(&song, 3) - 7.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tuplets_group_from_start_to_stop_with_a_bracket_when_unbeamed() {
+        use actcraft_engine::notation::Tuplet;
+        let three = |start, stop| Tuplet { actual: 3, normal: 2, start, stop, bracket: None };
+        // An eighth triplet (beamed: number only), then a quarter triplet (bracket).
+        let mut notes: Vec<Note> = (0..3).map(|i| eighth(i * 320, 2)).collect();
+        notes.extend((0..3).map(|i| Note { start: 960 + i * 640, ..quarter(0) }));
+        for (k, n) in notes.iter_mut().enumerate() {
+            n.tuplet = three(k % 3 == 0, k % 3 == 2);
+        }
+        let b = bar(notes);
+        let evs = events(&b, 1);
+        assert_eq!(
+            tuplet_groups(&evs),
+            vec![
+                TupletGroup { first: 0, last: 2, actual: 3, bracket: false },
+                TupletGroup { first: 3, last: 5, actual: 3, bracket: true },
+            ]
+        );
+        // The file's word wins; a start without a stop draws nothing.
+        let mut b2 = b.clone();
+        b2.notes[0].tuplet.bracket = Some(true);
+        b2.notes[5].tuplet.stop = false;
+        assert_eq!(tuplet_groups(&events(&b2, 1)), vec![TupletGroup { first: 0, last: 2, actual: 3, bracket: true }]);
     }
 
     #[test]
