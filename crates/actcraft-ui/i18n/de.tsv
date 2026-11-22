@@ -32,7 +32,6 @@
 	Audio:	Audio:
 	Audio: no output	Audio: kein Ausgang
 	BPM	BPM
-	Backing tracks and lighting in one show.	Backing-Tracks und Licht in einer Show.
 	Beats per bar	Schläge pro Takt
 	Bold	Fett
 	Bus	Bus
@@ -514,3 +513,6 @@
 	Verse	Strophe
 	Voice, bus and timing…	Stimme, Bus und Timing…
 	Your own words	Eigene Worte
+	ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, and (coming) MIDI and DMX lighting, all on one clock and in one show file.	ActCraft ist eine Showsteuerung für Live-Musiker: Backing-Tracks mit Songtexten, Akkorden, Noten, Ansagen, Setlisten und Klick, und (in Arbeit) MIDI und DMX-Licht, alles auf einer Uhr und in einer Show-Datei.
+	Free and open source for Windows, macOS and Linux.	Frei und quelloffen für Windows, macOS und Linux.
+	Version	Version
