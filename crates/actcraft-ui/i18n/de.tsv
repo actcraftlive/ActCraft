@@ -459,3 +459,24 @@
 	The PDF has no pages ActCraft can show.	Die PDF hat keine Seiten, die ActCraft zeigen kann.
 	White on black, for a dark stage	Weiß auf Schwarz, für eine dunkle Bühne
 	{count} pages	{count} Seiten
+	Announce the title	Titel ansagen
+	Could not speak “{text}”: {error}	„{text}“ konnte nicht gesprochen werden: {error}
+	Say the region's name	Den Namen der Region sagen
+	Speak before a part	Vor einem Teil sprechen
+	Speak cues now	Ansagen jetzt sprechen
+	Speak this song's cues now	Ansagen dieses Songs jetzt sprechen
+	Speech language	Sprache der Stimme
+	Spoken	Ansage
+	Spoken cue settings	Ansage-Einstellungen
+	Spoken cues	Ansagen
+	Spoken cues on	Ansagen an
+	The computer's own	Die des Computers
+	The computer's own voice says a song's title when it starts (tick “Announce the title” in the song details) and a part's words shortly before it begins (the “Spoken” column of the regions, such as “Chorus” or “End 3 2 1”). Each phrase is spoken once and kept.	Die Stimme des Computers sagt den Titel eines Songs, wenn er startet („Titel ansagen“ in den Songdetails ankreuzen), und kurz vor einem Teil dessen Worte (Spalte „Ansage“ bei den Regionen, z. B. „Refrain“ oder „Ende 3 2 1“). Jede Ansage wird einmal gesprochen und aufbewahrt.
+	The computer's voice says the title when the song starts (Settings > Spoken cues)	Die Stimme des Computers sagt den Titel, wenn der Song startet (Einstellungen > Ansagen)
+	They are also made when the song loads	Sie entstehen auch, wenn der Song geladen wird
+	This computer has no speech for spoken cues	Dieser Computer hat keine Sprachausgabe für Ansagen
+	Voice goes to bus	Stimme geht auf Bus
+	Voice volume	Lautstärke der Stimme
+	`language` must be a code such as de or en	`language` muss ein Code wie de oder en sein
+	beats	Schläge
+	{count} phrases being spoken…	{count} Ansagen werden gesprochen…

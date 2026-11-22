@@ -11,6 +11,7 @@
 
 pub mod audio_out;
 pub mod files;
+pub mod speech;
 
 pub use audio_out::{AudioOutput, OutputInfo, output_devices};
 pub use files::{NativeServices, RootedServices};

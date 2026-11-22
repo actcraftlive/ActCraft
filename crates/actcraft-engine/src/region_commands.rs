@@ -66,6 +66,10 @@ fn apply(r: &mut Region, prm: &Value) -> Result<(), CommandError> {
     if let Some(v) = p::opt_bool(prm, "cue")? {
         next.cue = v;
     }
+    if let Some(v) = p::opt_str_max(prm, "voice", MAX_TEXT)? {
+        crate::voice::check_voice_text(v)?;
+        next.voice = v.to_owned();
+    }
     if next.end <= next.start {
         return Err(invalid("a region must end after it starts"));
     }

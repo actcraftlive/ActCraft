@@ -59,6 +59,10 @@ impl Services for NativeServices {
         guarded("reading the cache", || read_capped(&file)).ok()
     }
 
+    fn speaker(&self) -> Option<actcraft_engine::services::Speaker> {
+        Some(crate::speech::speaker())
+    }
+
     fn cache_put(&mut self, key: &str, bytes: &[u8]) {
         let Some(dir) = cache_dir() else { return };
         let _ = guarded("writing the cache", || {

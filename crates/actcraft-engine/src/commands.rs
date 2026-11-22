@@ -102,7 +102,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit song details",
             "",
             None,
-            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, fade_out?, midi_file?, pdf_file?: text|null, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
+            "{song?: id, title?, artist?, key?, bpm?, beats_per_bar?, year?, keywords?: [text], capo?, transpose?, start?, end?: number|null, count_in_bars?, click?: off|whole_song|count_in_only|visual_only, beat_anchor?, volume_db?, autoplay?, loop_song?, announce_title?: bool, fade_out?, midi_file?, pdf_file?: text|null, lyrics?, lyrics_scroll?: line|smooth|constant|off}",
             song_set,
         ),
         cmd("song.remove", "Delete song", "Song/Delete Song…", None, "{song: id, confirm: true}", song_remove),
@@ -121,7 +121,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add region",
             "Song/Add Region at Playhead",
             Some("R"),
-            "{song?: id, name?, start?: seconds (the playhead when left out), end?, mode?: play|loop|skip|stop_after, colour?, cue?}",
+            "{song?: id, name?, start?: seconds (the playhead when left out), end?, mode?: play|loop|skip|stop_after, colour?, cue?, voice?: words spoken before it}",
             crate::region_commands::region_add,
         )),
         with_songs(cmd(
@@ -129,7 +129,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Edit region",
             "",
             None,
-            "{song?: id, region: index, name?, start?, end?, mode?, colour?, cue?}",
+            "{song?: id, region: index, name?, start?, end?, mode?, colour?, cue?, voice?}",
             crate::region_commands::region_set,
         )),
         with_songs(cmd(
@@ -315,6 +315,15 @@ pub fn all() -> Vec<Command<Engine>> {
             "{enabled?, mode?: audible|count_in_only|visual_only, volume_db?, bus?, quantized_start?, latency_offset_ms?, run_while_stopped?}",
             metronome_set,
         ),
+        cmd(
+            "voice.set",
+            "Spoken cue settings",
+            "",
+            None,
+            "{enabled?: bool, bus?: index, volume_db?: number, lead_beats?: 0-32, language?: code (empty: the computer's own)}",
+            crate::voice::voice_set,
+        ),
+        cmd("voice.prepare", "Speak cues now", "", None, "{song?: id}", crate::voice::voice_prepare),
         with_song(cmd(
             "metronome.count_in",
             "Play with count-in",
@@ -681,6 +690,9 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     }
     if let Some(v) = p::opt_bool(prm, "loop_song")? {
         next.loop_song = v;
+    }
+    if let Some(v) = p::opt_bool(prm, "announce_title")? {
+        next.announce_title = v;
     }
     if let Some(v) = p::opt_f64_in(prm, "fade_out", 0.0, 60.0)? {
         next.fade_out = v;

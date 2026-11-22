@@ -404,3 +404,64 @@ fn waveforms_come_from_the_cache_the_next_time() {
     let e3 = Engine::new(Box::new(changed));
     assert!(e3.stored_peaks("/gig/song.wav").is_none());
 }
+
+/// Memory services with a "voice" that says every phrase as a short tone, counting the calls.
+struct SpeakingServices {
+    inner: MemoryServices,
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Services for SpeakingServices {
+    fn read_file(&self, path: &str) -> Result<Vec<u8>, String> {
+        self.inner.read_file(path)
+    }
+    fn write_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), String> {
+        self.inner.write_file(path, bytes)
+    }
+    fn now(&self) -> chrono::DateTime<chrono::FixedOffset> {
+        self.inner.now()
+    }
+    fn file_reader(&self) -> services::FileReader {
+        self.inner.file_reader()
+    }
+    fn cache_get(&self, key: &str) -> Option<Vec<u8>> {
+        self.inner.cache_get(key)
+    }
+    fn cache_put(&mut self, key: &str, bytes: &[u8]) {
+        self.inner.cache_put(key, bytes);
+    }
+    fn speaker(&self) -> Option<services::Speaker> {
+        let calls = std::sync::Arc::clone(&self.calls);
+        Some(std::sync::Arc::new(move |_text: &str, _lang: &str| {
+            calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(tone_wav(800))
+        }))
+    }
+}
+
+#[test]
+fn spoken_cues_become_a_voice_track_and_are_spoken_once() {
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let services = SpeakingServices { inner: MemoryServices::default(), calls: std::sync::Arc::clone(&calls) };
+    let mut e = Engine::new(Box::new(services));
+    let (ctl, _renderer) = actcraft_audio::link(48_000);
+    e.attach_audio(ctl);
+    assert!(e.run("song.add", &json!({"title": "Asgard"})).is_ok());
+    assert!(e.run("song.set", &json!({"song": 1, "announce_title": true})).is_ok());
+    assert!(e.run("region.add", &json!({"song": 1, "start": 4.0, "end": 8.0, "voice": "Refrain"})).is_ok());
+    assert!(e.run("region.add", &json!({"song": 1, "start": 9.0, "end": 12.0, "voice": "Refrain"})).is_ok());
+    assert!(e.run("region.set", &json!({"song": 1, "region": 0, "voice": "x".repeat(300)})).is_err(), "too long");
+    let r = e.run("voice.prepare", &json!({"song": 1}));
+    assert_eq!(r.ok().map(|v| v["pending"].clone()), Some(json!(0)), "spoken inline here");
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 2, "title and Refrain, each once");
+    let song = e.show.song(1).cloned().unwrap_or_default();
+    let voice = e.voice_track(&song);
+    assert!(voice.is_some());
+    assert_eq!(voice.map(|(_, t)| t.bus), Some(e.show.voice.bus));
+    // Asking again speaks nothing new; switching voices off drops the track.
+    let _ = e.run("voice.prepare", &json!({"song": 1}));
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 2);
+    assert!(e.run("voice.set", &json!({"enabled": false})).is_ok());
+    assert!(e.voice_track(&song).is_none());
+    assert!(e.run("voice.set", &json!({"language": "de; rm -rf"})).is_err());
+}

@@ -15,6 +15,10 @@ pub type FileReader = Arc<dyn Fn(&str) -> Result<Vec<u8>, String> + Send + Sync>
 /// A background job.
 pub type Job = Box<dyn FnOnce() + Send>;
 
+/// Speaks text with the computer's own voice into an audio file's bytes (WAV or AIFF): text and
+/// a language code (`de`, `en`; empty for the computer's own). Runs on background jobs.
+pub type Speaker = Arc<dyn Fn(&str, &str) -> Result<Vec<u8>, String> + Send + Sync>;
+
 pub trait Services: Send {
     /// Reads a whole file.
     fn read_file(&self, path: &str) -> Result<Vec<u8>, String>;
@@ -40,6 +44,10 @@ pub trait Services: Send {
     }
     /// Keeps bytes in ActCraft's own cache under a key; failures are ignored (it's only a cache).
     fn cache_put(&mut self, _key: &str, _bytes: &[u8]) {}
+    /// The computer's speech, for spoken cues; `None` where there is none.
+    fn speaker(&self) -> Option<Speaker> {
+        None
+    }
     /// Runs a job off the caller's thread where the platform has threads; inline otherwise.
     fn spawn(&self, job: Job) {
         job();
