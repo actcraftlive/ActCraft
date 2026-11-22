@@ -86,8 +86,8 @@ impl ActCraftApp {
                     ui.label(RichText::new(tr("Regions name the parts of a song (verse, chorus, outro). They can loop, be skipped or stop playback, and you can jump to them live.")).color(t.text_dim));
                     return;
                 }
-                egui::Grid::new(("region-grid", id)).num_columns(8).spacing([8.0, 6.0]).striped(true).show(ui, |ui| {
-                    for h in ["", "Name", "Start", "End", "What happens", "Cue", "", ""] {
+                egui::Grid::new(("region-grid", id)).num_columns(9).spacing([8.0, 6.0]).striped(true).show(ui, |ui| {
+                    for h in ["", "Name", "Start", "End", "What happens", "Cue", "Spoken", "", ""] {
                         ui.label(RichText::new(tr(h)).strong());
                     }
                     ui.end_row();
@@ -131,6 +131,17 @@ impl ActCraftApp {
                         if ui.checkbox(&mut cue, "").on_hover_text(tr("Show as a cue for live jumps")).changed() {
                             self.run(e, "region.set", json!({"song": id, "region": i, "cue": cue}));
                         }
+                        // Words the computer's voice says just before this part ("Chorus", "End 3 2 1").
+                        ui.horizontal(|ui| {
+                            if let Some(words) = edit_text(ui, egui::Id::unique(("region-voice", id, i)), &r.voice, 120.0) {
+                                self.run(e, "region.set", json!({"song": id, "region": i, "voice": words}));
+                            }
+                            if r.voice.is_empty()
+                                && ui.small_button(tr("Name")).on_hover_text(tr("Say the region's name")).clicked()
+                            {
+                                self.run(e, "region.set", json!({"song": id, "region": i, "voice": r.name}));
+                            }
+                        });
                         if ui.small_button(tr("Jump")).clicked() {
                             self.run(e, "region.jump", json!({"song": id, "region": i}));
                         }

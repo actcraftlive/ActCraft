@@ -13,9 +13,15 @@ pub(crate) enum Tab {
     #[default]
     Audio,
     Metronome,
+    Voice,
     Playback,
     Library,
 }
+
+/// Speech languages offered for spoken cues: (code, name in that language); empty is the
+/// computer's own.
+const VOICE_LANGUAGES: [(&str, &str); 6] =
+    [("", ""), ("de", "Deutsch"), ("en", "English"), ("fr", "Français"), ("es", "Español"), ("it", "Italiano")];
 
 /// Name of an output pair for a bus routed to `first` (0-based) on a device with `channels`.
 fn output_label(first: u16, channels: u16) -> String {
@@ -46,6 +52,7 @@ impl ActCraftApp {
                     for (tab, label) in [
                         (Tab::Audio, tr("Audio")),
                         (Tab::Metronome, tr("Metronome")),
+                        (Tab::Voice, tr("Spoken cues")),
                         (Tab::Playback, tr("Playback")),
                         (Tab::Library, tr("Library")),
                     ] {
@@ -56,6 +63,7 @@ impl ActCraftApp {
                 match self.settings_tab {
                     Tab::Audio => self.audio_settings(ui, e),
                     Tab::Metronome => self.metronome_settings(ui, e),
+                    Tab::Voice => self.voice_settings(ui, e),
                     Tab::Playback => self.playback_settings(ui, e),
                     Tab::Library => self.library_settings(ui, e),
                 }
@@ -63,6 +71,76 @@ impl ActCraftApp {
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.settings_open = false;
         }
+    }
+
+    /// Spoken cues: the computer's voice says a song's title and each part's words.
+    fn voice_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        let v = e.show.voice.clone();
+        ui.label(
+            RichText::new(tr("The computer's own voice says a song's title when it starts (tick “Announce the title” in the song details) and a part's words shortly before it begins (the “Spoken” column of the regions, such as “Chorus” or “End 3 2 1”). Each phrase is spoken once and kept."))
+                .color(t.text_dim),
+        );
+        ui.add_space(6.0);
+        let mut enabled = v.enabled;
+        if ui.checkbox(&mut enabled, tr("Spoken cues on")).changed() {
+            self.run(e, "voice.set", json!({"enabled": enabled}));
+        }
+        egui::Grid::new("voice-grid").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+            ui.label(tr("Voice goes to bus"));
+            let current = e.show.buses.get(usize::from(v.bus)).map_or_else(String::new, |b| b.name.clone());
+            egui::ComboBox::from_id_salt("voice-bus").selected_text(current).show_ui(ui, |ui| {
+                for (b, bus) in e.show.buses.clone().iter().enumerate() {
+                    if ui.selectable_label(usize::from(v.bus) == b, &bus.name).clicked() {
+                        self.run(e, "voice.set", json!({"bus": b}));
+                    }
+                }
+            });
+            ui.end_row();
+            ui.label(tr("Voice volume"));
+            let mut vol = v.volume_db;
+            if ui.add(egui::Slider::new(&mut vol, -40.0..=12.0).suffix(" dB")).changed() {
+                self.run(e, "voice.set", json!({"volume_db": vol}));
+            }
+            ui.end_row();
+            ui.label(tr("Speak before a part"));
+            let mut lead = u32::from(v.lead_beats);
+            if ui.add(egui::DragValue::new(&mut lead).range(0..=32).suffix(format!(" {}", tr("beats")))).changed() {
+                self.run(e, "voice.set", json!({"lead_beats": lead}));
+            }
+            ui.end_row();
+            ui.label(tr("Speech language"));
+            let name =
+                |code: &str, n: &str| if code.is_empty() { tr("The computer's own").to_owned() } else { n.to_owned() };
+            let shown = VOICE_LANGUAGES
+                .iter()
+                .find(|(c, _)| *c == v.language)
+                .map_or_else(|| v.language.clone(), |(c, n)| name(c, n));
+            egui::ComboBox::from_id_salt("voice-language").selected_text(shown).show_ui(ui, |ui| {
+                for (code, n) in VOICE_LANGUAGES {
+                    if ui.selectable_label(v.language == code, name(code, n)).clicked() {
+                        self.run(e, "voice.set", json!({"language": code}));
+                    }
+                }
+            });
+            ui.end_row();
+        });
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(e.current_song.is_some(), egui::Button::new(tr("Speak this song's cues now")))
+                .on_hover_text(tr("They are also made when the song loads"))
+                .clicked()
+            {
+                self.run(e, "voice.prepare", serde_json::Value::Null);
+            }
+            let pending = e.voices_pending();
+            if pending > 0 {
+                ui.spinner();
+                let n = pending.to_string();
+                ui.label(actcraft_engine::fill(tr("{count} phrases being spoken…"), &[("count", &n)]));
+            }
+        });
     }
 
     /// The window's language; the host keeps the choice on this computer.

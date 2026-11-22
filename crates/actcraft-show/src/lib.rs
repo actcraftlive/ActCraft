@@ -47,6 +47,8 @@ pub mod limits {
     pub const MAX_FILE_BYTES: usize = 64 * 1024 * 1024;
     /// Bytes of one text field (titles, names, paths).
     pub const MAX_TEXT: usize = 1024;
+    /// Longest spoken cue (a few words; speech takes a moment per word).
+    pub const MAX_VOICE_TEXT: usize = 200;
     /// Bytes of lyrics per song.
     pub const MAX_LYRICS: usize = 512 * 1024;
     /// Longest song, seconds (24 h).
@@ -105,6 +107,8 @@ pub struct Show {
     #[serde(default)]
     pub metronome: MetronomeSettings,
     #[serde(default)]
+    pub voice: VoiceSettings,
+    #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
     pub transitions: TransitionSettings,
@@ -126,6 +130,7 @@ impl Default for Show {
             buses: Vec::new(),
             mute_groups: Vec::new(),
             metronome: MetronomeSettings::default(),
+            voice: VoiceSettings::default(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -181,6 +186,8 @@ pub struct Song {
     pub autoplay: bool,
     /// Loop the whole song.
     pub loop_song: bool,
+    /// Speak the title when the song starts (see the show's voice settings).
+    pub announce_title: bool,
     /// Fade-out length at the song end, seconds; 0 for none.
     pub fade_out: f64,
     /// Lighting cues on the song timeline (filled from milestone M7).
@@ -217,6 +224,7 @@ impl Default for Song {
             pdf_file: None,
             autoplay: false,
             loop_song: false,
+            announce_title: false,
             fade_out: 0.0,
             lighting_lane: Vec::new(),
             extra: Map::new(),
@@ -315,6 +323,9 @@ pub struct Region {
     pub mode: RegionMode,
     /// Shown in the cue list for live jumps.
     pub cue: bool,
+    /// Spoken shortly before the region starts ("Chorus", "End 3 2 1"); empty for nothing.
+    #[serde(default)]
+    pub voice: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -328,8 +339,30 @@ impl Default for Region {
             end: 0.0,
             mode: RegionMode::Play,
             cue: false,
+            voice: String::new(),
             extra: Map::new(),
         }
+    }
+}
+
+/// Spoken cues: a song's title when it starts and a region's words before it begins, made by the
+/// computer's own speech and played on a bus of their own choosing (usually the in-ear mix).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VoiceSettings {
+    pub enabled: bool,
+    /// Bus the voice goes to, 0-based (the click bus by default).
+    pub bus: u8,
+    pub volume_db: f64,
+    /// How many beats before a region its words are spoken.
+    pub lead_beats: u8,
+    /// Speech language (`de`, `en`...); empty for the computer's own.
+    pub language: String,
+}
+
+impl Default for VoiceSettings {
+    fn default() -> Self {
+        Self { enabled: true, bus: 1, volume_db: 0.0, lead_beats: 4, language: String::new() }
     }
 }
 
@@ -674,6 +707,7 @@ impl Song {
         self.regions.truncate(MAX_REGIONS);
         for r in &mut self.regions {
             cut(&mut r.name, MAX_TEXT);
+            cut(&mut r.voice, MAX_VOICE_TEXT);
             fix_colour(&mut r.colour, "#8a6fd1");
             r.start = clamp_f(r.start, 0.0, MAX_SECONDS, 0.0);
             r.end = clamp_f(r.end, r.start, MAX_SECONDS, r.start);
@@ -768,6 +802,13 @@ impl Show {
             m.bus = 0;
         }
         m.latency_offset_ms = clamp_f(m.latency_offset_ms, -500.0, 500.0, 0.0);
+        let v = &mut self.voice;
+        v.volume_db = clamp_f(v.volume_db, -96.0, 12.0, 0.0);
+        if usize::from(v.bus) >= BUSES {
+            v.bus = 0;
+        }
+        v.lead_beats = v.lead_beats.min(32);
+        cut(&mut v.language, 16);
         self.mixer.master_volume_db = clamp_f(self.mixer.master_volume_db, -96.0, 12.0, 0.0);
         self.mixer.midi_latency_offset_ms = clamp_f(self.mixer.midi_latency_offset_ms, -500.0, 500.0, 0.0);
         self.transitions.crossfade = clamp_f(self.transitions.crossfade, 0.0, 30.0, 0.0);

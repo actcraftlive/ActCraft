@@ -28,6 +28,7 @@ pub mod commands;
 pub mod package_commands;
 pub mod region_commands;
 pub mod services;
+pub mod voice;
 
 pub use actcraft_audio::tempo;
 pub use actcraft_audio::{BeatClock, GridLine};
@@ -134,6 +135,8 @@ pub struct Engine {
     last_transport_ms: Option<i64>,
     clips: BTreeMap<String, Arc<Clip>>,
     peaks: BTreeMap<String, Arc<Peaks>>,
+    /// Spoken cues, ready and in the making.
+    voices: voice::Voices,
     services: Box<dyn Services>,
     // Background decoding: files in flight, files that failed, and what waits for them.
     load_tx: Sender<LoadResult>,
@@ -200,6 +203,7 @@ impl Engine {
             last_transport_ms: None,
             clips: BTreeMap::new(),
             peaks: BTreeMap::new(),
+            voices: voice::Voices::default(),
             services,
         }
     }
@@ -238,6 +242,7 @@ impl Engine {
     /// handles song ends (history, autoplay).
     pub fn tick(&mut self) {
         self.drain_loads();
+        self.drain_voices();
         let Some(audio) = &mut self.audio else { return };
         self.status = audio.poll();
         if self.status.ended_count != self.last_ended {
@@ -470,6 +475,10 @@ impl Engine {
             }
             slots.push(TrackSlot::new(clip, self.track_params(t)));
         }
+        // Spoken cues play as one more track on the voice bus.
+        if let Some((clip, track)) = self.voice_track(&song) {
+            slots.push(TrackSlot::new(Some(clip), self.track_params(&track)));
+        }
         for p in problems {
             self.say_error_with(
                 "Track not loaded (its file could not be read): {file}",
@@ -500,6 +509,8 @@ impl Engine {
         if self.audio.is_none() {
             return;
         }
+        // Spoken cues are made in the background; the song reloads when they're ready.
+        self.request_voices(id);
         let missing = self.missing_files(id);
         if missing.is_empty() {
             self.load_now(id);

@@ -907,6 +907,14 @@ impl ActCraftApp {
             if ui.checkbox(&mut looped, tr("Loop this song")).changed() {
                 self.run(e, "song.set", json!({"song": id, "loop_song": looped}));
             }
+            let mut announce = song.announce_title;
+            if ui
+                .checkbox(&mut announce, tr("Announce the title"))
+                .on_hover_text(tr("The computer's voice says the title when the song starts (Settings > Spoken cues)"))
+                .changed()
+            {
+                self.run(e, "song.set", json!({"song": id, "announce_title": announce}));
+            }
         });
     }
 
