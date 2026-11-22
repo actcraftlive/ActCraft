@@ -169,7 +169,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Import lyrics",
             "Song/Import Lyrics…",
             None,
-            "{song?: id, path: text} (.txt, .cho/.chopro/.chordpro/.crd/.pro, .lrc)",
+            "{song?: id, path: text} (.txt, .cho/.chopro/.chordpro/.crd/.pro, .lrc, .docx: the document's text)",
             lyrics_import,
         )),
         with_songs(cmd(
@@ -901,7 +901,33 @@ fn song_detect_bpm(e: &mut Engine, prm: &Value) -> CommandResult {
 }
 
 /// Lyrics file types `lyrics.import` reads.
-pub const LYRICS_EXTENSIONS: &[&str] = &["txt", "cho", "chopro", "chordpro", "crd", "pro", "lrc"];
+pub const LYRICS_EXTENSIONS: &[&str] = &["txt", "cho", "chopro", "chordpro", "crd", "pro", "lrc", "docx"];
+
+/// Largest DOCX document read for its text (it is compressed; the text is capped on its own).
+const MAX_DOCX_BYTES: usize = 32 * 1024 * 1024;
+
+/// A web build reads no DOCX documents (see the engine's Cargo.toml).
+#[cfg(target_arch = "wasm32")]
+fn docx_text(_bytes: &[u8]) -> Result<String, CommandError> {
+    Err(failed("DOCX documents are read in the desktop app"))
+}
+
+/// The words of a DOCX document's body, paragraph by paragraph, as lyrics text.
+#[cfg(not(target_arch = "wasm32"))]
+fn docx_text(bytes: &[u8]) -> Result<String, CommandError> {
+    let doc = craft_docx::read(bytes).map_err(|_| failed("that DOCX document could not be read"))?;
+    let text = doc.plain_text(craft_wordmodel::StoryRef::Body);
+    // Table cells come apart by tabs; on a lyrics line they read best as spaces.
+    let mut text = text.replace('\t', " ");
+    if text.len() > actcraft_show::limits::MAX_LYRICS {
+        let mut end = actcraft_show::limits::MAX_LYRICS;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+    }
+    Ok(text)
+}
 
 fn lyrics_import(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_param(e, prm)?;
@@ -911,10 +937,11 @@ fn lyrics_import(e: &mut Engine, prm: &Value) -> CommandResult {
         return Err(invalid(format!("ActCraft reads lyrics from {} files", LYRICS_EXTENSIONS.join(", "))));
     }
     let bytes = e.services().read_file(&path).map_err(failed)?;
-    if bytes.len() > actcraft_show::limits::MAX_LYRICS {
+    let limit = if ext == "docx" { MAX_DOCX_BYTES } else { actcraft_show::limits::MAX_LYRICS };
+    if bytes.len() > limit {
         return Err(failed("that lyrics file is too large"));
     }
-    let text = actcraft_lyrics::decode_text(&bytes);
+    let text = if ext == "docx" { docx_text(&bytes)? } else { actcraft_lyrics::decode_text(&bytes) };
     let parsed = actcraft_lyrics::parse(&text);
     let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
     // ChordPro files may name the song; fill in only what's still empty.

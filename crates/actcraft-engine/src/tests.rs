@@ -324,6 +324,42 @@ fn message_templates_fill_once_and_keep_unknown_braces() {
     assert_eq!(m.as_ref().map(|m| m.template.as_str()), Some("Opened show with {count} songs"));
 }
 
+/// A small DOCX package: two paragraphs and a one-row table, as a word processor saves them.
+fn docx_with(paragraphs: &[&str]) -> Vec<u8> {
+    let body: String =
+        paragraphs.iter().map(|p| format!("<w:p><w:r><w:t xml:space=\"preserve\">{p}</w:t></w:r></w:p>")).collect();
+    let document = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{body}<w:tbl><w:tr><w:tc><w:p><w:r><w:t>left</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>right</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>"#
+    );
+    let types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let rels = r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+    let mut zip = craft_zip::Writer::new();
+    for (name, data) in
+        [("[Content_Types].xml", types), ("_rels/.rels", rels), ("word/document.xml", document.as_str())]
+    {
+        let _ = zip.add(name, data.as_bytes(), craft_zip::Compression::Deflated);
+    }
+    zip.finish().unwrap_or_default()
+}
+
+#[test]
+fn lyrics_import_reads_the_text_of_a_docx_document() {
+    let mut files = MemoryServices::default();
+    files.files.insert("/gig/song.docx".into(), docx_with(&["[Verse]", "Twinkle [C]twinkle little star"]));
+    files.files.insert("/gig/broken.docx".into(), b"PK\x03\x04 not a document".to_vec());
+    let mut e = Engine::new(Box::new(files));
+    let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    let r = e.run("lyrics.import", &json!({"song": id, "path": "/gig/song.docx"}));
+    assert!(r.is_ok(), "{r:?}");
+    let lyrics = e.show.song(id).map(|s| s.lyrics.clone()).unwrap_or_default();
+    assert!(lyrics.contains("[Verse]\nTwinkle [C]twinkle little star"), "{lyrics:?}");
+    assert!(lyrics.contains("left right"), "table cells read as one line: {lyrics:?}");
+    // A file that only looks like one is refused and leaves the lyrics as they were.
+    assert!(e.run("lyrics.import", &json!({"song": id, "path": "/gig/broken.docx"})).is_err());
+    assert_eq!(e.show.song(id).map(|s| s.lyrics.clone()), Some(lyrics));
+}
+
 #[test]
 fn lyrics_replace_changes_every_match_and_marks_the_show() {
     let mut e = engine();
