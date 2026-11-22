@@ -586,3 +586,7 @@
 	Remove all marks…	Alle Markierungen entfernen …
 	Remove all {count} marks?	Alle {count} Markierungen entfernen?
 	Note on page {page}	Notiz auf Seite {page}
+	Undo	Rückgängig
+	Redo	Wiederholen
+	Undo the last change	Die letzte Änderung zurücknehmen
+	Make the undone change again	Die zurückgenommene Änderung wieder machen

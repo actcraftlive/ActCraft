@@ -9,6 +9,7 @@ use egui::{Color32, FontFamily, FontId, RichText, Stroke, TextFormat, Ui};
 use serde_json::json;
 
 use crate::flows::{FileAsk, FileKind, FileRequest};
+use crate::text_history::{Change, Snapshot, TextHistory};
 use crate::theme::Tokens;
 use crate::{ActCraftApp, tr};
 
@@ -28,6 +29,42 @@ pub(crate) struct LyricsEdit {
     pub match_case: bool,
     /// A selection to put into the text box on the next frame (a found match).
     pub select: Option<(usize, usize)>,
+    /// Steps to undo and redo, typed or made by a button (a time stamp, formatting, replacing).
+    pub history: TextHistory,
+    /// The text as it was after the last recorded change, to tell what changed since.
+    pub shadow: Option<Snapshot>,
+}
+
+impl LyricsEdit {
+    fn snapshot(&self) -> Snapshot {
+        Snapshot { text: self.text.clone(), selection: self.selection }
+    }
+
+    /// Records a change since the last one, if the text changed.
+    fn note_change(&mut self, change: Change, now: f64) {
+        let Some(before) = self.shadow.take() else {
+            self.shadow = Some(self.snapshot());
+            return;
+        };
+        if before.text != self.text {
+            self.history.record(before, change, now);
+            self.shadow = Some(self.snapshot());
+        } else {
+            self.shadow = Some(before);
+        }
+    }
+
+    /// Goes one step back (`back`) or forward, putting the cursor where it was.
+    fn step(&mut self, back: bool) {
+        let current = self.snapshot();
+        let to = if back { self.history.undo(current) } else { self.history.redo(current) };
+        if let Some(s) = to {
+            self.text = s.text;
+            self.selection = s.selection;
+            self.select = Some(s.selection);
+            self.shadow = Some(self.snapshot());
+        }
+    }
 }
 
 /// The next match after the selection (wrapping round), as a character range.
@@ -186,7 +223,19 @@ impl ActCraftApp {
         let t = self.tokens;
         let time = e.status.time.max(0.0);
         let Some(edit) = self.lyrics_edit.as_mut() else { return };
+        let now = ui.input(|i| i.time);
+        edit.note_change(Change::Action, now);
+        let mut go = None;
         ui.horizontal_wrapped(|ui| {
+            let undo = format!("{} ({})", tr("Undo the last change"), crate::shortcuts::display("Ctrl+Z"));
+            if ui.add_enabled(edit.history.can_undo(), egui::Button::new(tr("Undo"))).on_hover_text(undo).clicked() {
+                go = Some(true);
+            }
+            let redo = format!("{} ({})", tr("Make the undone change again"), crate::shortcuts::display("Ctrl+Y"));
+            if ui.add_enabled(edit.history.can_redo(), egui::Button::new(tr("Redo"))).on_hover_text(redo).clicked() {
+                go = Some(false);
+            }
+            ui.separator();
             if ui.button(RichText::new("B").strong()).on_hover_text(tr("Bold")).clicked() {
                 wrap_selection(edit, "**", "**");
             }
@@ -262,6 +311,26 @@ impl ActCraftApp {
                 ui.label(RichText::new(found).color(if has { t.text_dim } else { t.warning }));
             }
         });
+        // A button above changed the text: that is a step of its own.
+        edit.note_change(Change::Action, now);
+        // Undo and redo cover typing and the buttons alike, so the text box's own undo (which
+        // knows only typing) never sees the keys. The find fields keep theirs.
+        if ui.memory(|m| m.has_focus(id) || m.focused().is_none()) {
+            use egui::{Key, KeyboardShortcut, Modifiers};
+            let redo_keys = [
+                KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z),
+                KeyboardShortcut::new(Modifiers::COMMAND, Key::Y),
+            ];
+            if redo_keys.iter().any(|k| ui.input_mut(|i| i.consume_shortcut(k))) {
+                go = Some(false);
+            }
+            if ui.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z))) {
+                go = Some(true);
+            }
+        }
+        if let Some(back) = go {
+            edit.step(back);
+        }
         if let Some((a, b)) = edit.select.take() {
             let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
             state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
@@ -279,6 +348,9 @@ impl ActCraftApp {
             .show(ui);
         if let Some(range) = output.cursor_range {
             edit.selection = (range.secondary.index.0, range.primary.index.0);
+        }
+        if output.response.changed() {
+            edit.note_change(Change::Typing, now);
         }
         ui.horizontal(|ui| {
             if ui.button(tr("Save lyrics")).clicked() {
@@ -820,6 +892,45 @@ mod tests {
         assert_eq!(follow_target(LyricsScroll::Constant, 5.0, &times, &centres, 1000.0, 200.0, (5.0, 5.0)), None);
         assert_eq!(follow_target(LyricsScroll::Line, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
         assert_eq!(follow_target(LyricsScroll::Off, 5.0, &times, &centres, 1000.0, 200.0, (0.0, 9.0)), None);
+    }
+
+    #[test]
+    fn ctrl_z_takes_back_a_time_stamp_and_ctrl_y_brings_it_again() {
+        let ctx = egui::Context::default();
+        let mut engine = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let shared = Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let mut app = ActCraftApp::new(&ctx, std::sync::Arc::new(std::sync::Mutex::new(shared)), Default::default());
+        app.lyrics_edit = Some(LyricsEdit { song: 1, text: "one\ntwo".into(), ..LyricsEdit::default() });
+        let key =
+            |key, modifiers| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+        let mut frame = |app: &mut ActCraftApp, events: Vec<egui::Event>, t: f64| {
+            let input = egui::RawInput { events, time: Some(t), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| app.lyrics_editor(ui, &mut engine));
+            out.textures_delta.clear();
+        };
+        let text = |app: &ActCraftApp| app.lyrics_edit.as_ref().map(|e| e.text.clone()).unwrap_or_default();
+        frame(&mut app, vec![], 0.0);
+        // A time stamp on line 2, as its button makes it, then another one.
+        let stamp = |app: &mut ActCraftApp, at: f64| {
+            if let Some(edit) = app.lyrics_edit.as_mut() {
+                edit.text = lyrics::stamp_line(&edit.text, 1, at).unwrap_or_default();
+            }
+        };
+        stamp(&mut app, 1.0);
+        frame(&mut app, vec![], 0.1);
+        let first = text(&app);
+        stamp(&mut app, 2.5);
+        frame(&mut app, vec![], 0.2);
+        let second = text(&app);
+        assert_ne!(first, second);
+        frame(&mut app, vec![key(egui::Key::Z, egui::Modifiers::COMMAND)], 0.3);
+        assert_eq!(text(&app), first, "Ctrl+Z takes back the second stamp alone");
+        frame(&mut app, vec![key(egui::Key::Z, egui::Modifiers::COMMAND)], 0.4);
+        assert_eq!(text(&app), "one\ntwo");
+        frame(&mut app, vec![key(egui::Key::Y, egui::Modifiers::COMMAND)], 0.5);
+        assert_eq!(text(&app), first, "Ctrl+Y brings it again");
+        frame(&mut app, vec![key(egui::Key::Z, egui::Modifiers::COMMAND | egui::Modifiers::SHIFT)], 0.6);
+        assert_eq!(text(&app), second, "so does Ctrl+Shift+Z");
     }
 
     #[test]

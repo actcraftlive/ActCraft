@@ -27,6 +27,7 @@ mod regions_view;
 mod settings;
 mod sheet_view;
 pub mod shortcuts;
+mod text_history;
 pub mod theme;
 
 pub use flows::{FileAsk, FileKind, FileRequest};
