@@ -165,6 +165,18 @@ mod tests {
         assert!(speak("\n\t", "").is_err());
     }
 
+    /// Needs a computer with speech installed; run with `cargo test -p actcraft-platform -- --ignored`.
+    #[test]
+    #[ignore = "needs the computer's speech"]
+    fn the_computer_speaks_into_audio_actcraft_can_play() {
+        let bytes = speak("Refrain", "de");
+        assert!(bytes.is_ok(), "{:?}", bytes.as_ref().err());
+        let bytes = bytes.unwrap_or_default();
+        // A WAV (or AIFF on macOS) file with a good part of a second of sound in it.
+        assert!(bytes.starts_with(b"RIFF") || bytes.starts_with(b"FORM"));
+        assert!(bytes.len() > 10_000, "{} bytes", bytes.len());
+    }
+
     #[test]
     fn temp_files_are_new_each_time() {
         assert_ne!(temp_file("wav"), temp_file("wav"));
