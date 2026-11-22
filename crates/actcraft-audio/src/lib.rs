@@ -28,6 +28,6 @@ pub mod tempo;
 pub use clip::Clip;
 pub use clock::{BeatClock, GridLine};
 pub use render::{
-    BUSES, BusParams, ClickMode, Controller, MAX_TRACKS, MetronomeParams, Msg, Renderer, SongLoad, Status, TrackParams,
-    link,
+    BUSES, BusParams, ClickMode, Controller, MAX_TRACKS, MetronomeParams, Msg, Renderer, SongLoad, Status,
+    StatusReader, TrackParams, link,
 };

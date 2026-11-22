@@ -15,7 +15,23 @@ pub(crate) enum Tab {
     Metronome,
     Voice,
     Playback,
+    Midi,
     Library,
+}
+
+impl Tab {
+    /// A tab by its English name in lower case.
+    pub(crate) fn named(name: &str) -> Option<Tab> {
+        Some(match name {
+            "audio" => Tab::Audio,
+            "metronome" => Tab::Metronome,
+            "voice" => Tab::Voice,
+            "playback" => Tab::Playback,
+            "midi" => Tab::Midi,
+            "library" => Tab::Library,
+            _ => return None,
+        })
+    }
 }
 
 /// Speech languages offered for spoken cues: (code, name in that language); empty is the
@@ -54,6 +70,7 @@ impl ActCraftApp {
                         (Tab::Metronome, tr("Metronome")),
                         (Tab::Voice, tr("Spoken cues")),
                         (Tab::Playback, tr("Playback")),
+                        (Tab::Midi, tr("MIDI")),
                         (Tab::Library, tr("Library")),
                     ] {
                         ui.selectable_value(&mut self.settings_tab, tab, label);
@@ -65,6 +82,7 @@ impl ActCraftApp {
                     Tab::Metronome => self.metronome_settings(ui, e),
                     Tab::Voice => self.voice_settings(ui, e),
                     Tab::Playback => self.playback_settings(ui, e),
+                    Tab::Midi => self.midi_settings(ui, e),
                     Tab::Library => self.library_settings(ui, e),
                 }
             });
@@ -286,6 +304,78 @@ impl ActCraftApp {
                 .changed()
             {
                 let _ = e.run("metronome.set", &json!({"latency_offset_ms": lat}));
+            }
+        });
+    }
+
+    /// MIDI: the output on this computer, and what time the show sends to it while it plays.
+    fn midi_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        ui.label(RichText::new(tr("MIDI output")).strong());
+        ui.horizontal(|ui| {
+            let none = tr("None");
+            let current = self.platform.midi_port.clone().unwrap_or_else(|| none.to_owned());
+            let label = ui.label(tr("Send to"));
+            egui::ComboBox::from_id_salt("midi-port")
+                .width(300.0)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(self.platform.midi_port.is_none(), none).clicked() {
+                        self.midi_request = Some(None);
+                    }
+                    for name in self.platform.midi_ports.clone() {
+                        let selected = self.platform.midi_port.as_deref() == Some(name.as_str());
+                        if ui.selectable_label(selected, &name).clicked() {
+                            self.midi_request = Some(Some(name));
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if ui.button(tr("Look again")).on_hover_text(tr("Find MIDI outputs connected since")).clicked() {
+                self.midi_refresh = true;
+            }
+        });
+        if self.platform.midi_ports.is_empty() {
+            ui.label(RichText::new(tr("No MIDI outputs found on this computer.")).color(t.text_dim));
+        }
+        ui.label(
+            RichText::new(tr("The output is kept on this computer; what is sent is kept with the show."))
+                .color(t.text_dim),
+        );
+        ui.add_space(8.0);
+        ui.label(RichText::new(tr("Send while a song plays")).strong());
+        let midi = e.show.midi.clone();
+        let mut clock = midi.clock;
+        if ui
+            .checkbox(&mut clock, tr("MIDI Clock"))
+            .on_hover_text(tr("24 pulses per beat with start, stop and the song position, so other gear plays in time"))
+            .changed()
+        {
+            self.run(e, "midi.set", serde_json::json!({"clock": clock}));
+        }
+        ui.horizontal(|ui| {
+            let mut timecode = midi.timecode;
+            if ui
+                .checkbox(&mut timecode, tr("MIDI Timecode"))
+                .on_hover_text(tr("The song time as hours, minutes, seconds and frames"))
+                .changed()
+            {
+                self.run(e, "midi.set", serde_json::json!({"timecode": timecode}));
+            }
+            let label = ui.label(tr("Frames per second"));
+            let mut fps = midi.timecode_fps;
+            egui::ComboBox::from_id_salt("midi-fps")
+                .selected_text(fps.to_string())
+                .show_ui(ui, |ui| {
+                    for rate in actcraft_show::MidiSettings::RATES {
+                        ui.selectable_value(&mut fps, rate, rate.to_string());
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if fps != midi.timecode_fps {
+                self.run(e, "midi.set", serde_json::json!({"timecode_fps": fps}));
             }
         });
     }

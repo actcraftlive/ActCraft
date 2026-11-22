@@ -103,6 +103,9 @@ pub struct PlatformInfo {
     pub devices: Vec<(String, String)>,
     /// The chosen device, `None` for the system default.
     pub device_id: Option<String>,
+    /// The computer's MIDI outputs, and the one MIDI time goes to.
+    pub midi_ports: Vec<String>,
+    pub midi_port: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -132,6 +135,10 @@ pub struct ActCraftApp {
     settings_tab: settings::Tab,
     /// A device the person picked in Settings; the host switches to it.
     device_request: Option<Option<String>>,
+    /// A MIDI output the person picked in Settings (`None`: none); the host opens it.
+    midi_request: Option<Option<String>>,
+    /// The person asked to look for MIDI outputs again.
+    midi_refresh: bool,
     /// A language the person picked in Settings; the host remembers it.
     language_request: Option<String>,
     /// Tap-tempo times (seconds of app time).
@@ -196,6 +203,8 @@ impl ActCraftApp {
             settings_open: false,
             settings_tab: settings::Tab::default(),
             device_request: None,
+            midi_request: None,
+            midi_refresh: false,
             language_request: None,
             taps: Vec::new(),
             centre_tab: CentreTab::Mixer,
@@ -244,6 +253,15 @@ impl ActCraftApp {
         self.settings_open = true;
     }
 
+    /// Opens the Settings window on a tab by its English name in lower case (`audio`, `midi`...),
+    /// for `--open-settings TAB` screenshots; an unknown name keeps the tab.
+    pub fn open_settings_at(&mut self, tab: &str) {
+        self.settings_open = true;
+        if let Some(t) = settings::Tab::named(tab) {
+            self.settings_tab = t;
+        }
+    }
+
     /// Shows the About window (`--about`, for screenshots).
     pub fn show_about(&mut self) {
         self.modal = Some(flows::Modal::About);
@@ -258,6 +276,16 @@ impl ActCraftApp {
     /// this every frame.
     pub fn take_device_request(&mut self) -> Option<Option<String>> {
         self.device_request.take()
+    }
+
+    /// A MIDI output the person picked (`Some(None)`: none); the host calls this every frame.
+    pub fn take_midi_request(&mut self) -> Option<Option<String>> {
+        self.midi_request.take()
+    }
+
+    /// Whether the person asked to look for MIDI outputs again.
+    pub fn take_midi_refresh(&mut self) -> bool {
+        std::mem::take(&mut self.midi_refresh)
     }
 
     /// A language the person picked (already applied to the window); the host saves it.
