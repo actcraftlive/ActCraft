@@ -18,6 +18,7 @@ use actcraft_engine::{Engine, registry};
 use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
+mod cues_view;
 pub mod flows;
 pub mod i18n;
 mod lyrics_view;
@@ -144,6 +145,8 @@ pub struct ActCraftApp {
     /// The open PDF of the Sheet music tab.
     sheet: Option<sheet_view::SheetDoc>,
     sheet_view: sheet_view::SheetLook,
+    /// Words typed for a new spoken cue in the Spoken cues tab.
+    new_cue: String,
 }
 
 /// What the main area shows for the current song.
@@ -152,6 +155,7 @@ pub enum CentreTab {
     Mixer,
     Lyrics,
     Sheet,
+    Cues,
 }
 
 impl ActCraftApp {
@@ -188,6 +192,7 @@ impl ActCraftApp {
             stage: None,
             sheet: None,
             sheet_view: sheet_view::SheetLook::default(),
+            new_cue: String::new(),
         }
     }
 
@@ -210,6 +215,11 @@ impl ActCraftApp {
     /// Opens the Settings window (also used by `--open-settings` for screenshots).
     pub fn open_settings(&mut self) {
         self.settings_open = true;
+    }
+
+    /// Shows the Spoken cues tab (`--cues`, for screenshots).
+    pub fn show_cues(&mut self) {
+        self.centre_tab = CentreTab::Cues;
     }
 
     /// A device switch the person asked for (`Some(None)`: the system default); the host calls
@@ -748,10 +758,20 @@ impl ActCraftApp {
             ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
             let sheet_label = if song.pdf_file.is_some() { tr("Sheet music \u{2022}") } else { tr("Sheet music") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Sheet, big(sheet_label));
+            let spoken = song.announce_title || song.regions.iter().any(|r| !r.voice.trim().is_empty());
+            let cues_label = if spoken { tr("Spoken cues \u{2022}") } else { tr("Spoken cues") };
+            ui.selectable_value(&mut self.centre_tab, CentreTab::Cues, big(cues_label));
         });
         self.region_bar(ui, e, &song);
         if self.centre_tab == CentreTab::Lyrics {
             self.lyrics_tab(ui, e, &song);
+            return;
+        }
+        if self.centre_tab == CentreTab::Cues {
+            if self.lyrics_edit.is_some() {
+                self.finish_lyrics_edit_pub(e);
+            }
+            self.cues_tab(ui, e, &song);
             return;
         }
         if self.centre_tab == CentreTab::Sheet {

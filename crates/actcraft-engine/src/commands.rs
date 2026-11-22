@@ -272,7 +272,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Play",
             "Transport/Play",
             None,
-            "{count_in?: bool (default true)}",
+            "{count_in?: bool (default true), from?: seconds (start there; the song must be loaded)}",
             transport_play,
         )),
         cmd("transport.pause", "Pause", "Transport/Pause", None, "none", transport_pause),
@@ -1164,6 +1164,24 @@ fn start_playback(e: &mut Engine, count_in: bool) -> CommandResult {
 
 fn transport_play(e: &mut Engine, prm: &Value) -> CommandResult {
     let count_in = p::opt_bool(prm, "count_in")?.unwrap_or(true);
+    if let Some(from) = p::opt_f64_in(prm, "from", 0.0, 86_400.0)? {
+        // Start somewhere else (to hear a cue): the song must be loaded so the place sticks.
+        need_audio(e)?;
+        let id = song_param(e, &Value::Null)?;
+        if e.loaded_song() != Some(id) {
+            e.load_into_renderer(id);
+        }
+        if e.is_loading(id) {
+            return Err(failed("that song's audio is still loading; try again in a moment"));
+        }
+        // Stop, move, play: sent together, so the status of the last frame doesn't matter.
+        e.send(Msg::Stop);
+        e.send(Msg::Seek(from));
+        if !e.send(Msg::Play { count_in, quantized: false }) {
+            return Err(failed("the audio output is busy; try again"));
+        }
+        return Ok(json!({"playing": true, "from": from}));
+    }
     start_playback(e, count_in)
 }
 
