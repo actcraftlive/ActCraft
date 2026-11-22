@@ -522,7 +522,8 @@
 	Attach notation	Partitur anhängen
 	Attach notation…	Partitur anhängen…
 	Choose another score…	Andere Partitur wählen…
-	Click a bar to play from there	Einen Takt anklicken, um ab dort zu spielen
+	Click a bar to play from there, or choose one with the arrow keys and press Enter	Einen Takt anklicken, um ab dort zu spielen, oder mit den Pfeiltasten wählen und Enter drücken
+	selected: bar {bar}	gewählt: Takt {bar}
 	Display	Darstellung
 	Instrument	Instrument
 	Keep the playing bar in view while the song plays	Den gespielten Takt beim Abspielen im Blick behalten
