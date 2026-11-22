@@ -147,7 +147,7 @@ pub fn signature_ticks(beats: u8, beat_type: u8) -> u32 {
 }
 
 /// A note or a rest.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Note {
     /// Onset from the bar's start, ticks.
     pub start: u32,
@@ -167,6 +167,24 @@ pub struct Note {
     pub voice: u8,
     /// Staff of a part written on several staves (piano), 1-based.
     pub staff: u8,
+}
+
+impl Default for Note {
+    /// A quarter rest at the bar's start, voice 1 on staff 1.
+    fn default() -> Self {
+        Self {
+            start: 0,
+            length: TICKS_PER_QUARTER,
+            pitch: None,
+            value: NoteValue::Quarter,
+            dots: 0,
+            string: None,
+            fret: None,
+            tied: false,
+            voice: 1,
+            staff: 1,
+        }
+    }
 }
 
 /// A written pitch.
