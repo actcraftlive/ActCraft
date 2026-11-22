@@ -59,6 +59,15 @@ cpal = "0.18"
 lto = "thin"
 codegen-units = 1
 
+# Debug builds decode audio unoptimised: a four-minute MP3 took 42 s instead of 0.6 s, so opening
+# a show seemed to hang. Dependencies (decoders, PDF rendering) and the audio crate are always
+# optimised; the rest stays quick to compile and debug.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.actcraft-audio]
+opt-level = 3
+
 # craft-pdf is built against craft-libs' vendored hayro (its own [patch] doesn't reach dependents),
 # so the same sources are used here, at the same craft-libs rev.
 [patch.crates-io]

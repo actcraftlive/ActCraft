@@ -31,6 +31,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 ## M1 Audio and library 🔶
 
 - ✅ Real-time engine, tracks stay sample-locked (drift-free clock)
+- ✅ Transport: Play/Pause (Space) keeps the place; Stop (Esc) goes back to the song's start
 - ✅ 64 tracks per song: volume, pan, 4-band EQ, mute, name, colour, bus
 - ✅ 16 output buses routed to interface outputs; choose the interface in Settings
 - ✅ Six labelled mute groups; song and master volume
