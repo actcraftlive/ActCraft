@@ -526,6 +526,8 @@
 	Display	Darstellung
 	Instrument	Instrument
 	Keep the playing bar in view while the song plays	Den gespielten Takt beim Abspielen im Blick behalten
+	Score bar 1 is song bar	Takt 1 der Noten ist Songtakt
+	The bar of the song's beat grid where the score's first bar plays; 0 or less for a pickup bar	Der Takt im Taktraster des Songs, in dem der erste Takt der Noten spielt; 0 oder kleiner für einen Auftakt
 	MusicXML score	MusicXML-Partitur
 	Notation	Partitur
 	Notation attached: {parts} parts, {bars} bars	Partitur angehängt: {parts} Stimmen, {bars} Takte

@@ -53,6 +53,10 @@ pub mod limits {
     pub const MAX_LYRICS: usize = 512 * 1024;
     /// Longest song, seconds (24 h).
     pub const MAX_SECONDS: f64 = 86_400.0;
+    /// Earliest song bar a score's first bar may sit on (a long lead-in before the anchor).
+    pub const MIN_SCORE_FIRST_BAR: i32 = -999;
+    /// Latest song bar a score's first bar may sit on.
+    pub const MAX_SCORE_FIRST_BAR: i32 = 9_999;
 }
 
 /// The format tag written into every show file.
@@ -184,6 +188,9 @@ pub struct Song {
     pub pdf_file: Option<String>,
     /// A score (MusicXML) shown as notes and tablature in the Sheet music tab.
     pub notation_file: Option<String>,
+    /// The song bar (beat grid numbering: 1 at the beat anchor, 0 and below before it) where
+    /// the score's first bar plays; 0 or less for a score that starts with a pickup bar.
+    pub score_first_bar: i32,
     /// Start the next song when this one ends.
     pub autoplay: bool,
     /// Loop the whole song.
@@ -225,6 +232,7 @@ impl Default for Song {
             midi_file: None,
             pdf_file: None,
             notation_file: None,
+            score_first_bar: 1,
             autoplay: false,
             loop_song: false,
             announce_title: false,
@@ -722,6 +730,7 @@ impl Song {
         if let Some(m) = &mut self.notation_file {
             cut(m, MAX_TEXT);
         }
+        self.score_first_bar = self.score_first_bar.clamp(MIN_SCORE_FIRST_BAR, MAX_SCORE_FIRST_BAR);
         if let Some(m) = &mut self.midi_file {
             cut(m, MAX_TEXT);
         }
@@ -917,6 +926,17 @@ mod tests {
     fn old_file_without_version_loads() {
         let show = Show::from_bytes(br#"{"format":"actcraft-show","songs":[{"title":"x"}]}"#);
         assert!(show.is_ok_and(|s| s.version == 1 && s.songs.first().is_some_and(|x| x.id != 0)));
+    }
+
+    #[test]
+    fn score_first_bar_defaults_to_bar_one_and_is_clamped() {
+        let show = Show::from_bytes(br#"{"format":"actcraft-show","version":1,"songs":[{"title":"x"}]}"#);
+        assert_eq!(show.ok().and_then(|s| s.songs.first().map(|x| x.score_first_bar)), Some(1), "older files");
+        let show = Show::from_bytes(br#"{"format":"actcraft-show","version":1,"songs":[{"score_first_bar":-5000}]}"#);
+        assert_eq!(
+            show.ok().and_then(|s| s.songs.first().map(|x| x.score_first_bar)),
+            Some(limits::MIN_SCORE_FIRST_BAR)
+        );
     }
 
     #[test]

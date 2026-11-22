@@ -23,18 +23,17 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Notation: bar offset between score and audio (M2)
-2. Notation: repeats and voltas played in order (M2)
-3. Notation: slurs and ties as arcs, tuplets, techniques in the tab (M2)
-4. Notation: lyrics under the notes and chord symbols above them (M2)
-5. Notation: keyboard way to move to a bar (M2, accessibility)
-6. Second window shows sheet music too: PDF and notation (M2)
-7. PDF annotations (M2)
-8. Lyrics editor: timecode-aware undo (M2)
-9. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-10. Show package of a single song or playlist (M1)
-11. Command errors that carry a value (file name, number) in the window's language
-12. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. Notation: repeats and voltas played in order (M2)
+2. Notation: slurs and ties as arcs, tuplets, techniques in the tab (M2)
+3. Notation: lyrics under the notes and chord symbols above them (M2)
+4. Notation: keyboard way to move to a bar (M2, accessibility)
+5. Second window shows sheet music too: PDF and notation (M2)
+6. PDF annotations (M2)
+7. Lyrics editor: timecode-aware undo (M2)
+8. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+9. Show package of a single song or playlist (M1)
+10. Command errors that carry a value (file name, number) in the window's language
+11. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -108,9 +107,11 @@ details are in the milestone sections further down.
   part by part; frets come from the file or are placed on the part's tuning; eighths and shorter
   notes beamed by beat; the playing bar is marked on the song's beat grid, the view follows
   playback, a click on a bar plays from there (`notation.attach`, `notation.read`,
-  `song.set {notation_file}`); drop a score on the window to attach it. Still to do, in order:
-  - ⬜ Bar offset between score and audio: a song setting "score bar 1 is song bar N" (also
-    negative, for a pickup bar), used by the playing-bar mark, follow and click-to-bar
+  `song.set {notation_file}`); drop a score on the window to attach it. Follow-ups, the open
+  ones in order:
+  - ✅ Bar offset between score and audio: "Score bar 1 is song bar N" per song (0 or less for
+    a pickup bar), used by the playing-bar mark, follow and click-to-bar
+    (`song.set {score_first_bar}`)
   - ⬜ Repeats and voltas (first/second endings), D.C./D.S./Coda: the score's bars unrolled into
     the order they are played, so the playing bar is right on the second pass
   - ⬜ Slurs and ties drawn as arcs on the staff (ties show as "(fret)" in the tab today)
