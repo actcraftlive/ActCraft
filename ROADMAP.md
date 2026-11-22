@@ -9,7 +9,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 |---|---|---|
 | M0 | Foundation: commands, CLI, control channel, MCP, build gate | ✅ |
 | M1 | Audio engine, mixer, outputs, metronome, library, playlists, queue | 🔶 |
-| M2 | Regions, lyrics and chords, sheet music (PDF), lyrics editor, second screen | 🔶 in progress |
+| M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ⬜ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ⬜ |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | ⬜ |
@@ -17,6 +17,35 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ⬜ |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
+
+## Next up
+
+The open items below, in the order they are planned. Each one is a pull request of its own;
+details are in the milestone sections further down.
+
+1. Notation: bar offset between score and audio (M2)
+2. Notation: repeats and voltas played in order (M2)
+3. Notation: slurs and ties as arcs, tuplets, techniques in the tab (M2)
+4. Notation: lyrics under the notes and chord symbols above them (M2)
+5. Notation: keyboard way to move to a bar (M2, accessibility)
+6. Second window shows sheet music too: PDF and notation (M2)
+7. PDF annotations (M2)
+8. Lyrics editor: timecode-aware undo (M2)
+9. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+10. Show package of a single song or playlist (M1)
+11. Command errors that carry a value (file name, number) in the window's language
+12. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+
+## Quality and open questions
+
+- ⬜ Keyboard and accessibility-tree tests (kittest) for the window: the helpers don't exist in
+  this repository yet; every new control should get one once they do
+- ⬜ The MusicXML reader (`actcraft-notation`) is app-independent: offer it to the shared
+  libraries (craft-libs), whose `craft-score` only writes MusicXML
+- ⬜ Serif and script font tags wait for fonts from the shared font store
+- ⬜ Effect plugins per track and bus: choose the plugin format after its licence check
+- Waiting on the owner's confirmation: the logo's licence (MIT OR Apache-2.0, ATTRIBUTION.md) and
+  the Apache-2.0 choice for `self_cell` (docs/licences.md)
 
 ## M0 Foundation ✅
 
@@ -74,12 +103,25 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
   just before a cue to hear it
 - 🔶 PDF per song in the Sheet music tab: pages rendered in the background, zoom, inverted
   colours, scroll with playback (done); annotations to do
-- ✅ Notation per song in the Sheet music tab: a MusicXML score (`.musicxml`, `.xml`, compressed
-  `.mxl`, as notation and tablature editors export it) drawn as staves and tablature, part by
-  part; frets come from the file or are placed on the part's tuning; the playing bar is marked
-  on the song's beat grid, the view follows playback, a click on a bar plays from there
-  (`notation.attach`, `notation.read`, `song.set {notation_file}`); drop a score on the window to
-  attach it. Beams, slurs, lyrics under the notes and repeats still to do
+- 🔶 Notation per song in the Sheet music tab (done): a MusicXML score (`.musicxml`, `.xml`,
+  compressed `.mxl`, as notation and tablature editors export it) drawn as staves and tablature,
+  part by part; frets come from the file or are placed on the part's tuning; eighths and shorter
+  notes beamed by beat; the playing bar is marked on the song's beat grid, the view follows
+  playback, a click on a bar plays from there (`notation.attach`, `notation.read`,
+  `song.set {notation_file}`); drop a score on the window to attach it. Still to do, in order:
+  - ⬜ Bar offset between score and audio: a song setting "score bar 1 is song bar N" (also
+    negative, for a pickup bar), used by the playing-bar mark, follow and click-to-bar
+  - ⬜ Repeats and voltas (first/second endings), D.C./D.S./Coda: the score's bars unrolled into
+    the order they are played, so the playing bar is right on the second pass
+  - ⬜ Slurs and ties drawn as arcs on the staff (ties show as "(fret)" in the tab today)
+  - ⬜ Lyrics under the notes (`<lyric>`), and chord symbols above the staff (`<harmony>`)
+  - ⬜ Techniques in the tab: bends, slides, hammer-on/pull-off, palm mute, harmonics, vibrato
+  - ⬜ Triplets and other tuplets marked with their number and bracket
+  - ⬜ Keyboard way to move to a bar (today only a click): e.g. bar number field or arrow keys
+    on the score, with the playing bar announced
+  - ⬜ Notation in the second window (large, follows playback), like the lyrics window
+  - Not planned: native files of tablature editors are not read, their formats are not publicly documented
+    (clean room); they export MusicXML, which is read
 - 🔶 Second window for lyrics (Lyrics window: large text, chords, full screen, follows playback);
   sheet music follows with PDF
 
