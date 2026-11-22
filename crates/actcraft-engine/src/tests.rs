@@ -537,3 +537,63 @@ fn pause_keeps_the_place_and_stop_goes_back_to_the_start() {
     run(&mut e, 1);
     assert!(e.status.playing && (e.status.time - 0.6).abs() < 0.05, "jumps to 0.5 s: {}", e.status.time);
 }
+
+/// A one-bar guitar score with fret numbers.
+const SCORE: &str = r#"<?xml version="1.0"?>
+<score-partwise><work><work-title>Night Drive</work-title></work>
+<part-list><score-part id="P1"><part-name>Guitar</part-name></score-part></part-list>
+<part id="P1"><measure number="1"><attributes><divisions>1</divisions><clef><sign>TAB</sign></clef></attributes>
+<direction><sound tempo="100"/></direction>
+<note><pitch><step>E</step><octave>2</octave></pitch><duration>4</duration><type>whole</type>
+<notations><technical><string>6</string><fret>0</fret></technical></notations></note>
+</measure></part></score-partwise>"#;
+
+#[test]
+fn notation_attaches_reads_and_travels_in_packages() {
+    let mut files = MemoryServices::default();
+    files.files.insert("/gig/night.musicxml".into(), SCORE.as_bytes().to_vec());
+    files.files.insert("/gig/notes.xml".into(), b"<html/>".to_vec());
+    files.files.insert("/gig/notes.txt".into(), SCORE.as_bytes().to_vec());
+    let mut e = Engine::new(Box::new(files));
+    let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    assert!(e.run("notation.read", &json!({"song": id})).is_err(), "nothing attached yet");
+    // Files that aren't scores are refused and change nothing.
+    assert!(e.run("notation.attach", &json!({"song": id, "path": "/gig/notes.txt"})).is_err());
+    assert!(e.run("notation.attach", &json!({"song": id, "path": "/gig/notes.xml"})).is_err());
+    assert!(e.run("notation.attach", &json!({"song": id, "path": "/gig/missing.mxl"})).is_err());
+    assert_eq!(e.show.song(id).and_then(|s| s.notation_file.clone()), None);
+    e.dirty = false;
+    let r = e.run("notation.attach", &json!({"song": id, "path": "/gig/night.musicxml"}));
+    assert!(r.is_ok(), "{r:?}");
+    let r = r.unwrap_or_default();
+    assert_eq!(r["title"], json!("Night Drive"));
+    assert_eq!(r["tempo"], json!(100.0));
+    assert_eq!(
+        r["parts"][0],
+        json!({"name": "Guitar", "bars": 1, "notes": 1, "tablature": true, "strings": [64, 59, 55, 50, 45, 40], "capo": 0})
+    );
+    assert!(e.dirty);
+    let song = e.show.song(id).cloned().unwrap_or_default();
+    assert_eq!(song.notation_file.as_deref(), Some("/gig/night.musicxml"));
+    assert_eq!(song.title, "Night Drive", "a new song takes the score's title");
+    assert_eq!(e.run("notation.read", &Value::Null).ok().map(|v| v["parts"][0]["bars"].clone()), Some(json!(1)));
+    // song.set checks the type, and null removes it.
+    assert!(e.run("song.set", &json!({"song": id, "notation_file": "/gig/a.pdf"})).is_err());
+    assert!(e.run("song.set", &json!({"song": id, "notation_file": "/gig/b.mxl"})).is_ok());
+    assert!(e.run("song.set", &json!({"song": id, "notation_file": null})).is_ok());
+    assert_eq!(e.show.song(id).and_then(|s| s.notation_file.clone()), None);
+    // In a package the score goes along and is found again after unpacking.
+    assert!(e.run("song.set", &json!({"song": id, "notation_file": "/gig/night.musicxml"})).is_ok());
+    assert!(e.run("show.export_package", &json!({"path": "/gig/Night.actcraftpack"})).is_ok());
+    let package = e.services().read_file("/gig/Night.actcraftpack").unwrap_or_default();
+    let mut other = MemoryServices::default();
+    other.files.insert("/usb/Night.actcraftpack".into(), package);
+    let mut e2 = Engine::new(Box::new(other));
+    assert!(e2.run("show.open_package", &json!({"path": "/usb/Night.actcraftpack"})).is_ok());
+    let moved = e2.show.song(id).and_then(|s| s.notation_file.clone()).unwrap_or_default();
+    assert!(moved.starts_with("/usb/Night files/"), "{moved}");
+    assert_eq!(
+        e2.run("notation.read", &json!({"song": id})).ok().map(|v| v["title"].clone()),
+        Some(json!("Night Drive"))
+    );
+}

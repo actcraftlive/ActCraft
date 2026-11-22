@@ -153,6 +153,9 @@ pub fn show_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
         if let Some(pdf) = &mut song.pdf_file {
             packer.relink(pdf)?;
         }
+        if let Some(score) = &mut song.notation_file {
+            packer.relink(score)?;
+        }
     }
     let Packer { mut writer, packed, missing, total, .. } = packer;
     writer.add(SHOW_ENTRY, &show.to_bytes(), craft_zip::Compression::Deflated).map_err(|e| failed(e.to_string()))?;
@@ -236,6 +239,9 @@ pub fn show_open_package(e: &mut Engine, prm: &Value) -> CommandResult {
         }
         if let Some(pdf) = &mut song.pdf_file {
             relink(pdf);
+        }
+        if let Some(score) = &mut song.notation_file {
+            relink(score);
         }
     }
     let songs = show.songs.len();

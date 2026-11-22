@@ -182,6 +182,8 @@ pub struct Song {
     pub midi_file: Option<String>,
     /// A PDF shown in the Sheet music tab (sheet music, lyrics, notes).
     pub pdf_file: Option<String>,
+    /// A score (MusicXML) shown as notes and tablature in the Sheet music tab.
+    pub notation_file: Option<String>,
     /// Start the next song when this one ends.
     pub autoplay: bool,
     /// Loop the whole song.
@@ -222,6 +224,7 @@ impl Default for Song {
             lyrics_scroll: LyricsScroll::default(),
             midi_file: None,
             pdf_file: None,
+            notation_file: None,
             autoplay: false,
             loop_song: false,
             announce_title: false,
@@ -714,6 +717,9 @@ impl Song {
         }
         cut(&mut self.lyrics, MAX_LYRICS);
         if let Some(m) = &mut self.pdf_file {
+            cut(m, MAX_TEXT);
+        }
+        if let Some(m) = &mut self.notation_file {
             cut(m, MAX_TEXT);
         }
         if let Some(m) = &mut self.midi_file {

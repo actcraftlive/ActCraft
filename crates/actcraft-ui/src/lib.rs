@@ -22,6 +22,7 @@ mod cues_view;
 pub mod flows;
 pub mod i18n;
 mod lyrics_view;
+mod notation_view;
 mod regions_view;
 mod settings;
 mod sheet_view;
@@ -145,6 +146,11 @@ pub struct ActCraftApp {
     /// The open PDF of the Sheet music tab.
     sheet: Option<sheet_view::SheetDoc>,
     sheet_view: sheet_view::SheetLook,
+    /// Notation or PDF, when a song has both.
+    sheet_source: sheet_view::SheetSource,
+    /// The open score of the Sheet music tab.
+    notation: Option<notation_view::NotationDoc>,
+    notation_look: notation_view::NotationLook,
     /// Words typed for a new spoken cue in the Spoken cues tab.
     new_cue: String,
 }
@@ -192,8 +198,16 @@ impl ActCraftApp {
             stage: None,
             sheet: None,
             sheet_view: sheet_view::SheetLook::default(),
+            sheet_source: sheet_view::SheetSource::default(),
+            notation: None,
+            notation_look: notation_view::NotationLook::default(),
             new_cue: String::new(),
         }
+    }
+
+    /// Shows the Sheet music tab (also used by `--sheet` for screenshots).
+    pub fn show_sheet(&mut self) {
+        self.centre_tab = CentreTab::Sheet;
     }
 
     /// Shows the Lyrics tab (also used by `--lyrics` for screenshots).
@@ -761,7 +775,11 @@ impl ActCraftApp {
             ui.selectable_value(&mut self.centre_tab, CentreTab::Mixer, big(tr("Mixer")));
             let lyrics_label = if song.lyrics.trim().is_empty() { tr("Lyrics") } else { tr("Lyrics \u{2022}") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
-            let sheet_label = if song.pdf_file.is_some() { tr("Sheet music \u{2022}") } else { tr("Sheet music") };
+            let sheet_label = if song.pdf_file.is_some() || song.notation_file.is_some() {
+                tr("Sheet music \u{2022}")
+            } else {
+                tr("Sheet music")
+            };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Sheet, big(sheet_label));
             let spoken = song.announce_title || song.regions.iter().any(|r| !r.voice.trim().is_empty());
             let cues_label = if spoken { tr("Spoken cues \u{2022}") } else { tr("Spoken cues") };

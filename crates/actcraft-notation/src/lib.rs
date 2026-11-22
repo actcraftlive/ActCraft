@@ -1,0 +1,338 @@
+//! Notation: MusicXML scores read into parts, bars and notes, with a string and fret for every
+//! pitched note so a part can be shown as tablature.
+//!
+//! MusicXML is the open exchange format notation and tablature editors write (`.musicxml`, `.xml`)
+//! and its compressed form (`.mxl`, a ZIP whose `META-INF/container.xml` names the score). Only
+//! the part-wise layout (`<score-partwise>`) is read; that is what editors write.
+//!
+//! Reading treats the file as hostile: input size, parts, bars and notes are capped, every number
+//! is range-checked, and nothing panics.
+//!
+//! The shared `craft-score` library writes MusicXML but has no reader; this one depends only on
+//! shared libraries (`craft-xml`, `craft-zip`) and holds no ActCraft policy, so it can move there.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unimplemented,
+    clippy::todo,
+    clippy::unreachable
+)]
+
+mod musicxml;
+pub mod tab;
+
+pub use musicxml::{read, read_mxl, read_xml};
+
+/// Ticks in a quarter note; every onset and length is in ticks.
+pub const TICKS_PER_QUARTER: u32 = 960;
+/// Largest file read, compressed or not.
+pub const MAX_INPUT: usize = 32 * 1024 * 1024;
+/// Parts kept from one score.
+pub const MAX_PARTS: usize = 64;
+/// Bars kept per part.
+pub const MAX_BARS: usize = 5_000;
+/// Notes and rests kept over the whole score.
+pub const MAX_NOTES: usize = 400_000;
+/// Strings a tablature part may have.
+pub const MAX_STRINGS: usize = 12;
+/// Highest fret written.
+pub const MAX_FRET: u8 = 36;
+
+/// A score: its title and its parts.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Score {
+    pub title: String,
+    pub composer: String,
+    pub parts: Vec<Part>,
+}
+
+/// One instrument's part.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Part {
+    pub name: String,
+    /// Open-string pitches as MIDI numbers, highest string first (string 1 is index 0). Empty when
+    /// the file gives no tuning; [`Part::strings`] then falls back to a standard guitar.
+    pub tuning: Vec<u8>,
+    /// Capo fret, 0 for none.
+    pub capo: u8,
+    /// The file writes this part as tablature (a TAB clef, string tuning or fret numbers).
+    pub tablature: bool,
+    /// The clef of each staff (index 0 is staff 1), as first written; at least one.
+    pub clefs: Vec<Clef>,
+    pub bars: Vec<Bar>,
+}
+
+/// Staves one part may have.
+pub const MAX_STAVES: usize = 4;
+
+/// A clef: which note sits on which staff line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Clef {
+    pub kind: ClefKind,
+    /// Staff line the clef marks, 1 = bottom.
+    pub line: u8,
+    /// Octaves the music sounds above (positive) or below (negative) what is written; -1 for the
+    /// guitar's treble clef with an 8 below.
+    pub octave_change: i8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClefKind {
+    /// Treble family: G4 on the line.
+    G,
+    /// Bass family: F3 on the line.
+    F,
+    /// Alto and tenor: C4 on the line.
+    C,
+}
+
+impl Default for Clef {
+    fn default() -> Self {
+        Self::TREBLE
+    }
+}
+
+impl Clef {
+    pub const TREBLE: Clef = Clef { kind: ClefKind::G, line: 2, octave_change: 0 };
+    pub const BASS: Clef = Clef { kind: ClefKind::F, line: 4, octave_change: 0 };
+    /// Treble with an 8 below, as guitar music is written.
+    pub const GUITAR: Clef = Clef { kind: ClefKind::G, line: 2, octave_change: -1 };
+
+    /// Staff position of a pitch: 0 is the bottom line, 1 the space above it, 8 the top line.
+    pub fn position(self, pitch: Pitch) -> i32 {
+        let bottom = self.reference() - 2 * (i32::from(self.line.clamp(1, 5)) - 1);
+        pitch.diatonic() - 7 * i32::from(self.octave_change) - bottom
+    }
+
+    /// The note the clef marks, diatonic.
+    fn reference(self) -> i32 {
+        match self.kind {
+            ClefKind::G => 4 * 7 + 4,
+            ClefKind::F => 3 * 7 + 3,
+            ClefKind::C => 4 * 7,
+        }
+    }
+}
+
+/// One bar of a part.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Bar {
+    /// The bar number as the file writes it ("1", "12a"); empty when it has none.
+    pub number: String,
+    /// Time signature in force: beats and the beat's note value (4 = quarter).
+    pub beats: u8,
+    pub beat_type: u8,
+    /// Key signature in force: sharps (positive) or flats (negative), -7..=7.
+    pub fifths: i8,
+    /// Tempo marked at this bar, quarter notes per minute.
+    pub tempo: Option<f64>,
+    /// Length in ticks: the furthest a voice reaches, or the time signature for an empty bar.
+    pub length: u32,
+    /// Notes and rests by onset, then by pitch.
+    pub notes: Vec<Note>,
+}
+
+impl Bar {
+    /// The length the time signature gives, in ticks.
+    pub fn signature_length(&self) -> u32 {
+        signature_ticks(self.beats, self.beat_type)
+    }
+}
+
+/// The length of a bar of `beats`/`beat_type` in ticks.
+pub fn signature_ticks(beats: u8, beat_type: u8) -> u32 {
+    let beat_type = u32::from(beat_type.max(1));
+    u32::from(beats.max(1)).saturating_mul(TICKS_PER_QUARTER).saturating_mul(4) / beat_type
+}
+
+/// A note or a rest.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Note {
+    /// Onset from the bar's start, ticks.
+    pub start: u32,
+    /// Length, ticks.
+    pub length: u32,
+    /// `None` for a rest.
+    pub pitch: Option<Pitch>,
+    /// How the note is written (whole, half, quarter...); taken from its length when the file
+    /// doesn't say.
+    pub value: NoteValue,
+    pub dots: u8,
+    /// String (1 = highest) and fret; filled for every pitched note of a tablature part.
+    pub string: Option<u8>,
+    pub fret: Option<u8>,
+    /// Sounds on from the previous note (the fret is not struck again).
+    pub tied: bool,
+    pub voice: u8,
+    /// Staff of a part written on several staves (piano), 1-based.
+    pub staff: u8,
+}
+
+/// A written pitch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Pitch {
+    /// Letter: 0 = C .. 6 = B.
+    pub step: u8,
+    /// Semitones up (sharp) or down (flat), -2..=2.
+    pub alter: i8,
+    /// Octave, 4 holds middle C.
+    pub octave: i8,
+}
+
+impl Pitch {
+    /// The MIDI note number, clamped to 0..=127.
+    pub fn midi(self) -> u8 {
+        const SEMITONES: [i32; 7] = [0, 2, 4, 5, 7, 9, 11];
+        let base = SEMITONES.get(usize::from(self.step)).copied().unwrap_or(0);
+        let n = (i32::from(self.octave) + 1) * 12 + base + i32::from(self.alter);
+        n.clamp(0, 127) as u8
+    }
+
+    /// Diatonic position: seven per octave, C0 = 0. A staff places notes by this.
+    pub fn diatonic(self) -> i32 {
+        i32::from(self.octave) * 7 + i32::from(self.step)
+    }
+}
+
+/// A note's written value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NoteValue {
+    Whole,
+    Half,
+    #[default]
+    Quarter,
+    Eighth,
+    Sixteenth,
+    ThirtySecond,
+    SixtyFourth,
+}
+
+impl NoteValue {
+    /// Its plain length (no dots) in ticks.
+    pub fn ticks(self) -> u32 {
+        match self {
+            Self::Whole => TICKS_PER_QUARTER * 4,
+            Self::Half => TICKS_PER_QUARTER * 2,
+            Self::Quarter => TICKS_PER_QUARTER,
+            Self::Eighth => TICKS_PER_QUARTER / 2,
+            Self::Sixteenth => TICKS_PER_QUARTER / 4,
+            Self::ThirtySecond => TICKS_PER_QUARTER / 8,
+            Self::SixtyFourth => TICKS_PER_QUARTER / 16,
+        }
+    }
+
+    /// Flags (or beams) the value carries: none up to a quarter.
+    pub fn flags(self) -> u8 {
+        match self {
+            Self::Whole | Self::Half | Self::Quarter => 0,
+            Self::Eighth => 1,
+            Self::Sixteenth => 2,
+            Self::ThirtySecond => 3,
+            Self::SixtyFourth => 4,
+        }
+    }
+
+    /// The value and dots nearest to a length in ticks.
+    pub fn from_ticks(ticks: u32) -> (Self, u8) {
+        const ALL: [NoteValue; 7] = [
+            NoteValue::Whole,
+            NoteValue::Half,
+            NoteValue::Quarter,
+            NoteValue::Eighth,
+            NoteValue::Sixteenth,
+            NoteValue::ThirtySecond,
+            NoteValue::SixtyFourth,
+        ];
+        for v in ALL {
+            let t = v.ticks();
+            if ticks >= t {
+                let dots = if ticks >= t + t / 2 + t / 4 {
+                    2
+                } else if ticks >= t + t / 2 {
+                    1
+                } else {
+                    0
+                };
+                return (v, dots);
+            }
+        }
+        (NoteValue::SixtyFourth, 0)
+    }
+}
+
+/// Why a score could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    /// Larger than [`MAX_INPUT`].
+    TooLarge,
+    /// Not XML, or not a ZIP when compressed.
+    Unreadable(String),
+    /// XML, but not a part-wise MusicXML score.
+    NotAScore,
+    /// A compressed score whose archive names no score file.
+    NoScoreInArchive,
+    /// A score with no notes in any part.
+    Empty,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLarge => write!(f, "the file is larger than {} MB", MAX_INPUT / (1024 * 1024)),
+            Self::Unreadable(why) => write!(f, "the file cannot be read: {why}"),
+            Self::NotAScore => f.write_str("the file is not a MusicXML score"),
+            Self::NoScoreInArchive => f.write_str("the compressed file holds no MusicXML score"),
+            Self::Empty => f.write_str("the score has no notes"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+/// File extensions read as notation.
+pub const EXTENSIONS: &[&str] = &["musicxml", "xml", "mxl"];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pitches_map_to_midi_and_staff_positions() {
+        let c4 = Pitch { step: 0, alter: 0, octave: 4 };
+        assert_eq!(c4.midi(), 60);
+        assert_eq!(Pitch { step: 2, alter: 0, octave: 2 }.midi(), 40, "low E string");
+        assert_eq!(Pitch { step: 3, alter: 1, octave: 4 }.midi(), 66, "F#4");
+        assert_eq!(Pitch { step: 6, alter: -1, octave: 3 }.midi(), 58, "Bb3");
+        assert_eq!(Pitch { step: 6, alter: 2, octave: 120 }.midi(), 127, "clamped");
+        assert_eq!(Pitch { step: 0, alter: -2, octave: -5 }.midi(), 0, "clamped");
+        assert_eq!(c4.diatonic() - Pitch { step: 6, alter: 0, octave: 3 }.diatonic(), 1);
+    }
+
+    #[test]
+    fn clefs_place_notes_on_the_staff() {
+        let e4 = Pitch { step: 2, alter: 0, octave: 4 };
+        let f5 = Pitch { step: 3, alter: 0, octave: 5 };
+        let g2 = Pitch { step: 4, alter: 0, octave: 2 };
+        let low_e = Pitch { step: 2, alter: 0, octave: 2 };
+        assert_eq!(Clef::TREBLE.position(e4), 0, "bottom line");
+        assert_eq!(Clef::TREBLE.position(f5), 8, "top line");
+        assert_eq!(Clef::BASS.position(g2), 0);
+        assert_eq!(Clef::GUITAR.position(low_e), -7, "written E3: under the third ledger line");
+        let alto = Clef { kind: ClefKind::C, line: 3, octave_change: 0 };
+        assert_eq!(alto.position(Pitch { step: 0, alter: 0, octave: 4 }), 4, "middle line");
+    }
+
+    #[test]
+    fn values_come_from_lengths() {
+        assert_eq!(NoteValue::from_ticks(960), (NoteValue::Quarter, 0));
+        assert_eq!(NoteValue::from_ticks(1440), (NoteValue::Quarter, 1));
+        assert_eq!(NoteValue::from_ticks(1680), (NoteValue::Quarter, 2));
+        assert_eq!(NoteValue::from_ticks(3840), (NoteValue::Whole, 0));
+        assert_eq!(NoteValue::from_ticks(320), (NoteValue::Sixteenth, 0), "a triplet eighth");
+        assert_eq!(NoteValue::from_ticks(0), (NoteValue::SixtyFourth, 0));
+        assert_eq!(signature_ticks(4, 4), 3840);
+        assert_eq!(signature_ticks(6, 8), 2880);
+        assert_eq!(signature_ticks(0, 0), 3840, "never zero");
+    }
+}

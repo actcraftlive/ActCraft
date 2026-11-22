@@ -160,6 +160,7 @@ dependencies = [
  "actcraft-command",
  "actcraft-library",
  "actcraft-lyrics",
+ "actcraft-notation",
  "actcraft-show",
  "chrono",
  "craft-zip",
@@ -178,6 +179,14 @@ dependencies = [
 [[package]]
 name = "actcraft-lyrics"
 version = "0.1.0"
+
+[[package]]
+name = "actcraft-notation"
+version = "0.1.0"
+dependencies = [
+ "craft-xml",
+ "craft-zip",
+]
 
 [[package]]
 name = "actcraft-platform"
