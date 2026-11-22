@@ -111,7 +111,9 @@ struct System {
 
 /// The narrowest a bar reads well: enough room for its closest notes.
 fn bar_width(bar: &Bar, m: Metrics) -> f32 {
-    let unit = 2.6 * m.space;
+    // Bends need room to the right of their fret.
+    let bends = bar.notes.iter().any(|n| n.technique.bend.is_some());
+    let unit = if bends { 3.8 } else { 2.6 } * m.space;
     let mut onsets: Vec<u32> = bar.notes.iter().map(|n| n.start).collect();
     onsets.sort_unstable();
     onsets.dedup();
@@ -292,6 +294,65 @@ fn arcs(bars: &[&Bar], staff: u8) -> Vec<Arc> {
     out.extend(ties.into_iter().map(|(_, at)| Arc { from: Some(at), to: None, above: None, tie: true }));
     out.extend(slurs.into_iter().map(|(_, at, above)| Arc { from: Some(at), to: None, above, tie: false }));
     out
+}
+
+/// How two frets on one string are joined in the tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkKind {
+    HammerOn,
+    PullOff,
+    Slide,
+}
+
+/// A hammer-on, pull-off or slide in a line of bars, from a note to the next on its string;
+/// `to` is `None` when that note is on another line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TabLink {
+    from: NoteAt,
+    to: Option<NoteAt>,
+    kind: LinkKind,
+}
+
+/// The hammer-ons, pull-offs and slides of a line of bars: each joins its note to the next note
+/// on the same string. One whose next note is on another line is drawn toward the line's edge.
+fn tab_links(bars: &[&Bar]) -> Vec<TabLink> {
+    let mut open: Vec<(u8, NoteAt, LinkKind)> = Vec::new();
+    let mut out = Vec::new();
+    for (bi, bar) in bars.iter().enumerate() {
+        for (ni, n) in bar.notes.iter().enumerate() {
+            let Some(string) = n.string else { continue };
+            let at = (bi, ni);
+            if let Some(k) = open.iter().position(|o| o.0 == string) {
+                let (_, from, kind) = open.remove(k);
+                out.push(TabLink { from, to: Some(at), kind });
+            }
+            let t = n.technique;
+            let kind = if t.slide {
+                LinkKind::Slide
+            } else if t.pull_off {
+                LinkKind::PullOff
+            } else if t.hammer_on {
+                LinkKind::HammerOn
+            } else {
+                continue;
+            };
+            open.push((string, at, kind));
+        }
+    }
+    out.extend(open.into_iter().map(|(_, from, kind)| TabLink { from, to: None, kind }));
+    out
+}
+
+/// A bend's size as tab writes it, in whole tones: "1/2", "full", "1 1/2", "2".
+fn bend_label(semitones: f32) -> String {
+    let halves = (semitones.clamp(0.0, 64.0)).round() as u32;
+    let (whole, half) = (halves / 2, halves % 2 == 1);
+    match (whole, half) {
+        (0, _) => "1/2".to_owned(),
+        (1, false) => tr("full").to_owned(),
+        (w, false) => w.to_string(),
+        (w, true) => format!("{w} 1/2"),
+    }
 }
 
 /// Where a note's head sits across a bar drawn from `bx` with width `w`.
@@ -698,6 +759,57 @@ impl Painter<'_> {
             self.p.line_segment([pos2(sx, y), pos2(sx + 0.9 * s, y + dir * 1.3 * s)], Stroke::new(1.8, self.ink.ink));
         }
     }
+    /// A bend from a fret at `from`: a curve up to `top` with an arrow and its size above it,
+    /// and an arrow back down when it is released.
+    fn bend(&self, from: egui::Pos2, top: f32, label: &str, release: bool) {
+        let s = self.m.space;
+        let stroke = Stroke::new(1.3, self.ink.ink);
+        let peak = pos2(from.x + 1.4 * s, top);
+        let ctrl = pos2(peak.x, from.y);
+        let pts: Vec<egui::Pos2> = (0..=12)
+            .map(|i| {
+                let t = i as f32 / 12.0;
+                let u = 1.0 - t;
+                pos2(
+                    u * u * from.x + 2.0 * u * t * ctrl.x + t * t * peak.x,
+                    u * u * from.y + 2.0 * u * t * ctrl.y + t * t * peak.y,
+                )
+            })
+            .collect();
+        self.p.add(Shape::line(pts, stroke));
+        self.arrow_head(peak, true);
+        self.p.text(
+            pos2(peak.x, top - 0.9 * s),
+            Align2::CENTER_CENTER,
+            label,
+            FontId::proportional(1.0 * s),
+            self.ink.ink,
+        );
+        if release {
+            let down = pos2(peak.x + 1.2 * s, from.y - 0.6 * s);
+            self.p.line_segment([peak, down], stroke);
+            self.arrow_head(down, false);
+        }
+    }
+
+    /// A small filled arrowhead pointing up or down at `tip`.
+    fn arrow_head(&self, tip: egui::Pos2, up: bool) {
+        let s = self.m.space;
+        let d = if up { 1.0 } else { -1.0 } * 0.6 * s;
+        let pts = vec![tip, pos2(tip.x - 0.35 * s, tip.y + d), pos2(tip.x + 0.35 * s, tip.y + d)];
+        self.p.add(Shape::convex_polygon(pts, self.ink.ink, Stroke::NONE));
+    }
+
+    /// A vibrato's wavy line from `x0` to `x1` at height `y`.
+    fn vibrato(&self, x0: f32, x1: f32, y: f32) {
+        let s = self.m.space;
+        let step = 0.4 * s;
+        let count = (((x1 - x0) / step).max(1.0) as usize).min(64);
+        let pts: Vec<egui::Pos2> =
+            (0..=count).map(|i| pos2(x0 + i as f32 * step, y + if i % 2 == 0 { -0.25 } else { 0.25 } * s)).collect();
+        self.p.add(Shape::line(pts, Stroke::new(1.3, self.ink.ink)));
+    }
+
     /// A tuplet's number over `x0..x1` at height `y`, in a bracket open toward the notes.
     fn tuplet(&self, x0: f32, x1: f32, y: f32, actual: u8, bracket: bool) {
         let s = self.m.space;
@@ -1188,12 +1300,39 @@ impl ActCraftApp {
                                 continue;
                             }
                             let y = tab_y + (s - 1) as f32 * m.tab_gap;
-                            let text = if n.tied { format!("({f})") } else { f.to_string() };
+                            let tech = n.technique;
+                            // A harmonic's fret in angle brackets, a tied one in parentheses.
+                            let text = match (tech.harmonic, n.tied) {
+                                (true, _) => format!("<{f}>"),
+                                (false, true) => format!("({f})"),
+                                (false, false) => f.to_string(),
+                            };
                             let x = x_of(n);
                             let galley = painter.layout_no_wrap(text, font.clone(), ink.ink);
                             let r = Rect::from_center_size(pos2(x, y), galley.size() + vec2(2.0, 0.0));
                             painter.rect_filled(r, 0.0, ink.paper);
                             painter.galley(r.min + vec2(1.0, 0.0), galley, ink.ink);
+                            let above_tab = tab_y - 1.2 * m.tab_gap;
+                            let bottom = tab_y + (rows.strings - 1) as f32 * m.tab_gap;
+                            if let Some(bend) = tech.bend {
+                                pa.bend(pos2(r.right(), y), above_tab, &bend_label(bend), tech.release);
+                            }
+                            if tech.vibrato {
+                                pa.vibrato(x, x + 2.4 * m.space, above_tab + 0.4 * m.tab_gap);
+                            }
+                            for (on, word, at_y) in
+                                [(tech.palm_mute, tr("P.M."), bottom + 1.1 * m.tab_gap), (tech.tap, tr("T"), above_tab)]
+                            {
+                                if on {
+                                    painter.text(
+                                        pos2(x, at_y),
+                                        Align2::CENTER_CENTER,
+                                        word,
+                                        FontId::proportional(1.1 * m.space),
+                                        ink.ink,
+                                    );
+                                }
+                            }
                         }
                     }
                 }
@@ -1232,6 +1371,45 @@ impl ActCraftApp {
                         });
                         if b.x > a.x {
                             pa.arc(a + vec2(0.0, off), b + vec2(0.0, off), above);
+                        }
+                    }
+                }
+                // Hammer-ons, pull-offs and slides between frets on one string.
+                if rows.strings > 0 {
+                    let fret = |(k, ni): NoteAt| {
+                        let bar = line_bars.get(k)?;
+                        let n = bar.notes.get(ni)?;
+                        let s = f32::from(n.string?.saturating_sub(1));
+                        let x = note_x(bar, *xs.get(k)?, *sys.widths.get(k)?, m, n);
+                        Some((x, tab_y + s * m.tab_gap, n.fret.unwrap_or(0)))
+                    };
+                    for link in tab_links(&line_bars) {
+                        let Some((x0, y, f0)) = fret(link.from) else { continue };
+                        let to = link.to.and_then(fret);
+                        let a = pos2(x0 + 0.7 * m.space, y);
+                        let b = to
+                            .map_or(pos2((a.x + 3.0 * m.space).min(x_end), y), |(x, y, _)| pos2(x - 0.7 * m.space, y));
+                        if b.x <= a.x {
+                            continue;
+                        }
+                        match link.kind {
+                            LinkKind::Slide => {
+                                let rising = to.is_none_or(|(_, _, f1)| f1 >= f0);
+                                let d = if rising { 0.3 } else { -0.3 } * m.tab_gap;
+                                painter.line_segment([a + vec2(0.0, d), b - vec2(0.0, d)], Stroke::new(1.3, ink.ink));
+                            }
+                            LinkKind::HammerOn | LinkKind::PullOff => {
+                                let lift = vec2(0.0, -0.45 * m.tab_gap);
+                                pa.arc(a + lift, b + lift, true);
+                                let word = if link.kind == LinkKind::HammerOn { tr("H") } else { tr("P") };
+                                painter.text(
+                                    pos2((a.x + b.x) / 2.0, y - 1.5 * m.tab_gap),
+                                    Align2::CENTER_CENTER,
+                                    word,
+                                    FontId::proportional(1.0 * m.space),
+                                    ink.ink,
+                                );
+                            }
                         }
                     }
                 }
@@ -1410,6 +1588,53 @@ mod tests {
         assert_eq!(playing_bar(&song, 4.0, 10), Some((1, 0.5)), "two seconds per bar");
         assert_eq!(playing_bar(&song, 100.0, 10), None, "after the last bar");
         assert!((bar_time(&song, 3) - 7.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hammer_ons_pull_offs_and_slides_join_the_next_fret_on_their_string() {
+        let on = |string, fret, start| Note {
+            start,
+            string: Some(string),
+            fret: Some(fret),
+            pitch: Some(Pitch { step: 0, alter: 0, octave: 4 }),
+            ..Note::default()
+        };
+        // String 3: 5 h 7 p 5, then a slide that goes on to the next line. String 2 apart.
+        let mut a = on(3, 5, 0);
+        a.technique.hammer_on = true;
+        let mut b = on(3, 7, 960);
+        b.technique.pull_off = true;
+        let c = on(2, 8, 1440);
+        let d = on(3, 5, 1920);
+        let mut e = on(3, 3, 2880);
+        e.technique.slide = true;
+        let b1 = bar(vec![a, b, c, d, e]);
+        assert_eq!(
+            tab_links(&[&b1]),
+            vec![
+                TabLink { from: (0, 0), to: Some((0, 1)), kind: LinkKind::HammerOn },
+                TabLink { from: (0, 1), to: Some((0, 3)), kind: LinkKind::PullOff },
+                TabLink { from: (0, 4), to: None, kind: LinkKind::Slide },
+            ]
+        );
+    }
+
+    #[test]
+    fn bars_with_bends_are_wider() {
+        let m = Metrics::new(1.0);
+        let plain = bar((0..4).map(|i| quarter(i * 960)).collect());
+        let mut bent = plain.clone();
+        bent.notes[0].technique.bend = Some(2.0);
+        assert!(bar_width(&bent, m) > bar_width(&plain, m));
+    }
+
+    #[test]
+    fn bends_are_labelled_in_whole_tones() {
+        assert_eq!(bend_label(1.0), "1/2");
+        assert_eq!(bend_label(2.0), "full");
+        assert_eq!(bend_label(3.0), "1 1/2");
+        assert_eq!(bend_label(4.0), "2");
+        assert_eq!(bend_label(f32::NAN), "1/2", "nonsense stays small");
     }
 
     #[test]

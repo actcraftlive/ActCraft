@@ -174,10 +174,36 @@ pub struct Note {
     pub slurs: Vec<Slur>,
     /// Part of a triplet or another tuplet.
     pub tuplet: Tuplet,
+    /// How a string player plays it: bends, slides, legato, mutes, harmonics.
+    pub technique: Technique,
     pub voice: u8,
     /// Staff of a part written on several staves (piano), 1-based.
     pub staff: u8,
 }
+
+/// Playing techniques of a fretted note, as tablature shows them.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Technique {
+    /// Bent up by this many semitones (1 = half, 2 = full); `None` for no bend.
+    pub bend: Option<f32>,
+    /// The bend is let down again.
+    pub release: bool,
+    /// A hammer-on or pull-off from this note to the next on its string.
+    pub hammer_on: bool,
+    pub pull_off: bool,
+    /// A slide from this note to the next on its string.
+    pub slide: bool,
+    /// Played as a harmonic.
+    pub harmonic: bool,
+    /// Muted with the picking hand's palm.
+    pub palm_mute: bool,
+    pub vibrato: bool,
+    /// Tapped with the picking hand.
+    pub tap: bool,
+}
+
+/// Largest bend kept, in semitones.
+pub const MAX_BEND: f32 = 12.0;
 
 /// A note's place in a tuplet: `actual` notes in the time of `normal` ones (3 in 2 for a triplet).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -208,6 +234,7 @@ impl Default for Note {
             tie_start: false,
             slurs: Vec::new(),
             tuplet: Tuplet::default(),
+            technique: Technique::default(),
             voice: 1,
             staff: 1,
         }

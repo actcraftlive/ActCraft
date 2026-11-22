@@ -23,16 +23,15 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Notation: techniques in the tab (M2)
-2. Notation: lyrics under the notes and chord symbols above them (M2)
-3. Notation: keyboard way to move to a bar (M2, accessibility)
-4. Second window shows sheet music too: PDF and notation (M2)
-5. PDF annotations (M2)
-6. Lyrics editor: timecode-aware undo (M2)
-7. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
-8. Show package of a single song or playlist (M1)
-9. Command errors that carry a value (file name, number) in the window's language
-10. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
+1. Notation: lyrics under the notes and chord symbols above them (M2)
+2. Notation: keyboard way to move to a bar (M2, accessibility)
+3. Second window shows sheet music too: PDF and notation (M2)
+4. PDF annotations (M2)
+5. Lyrics editor: timecode-aware undo (M2)
+6. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+7. Show package of a single song or playlist (M1)
+8. Command errors that carry a value (file name, number) in the window's language
+9. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
@@ -118,7 +117,8 @@ details are in the milestone sections further down.
     line runs to the line's edge (a tie as a short half tie); tied frets show as "(fret)" in
     the tab
   - ⬜ Lyrics under the notes (`<lyric>`), and chord symbols above the staff (`<harmony>`)
-  - ⬜ Techniques in the tab: bends, slides, hammer-on/pull-off, palm mute, harmonics, vibrato
+  - ✅ Techniques in the tab: bends (with their size and release), slides, hammer-ons and
+    pull-offs, palm mute, harmonics, vibrato, tapping
   - ✅ Triplets and other tuplets marked with their number, and a bracket where the notes have
     no beam (or where the file asks for one)
   - ⬜ Keyboard way to move to a bar (today only a click): e.g. bar number field or arrow keys

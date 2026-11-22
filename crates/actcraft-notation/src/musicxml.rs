@@ -5,8 +5,9 @@ use craft_xml::{El, Options};
 use crate::flow::{MAX_ENDING_NUMBERS, MAX_REPEAT_TIMES};
 use crate::tab::fill_frets;
 use crate::{
-    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_SLURS_PER_NOTE,
-    MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER, Tuplet, signature_ticks,
+    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_BEND, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS,
+    MAX_SLURS_PER_NOTE, MAX_STAVES, MAX_STRINGS, Note, NoteValue, Part, Pitch, Score, Slur, TICKS_PER_QUARTER,
+    Technique, Tuplet, signature_ticks,
 };
 
 /// Entries a compressed score may hold.
@@ -369,6 +370,7 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
     let tie_start = tie("start");
     let slurs = notations.map(read_slurs).unwrap_or_default();
     let tuplet = read_tuplet(el, notations);
+    let technique = notations.map(read_technique).unwrap_or_default();
     Some(Note {
         start,
         length,
@@ -381,9 +383,38 @@ fn read_note(el: &El, start: u32, length: u32) -> Option<Note> {
         tie_start,
         slurs,
         tuplet,
+        technique,
         voice: number(el.child_text("voice").as_deref()).map_or(1, |v| v.clamp(1.0, 64.0) as u8),
         staff: number(el.child_text("staff").as_deref()).map_or(1, |v| v.clamp(1.0, 8.0) as u8),
     })
+}
+
+/// The playing techniques in a note's `<notations>`: bends, hammer-ons, pull-offs, harmonics and
+/// taps from `<technical>`, slides (`<slide>`, `<glissando>`), vibrato (a wavy line), and palm
+/// mutes, which editors write as a `<technical>` text ("P.M.", "palm mute").
+fn read_technique(notations: &El) -> Technique {
+    let starts = |el: &El, name: &str| el.children(name).any(|e| e.attr("type") != Some("stop"));
+    let mut t = Technique {
+        slide: starts(notations, "slide") || starts(notations, "glissando"),
+        vibrato: notations.children("ornaments").any(|o| starts(o, "wavy-line") || o.child("vibrato").is_some()),
+        ..Technique::default()
+    };
+    for technical in notations.children("technical") {
+        if let Some(bend) = technical.child("bend") {
+            let alter = number(bend.child_text("bend-alter").as_deref()).unwrap_or(2.0);
+            t.bend = Some((alter.abs() as f32).clamp(0.5, MAX_BEND));
+            t.release |= bend.child("release").is_some();
+        }
+        t.hammer_on |= starts(technical, "hammer-on");
+        t.pull_off |= starts(technical, "pull-off");
+        t.harmonic |= technical.child("harmonic").is_some();
+        t.tap |= technical.child("tap").is_some();
+        t.palm_mute |= technical.children("other-technical").any(|o| {
+            let text = o.text().to_lowercase();
+            text.contains("p.m") || text.contains("palm")
+        });
+    }
+    t
 }
 
 /// A note's tuplet: its ratio from `<time-modification>`, and where the bracket starts and stops
@@ -704,6 +735,44 @@ mod tests {
             vec![Slur { number: 1, start: false, above: None }, Slur { number: 2, start: true, above: Some(true) }]
         );
         assert_eq!(n[3].slurs, vec![Slur { number: 16, start: false, above: None }], "numbers are bounded");
+    }
+
+    #[test]
+    fn playing_techniques_are_read() {
+        let note = |fret: u8, notations: &str| {
+            format!(
+                r#"<note><pitch><step>A</step><octave>3</octave></pitch><duration>1</duration><notations>{notations}<technical><string>3</string><fret>{fret}</fret></technical></notations></note>"#
+            )
+        };
+        let notes = [
+            note(7, "<technical><bend><bend-alter>2</bend-alter><release/></bend></technical>"),
+            note(5, r#"<technical><hammer-on type="start">H</hammer-on></technical>"#),
+            note(
+                7,
+                r#"<technical><hammer-on type="stop">H</hammer-on><pull-off type="start">P</pull-off></technical>"#,
+            ),
+            note(5, r#"<slide type="start"/><ornaments><wavy-line type="start"/></ornaments>"#),
+            note(
+                12,
+                "<technical><harmonic><natural/></harmonic><other-technical>P.M.</other-technical><tap/></technical>",
+            ),
+            note(3, "<technical><bend><bend-alter>-99</bend-alter></bend></technical>"),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">
+            <measure number="1"><attributes><divisions>1</divisions></attributes>{notes}</measure></part></score-partwise>"#
+        );
+        let score = read(xml.as_bytes());
+        assert!(score.is_ok(), "{score:?}");
+        let Ok(score) = score else { return };
+        let t: Vec<Technique> = score.parts[0].bars[0].notes.iter().map(|n| n.technique).collect();
+        assert_eq!(t[0], Technique { bend: Some(2.0), release: true, ..Technique::default() });
+        assert_eq!(t[1], Technique { hammer_on: true, ..Technique::default() });
+        assert_eq!(t[2], Technique { pull_off: true, ..Technique::default() }, "a stop starts nothing");
+        assert_eq!(t[3], Technique { slide: true, vibrato: true, ..Technique::default() });
+        assert_eq!(t[4], Technique { harmonic: true, palm_mute: true, tap: true, ..Technique::default() });
+        assert_eq!(t[5].bend, Some(MAX_BEND), "bends are bounded");
     }
 
     #[test]
