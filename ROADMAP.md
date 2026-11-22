@@ -23,13 +23,18 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Lyrics from audio tags and DOCX text; markers from other formats than WAV (M2)
+1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
+   audio library first, see below)
 2. Show package of a single song or playlist (M1)
 3. Command errors that carry a value (file name, number) in the window's language
 4. M3: MIDI in/out, MIDI file per song, MIDI Timecode and Clock, remote actions
 
 ## Quality and open questions
 
+- ⬜ Lyrics in audio tags (ID3 `USLT`, Vorbis comments, MP4 `©lyr`) and markers in formats other
+  than WAV need readers that belong in the shared audio library (`craft-audio`, which reads WAV
+  markers today), not in ActCraft (house rule 16); waiting on the owner's go-ahead to propose
+  them there
 - ⬜ Keyboard and accessibility-tree tests (kittest) for the window: the helpers don't exist in
   this repository yet; every new control should get one once they do
 - ⬜ The MusicXML reader (`actcraft-notation`) is app-independent: offer it to the shared
@@ -85,7 +90,8 @@ details are in the milestone sections further down.
 - ✅ Lyrics editor: formatting buttons, chord and colour insert, time stamp at the playback
   position, find and replace (also `lyrics.replace`); undo and redo (buttons, Ctrl+Z, Ctrl+Y)
   for typing and every button alike, so a time stamp or a replacement goes back as one step
-- 🔶 Import text, ChordPro and LRC files (done); lyrics in audio tags and DOCX text to do
+- 🔶 Import text, ChordPro, LRC and DOCX files (done; DOCX through the shared `craft-docx`);
+  lyrics in audio tags to do
 - ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
   (Parts bar), leave a loop after its pass (L)
 - 🔶 Markers from WAV files become regions (done); markers in other formats to do

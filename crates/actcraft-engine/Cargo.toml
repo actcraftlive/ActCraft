@@ -19,5 +19,11 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 craft-zip = { workspace = true }
 
+# Lyrics from DOCX documents are read on desktops only: the reader's encryption support needs
+# the browser's random numbers in a web build, which the engine has no use for.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+craft-docx = { workspace = true }
+craft-wordmodel = { workspace = true }
+
 [lints]
 workspace = true

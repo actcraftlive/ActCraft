@@ -290,7 +290,7 @@
 	System language	Systemsprache
 	Tap	Tippen
 	Tempo	Tempo
-	Text, ChordPro or LRC file	Text-, ChordPro- oder LRC-Datei
+	Text, ChordPro, LRC or DOCX file	Text-, ChordPro-, LRC- oder DOCX-Datei
 	The file window could not open:	Das Dateifenster konnte nicht öffnen:
 	The show has changes that are not saved yet.	Die Show hat Änderungen, die noch nicht gespeichert sind.
 	This removes it from every playlist.	Das entfernt ihn aus jeder Playlist.
@@ -590,3 +590,5 @@
 	Redo	Wiederholen
 	Undo the last change	Die letzte Änderung zurücknehmen
 	Make the undone change again	Die zurückgenommene Änderung wieder machen
+	that DOCX document could not be read	dieses DOCX-Dokument konnte nicht gelesen werden
+	DOCX documents are read in the desktop app	DOCX-Dokumente liest die Desktop-App

@@ -14,7 +14,7 @@ use crate::theme::Tokens;
 use crate::{ActCraftApp, tr};
 
 /// Lyrics file types the import picker offers.
-pub const LYRICS_EXTENSIONS: &[&str] = &["txt", "cho", "chopro", "chordpro", "crd", "pro", "lrc"];
+pub const LYRICS_EXTENSIONS: &[&str] = actcraft_engine::commands::LYRICS_EXTENSIONS;
 
 /// Editing state of the lyrics editor.
 #[derive(Default)]
@@ -171,7 +171,7 @@ impl ActCraftApp {
             ui.add(egui::Slider::new(&mut self.lyrics_size, 14.0..=64.0).show_value(false).text(tr("Size")));
             ui.separator();
             self.stage_button(ui, StageShows::Lyrics);
-            if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro or LRC file")).clicked() {
+            if ui.button(tr("Import lyrics\u{2026}")).on_hover_text(tr("Text, ChordPro, LRC or DOCX file")).clicked() {
                 self.ask_file(FileRequest {
                     ask: FileAsk::ImportLyrics { song: song.id },
                     kind: FileKind::Open,
