@@ -570,7 +570,7 @@ fn notation_attaches_reads_and_travels_in_packages() {
     assert_eq!(r["tempo"], json!(100.0));
     assert_eq!(
         r["parts"][0],
-        json!({"name": "Guitar", "bars": 1, "notes": 1, "tablature": true, "strings": [64, 59, 55, 50, 45, 40], "capo": 0})
+        json!({"name": "Guitar", "bars": 1, "played_bars": 1, "notes": 1, "tablature": true, "strings": [64, 59, 55, 50, 45, 40], "capo": 0})
     );
     assert!(e.dirty);
     let song = e.show.song(id).cloned().unwrap_or_default();

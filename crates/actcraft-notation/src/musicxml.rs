@@ -2,10 +2,11 @@
 
 use craft_xml::{El, Options};
 
+use crate::flow::{MAX_ENDING_NUMBERS, MAX_REPEAT_TIMES};
 use crate::tab::fill_frets;
 use crate::{
-    Bar, Clef, ClefKind, Error, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_STAVES, MAX_STRINGS, Note,
-    NoteValue, Part, Pitch, Score, TICKS_PER_QUARTER, signature_ticks,
+    Bar, Clef, ClefKind, Error, Flow, MAX_BARS, MAX_FRET, MAX_INPUT, MAX_NOTES, MAX_PARTS, MAX_STAVES, MAX_STRINGS,
+    Note, NoteValue, Part, Pitch, Score, TICKS_PER_QUARTER, signature_ticks,
 };
 
 /// Entries a compressed score may hold.
@@ -105,11 +106,14 @@ struct State {
     clefs: [Option<Clef>; MAX_STAVES],
     /// Staves the part declares (`<staves>`).
     staves: usize,
+    /// The numbers of the ending whose bracket is open, carried until its stop.
+    ending: Option<Vec<u8>>,
 }
 
 fn read_part(el: &El, name: String, budget: &mut usize) -> Part {
     let mut part = Part { name, ..Part::default() };
-    let mut state = State { divisions: 1.0, beats: 4, beat_type: 4, fifths: 0, clefs: [None; MAX_STAVES], staves: 1 };
+    let mut state =
+        State { divisions: 1.0, beats: 4, beat_type: 4, fifths: 0, clefs: [None; MAX_STAVES], staves: 1, ending: None };
     for measure in el.children("measure").take(MAX_BARS) {
         let bar = read_bar(measure, &mut state, &mut part, budget);
         part.bars.push(bar);
@@ -140,19 +144,30 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
     let mut cursor: u32 = 0;
     let mut last_start: u32 = 0;
     let mut reach: u32 = 0;
+    let mut flow = Flow::default();
+    let mut ending_ends = false;
     for child in measure.elements() {
         match child.local() {
             "attributes" => read_attributes(child, state, part),
             "direction" => {
-                if let Some(t) = child.find("sound").and_then(sound_tempo) {
-                    tempo = Some(t);
+                if let Some(sound) = child.find("sound") {
+                    if let Some(t) = sound_tempo(sound) {
+                        tempo = Some(t);
+                    }
+                    sound_flow(sound, &mut flow);
+                }
+                // The segno sign itself marks where D.S. goes back to.
+                if child.find("segno").is_some() {
+                    flow.segno = true;
                 }
             }
             "sound" => {
                 if let Some(t) = sound_tempo(child) {
                     tempo = Some(t);
                 }
+                sound_flow(child, &mut flow);
             }
+            "barline" => ending_ends |= read_barline(child, state, &mut flow),
             "backup" => cursor = cursor.saturating_sub(ticks(child.child_text("duration").as_deref(), state)),
             "forward" => {
                 cursor = cursor.saturating_add(ticks(child.child_text("duration").as_deref(), state));
@@ -186,6 +201,10 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
         a.start.cmp(&b.start).then_with(|| b.pitch.map(Pitch::midi).cmp(&a.pitch.map(Pitch::midi)))
     });
     let signature = signature_ticks(state.beats, state.beat_type);
+    flow.endings = state.ending.clone().unwrap_or_default();
+    if ending_ends {
+        state.ending = None;
+    }
     Bar {
         number: measure.attr("number").unwrap_or_default().chars().take(16).collect(),
         beats: state.beats,
@@ -194,7 +213,68 @@ fn read_bar(measure: &El, state: &mut State, part: &mut Part, budget: &mut usize
         tempo,
         length: if reach == 0 { signature } else { reach },
         notes,
+        flow,
     }
+}
+
+/// Repeat signs, ending brackets, segno and coda at a bar line. Returns whether an open ending
+/// stops at this bar.
+fn read_barline(el: &El, state: &mut State, flow: &mut Flow) -> bool {
+    if let Some(repeat) = el.child("repeat") {
+        match repeat.attr("direction") {
+            Some("forward") => flow.repeat_start = true,
+            Some("backward") => {
+                let times = number(repeat.attr("times")).map_or(2.0, |t| t.clamp(2.0, f64::from(MAX_REPEAT_TIMES)));
+                flow.repeat_end = Some(times as u8);
+            }
+            _ => {}
+        }
+    }
+    if el.child("segno").is_some() {
+        flow.segno = true;
+    }
+    if el.child("coda").is_some() {
+        flow.coda = true;
+    }
+    let mut ends = false;
+    if let Some(ending) = el.child("ending") {
+        match ending.attr("type") {
+            Some("start") => {
+                let numbers = ending_numbers(ending.attr("number").unwrap_or_default());
+                if !numbers.is_empty() {
+                    state.ending = Some(numbers);
+                    flow.ending_start = true;
+                }
+            }
+            Some("stop" | "discontinue") => ends = true,
+            _ => {}
+        }
+    }
+    ends
+}
+
+/// Ending numbers as written: "1", "1, 2", "1 2"; numbers out of range are left out.
+fn ending_numbers(text: &str) -> Vec<u8> {
+    let mut numbers: Vec<u8> = text
+        .split([',', ' '])
+        .filter_map(|x| x.trim().parse::<u8>().ok())
+        .filter(|n| (1..=MAX_REPEAT_TIMES).contains(n))
+        .take(MAX_ENDING_NUMBERS)
+        .collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    numbers
+}
+
+/// Playback jumps a `<sound>` element carries (D.C., D.S., Fine, To Coda and their targets).
+fn sound_flow(el: &El, flow: &mut Flow) {
+    let yes = |name: &str| el.attr(name).is_some_and(|v| !v.trim().is_empty() && v.trim() != "no");
+    flow.segno |= yes("segno");
+    flow.coda |= yes("coda");
+    flow.to_coda |= yes("tocoda");
+    flow.da_capo |= yes("dacapo");
+    flow.dal_segno |= yes("dalsegno");
+    flow.fine |= yes("fine");
 }
 
 fn read_attributes(el: &El, state: &mut State, part: &mut Part) {
@@ -487,6 +567,49 @@ mod tests {
             vec![(0, 1, None), (0, 2, None)]
         );
         assert_eq!(bar.length, 960 * 10, "the forward reaches furthest");
+    }
+
+    #[test]
+    fn repeats_endings_and_jumps_are_read_and_unrolled() {
+        let bar = |n: u32, inner: &str| {
+            format!(
+                r#"<measure number="{n}">{inner}<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note></measure>"#
+            )
+        };
+        let body = [
+            bar(1, r#"<attributes><divisions>1</divisions></attributes>
+                <barline location="left"><repeat direction="forward"/></barline>"#),
+            bar(2, r#"<direction><direction-type><segno/></direction-type><sound segno="s1"/></direction>"#),
+            bar(3, r#"<barline location="left"><ending number="1, 2" type="start"/></barline>
+                <barline location="right"><ending number="1, 2" type="stop"/><repeat direction="backward" times="3"/></barline>"#),
+            bar(4, r#"<barline location="left"><ending number="3" type="start"/></barline>
+                <barline location="right"><ending number="3" type="discontinue"/></barline>
+                <direction><sound tocoda="c1"/></direction>"#),
+            bar(5, r#"<sound dalsegno="s1"/>"#),
+            bar(6, r#"<direction><sound coda="c1"/></direction>"#),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<score-partwise><part-list><score-part id="P1"><part-name>Keys</part-name></score-part></part-list>
+            <part id="P1">{body}</part></score-partwise>"#
+        );
+        let score = read(xml.as_bytes());
+        assert!(score.is_ok(), "{score:?}");
+        let score = score.unwrap_or_default();
+        let bars = &score.parts[0].bars;
+        assert_eq!(bars.len(), 6);
+        assert!(bars[0].flow.repeat_start);
+        assert!(bars[1].flow.segno);
+        assert_eq!(bars[2].flow.endings, vec![1, 2]);
+        assert!(bars[2].flow.ending_start);
+        assert_eq!(bars[2].flow.repeat_end, Some(3));
+        assert_eq!(bars[3].flow.endings, vec![3]);
+        assert!(bars[3].flow.to_coda);
+        assert!(bars[4].flow.dal_segno && bars[4].flow.endings.is_empty(), "the ending closed");
+        assert!(bars[5].flow.coda);
+        // Three passes with endings, then D.S. to bar 2, to the coda after the last ending.
+        assert_eq!(crate::play_order(bars), vec![0, 1, 2, 0, 1, 2, 0, 1, 3, 4, 1, 3, 5]);
+        assert_eq!(ending_numbers("1 2, 2, 0, 99, x"), vec![1, 2]);
     }
 
     #[test]

@@ -161,7 +161,16 @@ mod tests {
     }
 
     fn part(notes: Vec<Note>) -> Part {
-        let bar = Bar { number: "1".into(), beats: 4, beat_type: 4, fifths: 0, tempo: None, length: 3840, notes };
+        let bar = Bar {
+            number: "1".into(),
+            beats: 4,
+            beat_type: 4,
+            fifths: 0,
+            tempo: None,
+            length: 3840,
+            notes,
+            flow: Default::default(),
+        };
         Part { name: "Guitar".into(), bars: vec![bar], ..Part::default() }
     }
 

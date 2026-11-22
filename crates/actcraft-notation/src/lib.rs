@@ -19,9 +19,11 @@
     clippy::unreachable
 )]
 
+pub mod flow;
 mod musicxml;
 pub mod tab;
 
+pub use flow::{Flow, play_order};
 pub use musicxml::{read, read_mxl, read_xml};
 
 /// Ticks in a quarter note; every onset and length is in ticks.
@@ -131,6 +133,8 @@ pub struct Bar {
     pub length: u32,
     /// Notes and rests by onset, then by pitch.
     pub notes: Vec<Note>,
+    /// Repeat signs, endings and jumps at this bar.
+    pub flow: Flow,
 }
 
 impl Bar {

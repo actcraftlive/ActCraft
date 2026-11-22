@@ -58,6 +58,7 @@ fn summary(score: &Score) -> Value {
             json!({
                 "name": part.name,
                 "bars": part.bars.len(),
+                "played_bars": actcraft_notation::play_order(&part.bars).len(),
                 "notes": notes,
                 "tablature": part.tablature,
                 "strings": part.strings(),
