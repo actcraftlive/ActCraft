@@ -794,3 +794,48 @@
 	`address` must be an IPv4 address like 192.168.1.20, or empty	`address` muss eine IPv4-Adresse wie 192.168.1.20 sein oder leer
 	`protocol` must be artnet or sacn	`protocol` muss artnet oder sacn sein
 	a show holds at most 256 DMX outputs	eine Show fasst höchstens 256 DMX-Ausgänge
+	Add fixtures	Geräte hinzufügen
+	Address	Adresse
+	Amber	Bernstein
+	Colour wheel	Farbrad
+	Dimmer	Dimmer
+	First free address	Erste freie Adresse
+	Fixture	Gerät
+	Fixtures	Geräte
+	Focus	Fokus
+	Gobo	Gobo
+	How many	Anzahl
+	Intensity	Helligkeit
+	Kind	Art
+	Kinds of fixtures	Gerätearten
+	Like the kind	Wie die Art
+	Moving head (16-bit pan and tilt, RGBW)	Moving Head (16-Bit Pan und Tilt, RGBW)
+	No fixtures patched yet.	Noch keine Geräte gepatcht.
+	Other	Sonstiges
+	Pan, tilt and intensity with a fine channel are set to 16 bits.	Pan, Tilt und Helligkeit mit Feinkanal werden mit 16 Bit gesetzt.
+	Patch	Patchen
+	Patch a fixture elsewhere	Ein Gerät anders patchen
+	Patch fixtures	Geräte patchen
+	RGB	RGB
+	RGB with dimmer	RGB mit Dimmer
+	RGBAW and UV with dimmer and strobe	RGBAW und UV mit Dimmer und Strobe
+	RGBW	RGBW
+	RGBW with dimmer	RGBW mit Dimmer
+	Remove a fixture	Ein Gerät entfernen
+	Set fixture attributes	Geräte-Attribute setzen
+	Strobe	Strobe
+	Pan position	Pan-Position
+	Tilt position	Tilt-Position
+	UV	UV
+	White	Weiß
+	`channels` must be a list of attributes	`channels` muss eine Liste von Attributen sein
+	`values` must map attributes to 0-1	`values` muss Attributen Werte 0-1 zuordnen
+	a fixture has 1 to 64 channels	ein Gerät hat 1 bis 64 Kanäle
+	a show holds at most 1024 fixtures	eine Show fasst höchstens 1024 Geräte
+	give `fixture` or `fixtures`	`fixture` oder `fixtures` angeben
+	give `kind` or `channels`	`kind` oder `channels` angeben
+	no such fixture	kein solches Gerät
+	no such kind of fixture	keine solche Geräteart
+	that address is taken by another fixture	diese Adresse belegt schon ein anderes Gerät
+	the fixture does not fit in the universe from that address	das Gerät passt ab dieser Adresse nicht ins Universum
+	there is no room left in that universe	in diesem Universum ist kein Platz mehr

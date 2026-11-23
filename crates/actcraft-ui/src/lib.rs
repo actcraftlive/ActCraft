@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 
 mod cues_view;
 mod dmx_view;
+mod fixtures_view;
 pub mod flows;
 pub mod i18n;
 mod lyrics_view;
@@ -166,6 +167,9 @@ pub struct ActCraftApp {
     macro_draft: (String, Vec<String>),
     /// A DMX output being put together in Settings > Lighting.
     dmx_draft: actcraft_show::DmxOutput,
+    /// The Fixtures window, and the patch being put together there.
+    fixtures_open: bool,
+    fixture_draft: fixtures_view::FixtureDraft,
     /// The pads' editor is open, and the pad being put together.
     pads_editing: bool,
     pad_draft: pads_view::PadDraft,
@@ -244,6 +248,8 @@ impl ActCraftApp {
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
+            fixtures_open: false,
+            fixture_draft: fixtures_view::FixtureDraft::default(),
             pads_editing: false,
             pad_draft: pads_view::PadDraft::default(),
             language_request: None,
@@ -312,6 +318,11 @@ impl ActCraftApp {
     /// Opens the DMX monitor (`--dmx`, for screenshots).
     pub fn show_dmx_monitor(&mut self) {
         self.dmx_monitor = Some(self.dmx_monitor.unwrap_or_default());
+    }
+
+    /// Opens the Fixtures window (`--fixtures`, for screenshots).
+    pub fn show_fixtures(&mut self) {
+        self.fixtures_open = true;
     }
 
     /// Shows the Spoken cues tab (`--cues`, for screenshots).
@@ -420,6 +431,7 @@ impl ActCraftApp {
         self.settings_window(&ctx, e);
         self.stage_window(&ctx, e);
         self.dmx_window(&ctx, e);
+        self.fixtures_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);

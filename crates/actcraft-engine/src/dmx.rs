@@ -34,7 +34,7 @@ impl Dmx {
     }
 
     /// Sets channels from `channel` (from 1) on; true when a level changed.
-    fn set(&mut self, universe: usize, channel: usize, values: &[u8]) -> bool {
+    pub(crate) fn set(&mut self, universe: usize, channel: usize, values: &[u8]) -> bool {
         let Some(u) = universe.checked_sub(1).and_then(|i| self.universes.get_mut(i)) else { return false };
         let Some(from) = channel.checked_sub(1) else { return false };
         let Some(slots) = u.get_mut(from..from.saturating_add(values.len()).min(CHANNELS)) else { return false };

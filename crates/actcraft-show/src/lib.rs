@@ -64,6 +64,10 @@ pub mod limits {
     pub const DMX_UNIVERSES: usize = 64;
     /// DMX outputs in a show.
     pub const MAX_DMX_OUTPUTS: usize = 256;
+    /// Fixtures in a show.
+    pub const MAX_FIXTURES: usize = 1_024;
+    /// Channels of one fixture.
+    pub const MAX_FIXTURE_CHANNELS: usize = 64;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -145,6 +149,9 @@ pub struct Show {
     /// Where DMX levels go on the network: one Art-Net or sACN output per universe sent.
     #[serde(default)]
     pub dmx_outputs: Vec<DmxOutput>,
+    /// The lights: each fixture with its channels and where it is patched.
+    #[serde(default)]
+    pub fixtures: Vec<Fixture>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -173,6 +180,7 @@ impl Default for Show {
             macros: Vec::new(),
             pads: Vec::new(),
             dmx_outputs: Vec::new(),
+            fixtures: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -594,6 +602,97 @@ pub struct RemoteAction {
     pub command: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// What one DMX channel of a fixture controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Attribute {
+    Intensity,
+    IntensityFine,
+    Red,
+    Green,
+    Blue,
+    White,
+    Amber,
+    Uv,
+    Pan,
+    PanFine,
+    Tilt,
+    TiltFine,
+    Strobe,
+    ColourWheel,
+    Gobo,
+    Zoom,
+    Focus,
+    /// Anything else (a macro, a speed, a reset): set by its own channel.
+    #[serde(other)]
+    Other,
+}
+
+impl Attribute {
+    /// The channel that holds the low byte of a 16-bit value with this one, if there is one.
+    pub fn fine(self) -> Option<Attribute> {
+        match self {
+            Attribute::Intensity => Some(Attribute::IntensityFine),
+            Attribute::Pan => Some(Attribute::PanFine),
+            Attribute::Tilt => Some(Attribute::TiltFine),
+            _ => None,
+        }
+    }
+
+    /// Whether this is the low byte of another attribute.
+    pub fn is_fine(self) -> bool {
+        matches!(self, Attribute::IntensityFine | Attribute::PanFine | Attribute::TiltFine)
+    }
+}
+
+/// A light (or anything else DMX drives) patched into a universe.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Fixture {
+    /// What the person calls it ("Front left").
+    pub name: String,
+    /// The kind of fixture it is, in words ("RGB wash"); for the person, not used to drive it.
+    pub kind: String,
+    /// What each of its channels controls, in DMX order.
+    pub channels: Vec<Attribute>,
+    /// The show universe it is patched into, from 1.
+    pub universe: u16,
+    /// Its first DMX channel, from 1.
+    pub address: u16,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for Fixture {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            kind: String::new(),
+            channels: Vec::new(),
+            universe: 1,
+            address: 1,
+            extra: Map::new(),
+        }
+    }
+}
+
+impl Fixture {
+    /// The DMX channels it takes, from its address on (from 1).
+    pub fn footprint(&self) -> std::ops::RangeInclusive<usize> {
+        let first = usize::from(self.address);
+        first..=first + self.channels.len().saturating_sub(1)
+    }
+
+    /// Whether it shares a channel with `other`.
+    pub fn overlaps(&self, other: &Fixture) -> bool {
+        self.universe == other.universe
+            && !self.channels.is_empty()
+            && !other.channels.is_empty()
+            && self.footprint().start() <= other.footprint().end()
+            && other.footprint().start() <= self.footprint().end()
+    }
 }
 
 /// The network protocol a DMX output speaks.
@@ -1155,6 +1254,19 @@ impl Show {
                 pad.fader = None;
             }
         }
+        self.fixtures.truncate(MAX_FIXTURES);
+        for f in &mut self.fixtures {
+            cut(&mut f.name, 64);
+            cut(&mut f.kind, 64);
+            f.channels.truncate(MAX_FIXTURE_CHANNELS);
+        }
+        // A fixture must fit in its universe.
+        self.fixtures.retain(|f| {
+            (1..=DMX_UNIVERSES).contains(&usize::from(f.universe))
+                && f.address >= 1
+                && *f.footprint().end() <= 512
+                && !f.channels.is_empty()
+        });
         self.dmx_outputs.truncate(MAX_DMX_OUTPUTS);
         self.dmx_outputs.retain(|o| (1..=DMX_UNIVERSES).contains(&usize::from(o.universe)));
         for o in &mut self.dmx_outputs {
