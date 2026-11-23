@@ -17,6 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ⬜ planned |
 
 ## Next up
 
@@ -26,6 +27,13 @@ details are in the milestone sections further down.
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
 2. M9: unsigned installers (MSI, DMG, AppImage/DEB/RPM) and CI build artifacts (owner agreed; no release, no signing; a portable zip or tarball is `cargo xtask package`)
+
+Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
+
+3. M10: several sheets per song, each for a musician
+4. M10: musicians follow their sheets in a browser on the local network
+5. M10: notes from MIDI files
+6. M10: setlist as a PDF for the stage floor
 
 ## Quality and open questions
 
@@ -97,7 +105,9 @@ details are in the milestone sections further down.
 - 🔶 Import text, ChordPro, LRC and DOCX files (done; DOCX through the shared `craft-docx`);
   lyrics in audio tags to do
 - ✅ Up to 64 named, coloured regions per song: play, loop, skip, stop after; cues; jump live
-  (Parts bar), leave a loop after its pass (L)
+  (Parts bar), leave a loop after its pass (L; also Transport > Leave Loop, so a MIDI foot switch,
+  a pad, a game controller or OSC can end the loop: the song plays the loop to its end, then goes
+  on)
 - 🔶 Markers from WAV files become regions (done); markers in other formats to do
 - ✅ Spoken cues: the computer's own voice says the song title at the start and each region's
   words a set number of beats before it ("Chorus", "End 3 2 1"), on a bus of their own
@@ -271,6 +281,35 @@ sync.
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for
 all platforms.
+
+## M10 Band sheets ⬜ planned
+
+Planned with the owner on 2026-11-23; not started. Each item is its own pull request.
+
+- ⬜ Several sheets per song, each for a musician: a song holds a list of sheets instead of one
+  PDF and one notation file; each sheet has a name ("Guitar", "Bass", "Drums"), a musician, a
+  PDF or a MusicXML score (or one part of a score), its own marks, and scrolls with playback as
+  the single sheet does now. The show keeps its musicians by name. Older shows load with their
+  PDF and notation file as two sheets for nobody in particular
+- ⬜ Musicians follow their sheets in a browser: ActCraft serves a page on the local network
+  (off until switched on); a musician opens it on a tablet or laptop, signs in and picks their
+  name, and sees the sheet made for them for the song that plays, scrolling along; when there is
+  none for the song, it says so. Questions for that pull request: the page is built in Rust
+  (egui compiled to WebAssembly, house rule 4: no handwritten JavaScript); signing in reuses the
+  band link's pairing code and its local-network-only rule; check what `craft-libs` already
+  serves (`web-host`) before writing a server (house rule 16)
+- ⬜ Notes from MIDI files: a song's MIDI file (or one brought in for it) becomes a score; each
+  MIDI track is assigned to a musician and shown as staves, drums by the General MIDI drum map,
+  guitar and bass also as tab (using the fret placement the MusicXML reader has). Needs
+  quantising to note values, key and enharmonic spelling, voices and the piano's two hands; works
+  best with MIDI written in a notation program, roughly with played-in MIDI
+- ⬜ Setlist as a PDF for the stage floor: a playlist's sets printed large with the band's logo and
+  the concert's name at the top, each song's title and length, the total, and entries of their own
+  for breaks and instrument changes. Check `craft-libs` for writing PDF before adding a writer
+  (house rule 16)
+- ✅ Looping a part (asked for with this plan; already there): a region in loop mode repeats, and
+  Leave Loop (L, or a MIDI foot switch through a remote action) lets the current pass play to its
+  end and goes on
 
 ## Languages
 
