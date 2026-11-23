@@ -15,6 +15,7 @@ pub mod dmx_in;
 pub mod dmx_out;
 pub mod files;
 pub mod gamepad;
+pub mod hue;
 pub mod midi_in;
 pub mod midi_out;
 pub mod osc_in;

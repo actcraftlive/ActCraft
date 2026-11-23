@@ -59,6 +59,8 @@ struct Host {
     dmx_in_levels: DmxInLevels,
     /// Game controllers (`None` when they could not be watched).
     gamepads: Option<Gamepads>,
+    /// A Hue request running off the window's thread.
+    hue_job: Option<std::sync::mpsc::Receiver<HueAnswer>>,
     /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
     /// version and the outputs) and the problems already reported.
     dmx_out: Option<DmxOut>,
@@ -121,6 +123,7 @@ impl eframe::App for Host {
             self.app.engine().dmx_in(universe, &levels);
         }
         self.follow_gamepads();
+        self.follow_hue();
         for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
             self.app.engine().osc_in(&address, value);
         }
@@ -185,6 +188,90 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Starts what Settings asked of the Hue bridge (one thing at a time) and hands the answer to
+    /// the window when it comes.
+    fn follow_hue(&mut self) {
+        if self.hue_job.is_none()
+            && let Some(request) = self.app.take_hue_request()
+        {
+            self.start_hue(request);
+        }
+        let Some(rx) = &self.hue_job else { return };
+        let Ok(answer) = rx.try_recv() else { return };
+        self.hue_job = None;
+        self.app.platform.hue_busy = false;
+        match answer {
+            HueAnswer::Found(found) => {
+                self.app.platform.hue_bridges = Some(found.map(|ips| ips.iter().map(ToString::to_string).collect()));
+            }
+            HueAnswer::Paired(ip, Ok(key)) => {
+                // The key stays in this computer's settings, never in a show file.
+                self.prefs.update(|pr| {
+                    pr.audio.hue_bridge.clone_from(&ip);
+                    pr.audio.hue_key = key;
+                });
+                self.app.platform.hue_paired = Some(ip);
+                self.app.platform.hue_note = None;
+                self.start_hue(actcraft_ui::HueRequest::Lights);
+            }
+            HueAnswer::Paired(_, Err(e)) => {
+                self.app.platform.hue_note = Some(if e.contains("link button") {
+                    actcraft_ui::tr("Press the round button on the bridge, then pair again within 30 seconds.")
+                        .to_owned()
+                } else {
+                    e
+                });
+            }
+            HueAnswer::Lights(lights) => {
+                self.app.platform.hue_lights = Some(lights.map(|ls| ls.into_iter().map(|l| (l.id, l.name)).collect()));
+            }
+        }
+    }
+
+    /// Runs a Hue request on a thread of its own (the network may take seconds).
+    fn start_hue(&mut self, request: actcraft_ui::HueRequest) {
+        use actcraft_platform::hue;
+        use actcraft_ui::HueRequest;
+        if let HueRequest::Forget = request {
+            self.prefs.update(|pr| {
+                pr.audio.hue_bridge.clear();
+                pr.audio.hue_key.clear();
+            });
+            self.app.platform.hue_paired = None;
+            self.app.platform.hue_lights = None;
+            return;
+        }
+        let pr = self.prefs.get().audio.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let job = move || {
+            let answer = match request {
+                HueRequest::Find => HueAnswer::Found(hue::discover(std::time::Duration::from_secs(2))),
+                HueRequest::Pair(ip) => {
+                    let key = ip
+                        .parse::<std::net::Ipv4Addr>()
+                        .map_err(|e| e.to_string())
+                        .and_then(|addr| hue::pair(hue::bridge_at(addr)));
+                    HueAnswer::Paired(ip, key)
+                }
+                HueRequest::Lights => HueAnswer::Lights(
+                    pr.hue_bridge
+                        .parse::<std::net::Ipv4Addr>()
+                        .map_err(|e| e.to_string())
+                        .and_then(|addr| hue::lights(hue::bridge_at(addr), &pr.hue_key)),
+                ),
+                HueRequest::Forget => return,
+            };
+            let _ = tx.send(answer);
+        };
+        match std::thread::Builder::new().name("actcraft-hue".into()).spawn(job) {
+            Ok(_) => {
+                self.hue_job = Some(rx);
+                self.app.platform.hue_busy = true;
+            }
+            Err(e) => self.app.platform.hue_note = Some(e.to_string()),
+        }
+    }
+
     /// Hands controller buttons pressed since the last frame to the engine (or to Settings while
     /// it learns one), and tells the window which controllers are connected.
     fn follow_gamepads(&mut self) {
@@ -489,6 +576,9 @@ struct AudioPrefs {
     /// Whether ActCraft listens for Art-Net DMX, and whether other computers may send.
     dmx_in: bool,
     dmx_in_network: bool,
+    /// The Hue bridge paired with (its address) and the key it gave; both empty when none.
+    hue_bridge: String,
+    hue_key: String,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -664,6 +754,7 @@ fn main() {
                 dmx_in: None,
                 dmx_in_levels: DmxInLevels::default(),
                 gamepads: Gamepads::open().ok(),
+                hue_job: None,
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),
@@ -692,6 +783,11 @@ fn main() {
             if pr.dmx_in {
                 host.switch_dmx_in(Some(pr.dmx_in_network));
             }
+            // A Hue bridge paired on this computer before: its lights are read again.
+            if !pr.hue_key.is_empty() && !pr.hue_bridge.is_empty() {
+                host.app.platform.hue_paired = Some(pr.hue_bridge.clone());
+                host.start_hue(actcraft_ui::HueRequest::Lights);
+            }
             Ok(Box::new(host))
         }),
     );
@@ -699,4 +795,11 @@ fn main() {
         eprintln!("ActCraft could not open its window: {e}");
         std::process::exit(1);
     }
+}
+
+/// What a Hue request running on its own thread came back with.
+enum HueAnswer {
+    Found(Result<Vec<std::net::Ipv4Addr>, String>),
+    Paired(String, Result<String, String>),
+    Lights(Result<Vec<actcraft_platform::hue::HueLight>, String>),
 }

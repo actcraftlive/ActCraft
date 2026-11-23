@@ -196,6 +196,9 @@ impl ActCraftApp {
         ui.add_space(12.0);
         ui.separator();
         self.dmx_input_settings(ui, e);
+        ui.add_space(12.0);
+        ui.separator();
+        self.hue_settings(ui);
     }
 
     /// DMX in: whether ActCraft listens for Art-Net from other gear (a desk, another program),
@@ -228,6 +231,86 @@ impl ActCraftApp {
             self.dmx_in_request = Some(on.then_some(self.platform.dmx_in_network));
         }
         self.dmx_triggers_ui(ui, e);
+    }
+
+    /// Philips Hue: finding and pairing with a bridge on the local network, and its lights.
+    pub(crate) fn hue_settings(&mut self, ui: &mut Ui) {
+        use crate::HueRequest;
+        let t = self.tokens;
+        ui.label(RichText::new("Philips Hue").strong());
+        let busy = self.platform.hue_busy;
+        let mut ask = None;
+        if let Some(bridge) = self.platform.hue_paired.clone() {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr("Paired with the bridge at {address}").replace("{address}", &bridge));
+                if ui.add_enabled(!busy, egui::Button::new(tr("Read the lights again"))).clicked() {
+                    ask = Some(HueRequest::Lights);
+                }
+                if ui
+                    .button(tr("Forget this bridge"))
+                    .on_hover_text(tr("Removes the bridge's key from this computer"))
+                    .clicked()
+                {
+                    ask = Some(HueRequest::Forget);
+                }
+            });
+            match &self.platform.hue_lights {
+                Some(Ok(lights)) if lights.is_empty() => {
+                    ui.label(RichText::new(tr("The bridge has no lights.")).color(t.text_dim));
+                }
+                Some(Ok(lights)) => {
+                    let names: Vec<String> = lights.iter().map(|(id, name)| format!("{id}: {name}")).collect();
+                    ui.label(format!("{} {}", tr("Lights:"), names.join(", ")));
+                }
+                Some(Err(e)) => {
+                    ui.label(RichText::new(e).color(t.danger));
+                }
+                None => {}
+            }
+        } else {
+            ui.label(
+                RichText::new(tr(
+                    "Hue lights can follow fixtures. Find the bridge on this network, press its round button, then pair.",
+                ))
+                .color(t.text_dim),
+            );
+            ui.horizontal_wrapped(|ui| {
+                let words = if busy { tr("Looking\u{2026}") } else { tr("Find Hue bridges") };
+                if ui.add_enabled(!busy, egui::Button::new(words)).clicked() {
+                    ask = Some(HueRequest::Find);
+                }
+            });
+            match &self.platform.hue_bridges {
+                Some(Ok(found)) if found.is_empty() => {
+                    ui.label(RichText::new(tr("No bridge answered on this network.")).color(t.text_dim));
+                }
+                Some(Ok(found)) => {
+                    for ip in found {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Bridge at {address}").replace("{address}", ip));
+                            let r = ui.add_enabled(!busy, egui::Button::new(tr("Pair"))).on_hover_text(tr(
+                                "Press the round button on the bridge first, then pair within 30 seconds",
+                            ));
+                            let name = format!("{} ({ip})", tr("Pair"));
+                            r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, !busy, &name));
+                            if r.clicked() {
+                                ask = Some(HueRequest::Pair(ip.clone()));
+                            }
+                        });
+                    }
+                }
+                Some(Err(e)) => {
+                    ui.label(RichText::new(e).color(t.danger));
+                }
+                None => {}
+            }
+        }
+        if let Some(note) = &self.platform.hue_note {
+            ui.label(RichText::new(note).color(t.warning));
+        }
+        if ask.is_some() {
+            self.hue_request = ask;
+        }
     }
 
     /// DMX triggers: a channel from a desk that runs a command when pushed up past half.

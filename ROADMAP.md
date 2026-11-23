@@ -25,7 +25,9 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M8: Philips Hue lights as fixtures (needs the owner's OK: pairing stores a bridge key on this computer)
+2. M8: Hue lights follow fixtures (finding and pairing a bridge is done)
+3. M8: band network and backup machine (pairing code; owner agreed)
+4. M9: unsigned installers and CI build artifacts (owner agreed; no release, no signing)
 
 ## Quality and open questions
 
@@ -253,6 +255,9 @@ sync.
   saves the buttons with the show (`gamepad.add`, `gamepad.remove`, `gamepad.list`,
   `gamepad.press`); a stick or an analogue trigger moves a volume (master, song, a bus) or the
   lighting master (`gamepad.fader_add`, `gamepad.move`; "Add fader")
+- ✅ Philips Hue, first part: Settings > Lighting finds a bridge on this network (mDNS, no online
+  service) and pairs with it once its round button is pressed; the key stays in this computer's
+  settings, never in the show; the bridge's lights are listed. Hue lights following fixtures next
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for
