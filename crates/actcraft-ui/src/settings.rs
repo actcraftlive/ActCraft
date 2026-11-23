@@ -378,6 +378,20 @@ impl ActCraftApp {
                 self.run(e, "midi.set", serde_json::json!({"timecode_fps": fps}));
             }
         });
+        ui.horizontal(|ui| {
+            let label = ui.label(tr("MIDI file offset"));
+            let mut ms = e.show.mixer.midi_latency_offset_ms;
+            if ui
+                .add(egui::DragValue::new(&mut ms).range(-500.0..=500.0).speed(1.0).suffix(" ms"))
+                .labelled_by(label.id)
+                .on_hover_text(tr(
+                    "Plays the songs' MIDI files earlier (minus) or later, to meet the sound of the gear they drive",
+                ))
+                .changed()
+            {
+                self.run(e, "midi.set", serde_json::json!({"latency_offset_ms": ms}));
+            }
+        });
     }
 
     fn playback_settings(&mut self, ui: &mut Ui, e: &mut Engine) {

@@ -233,6 +233,22 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::notation_commands::notation_read,
         )),
         with_songs(cmd(
+            "midi.attach",
+            "Attach MIDI file",
+            "",
+            None,
+            "{song?: id, path: text} (.mid, .midi, .smf: played to the MIDI output with the song, from its start) -> {tracks, names, notes, seconds}",
+            crate::midi_file::midi_attach,
+        )),
+        with_songs(cmd(
+            "midi.read",
+            "Read MIDI file",
+            "",
+            None,
+            "{song?: id} -> {tracks, names, notes, seconds}",
+            crate::midi_file::midi_read,
+        )),
+        with_songs(cmd(
             "lyrics.stamp_line",
             "Set line timecode",
             "",
@@ -396,7 +412,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "MIDI time settings",
             "",
             None,
-            "{clock?: bool (MIDI Clock with start, stop and song position), timecode?: bool (MIDI Timecode), timecode_fps?: 24|25|30} -> the settings",
+            "{clock?: bool (MIDI Clock with start, stop and song position), timecode?: bool (MIDI Timecode), timecode_fps?: 24|25|30, latency_offset_ms?: -500..500 (moves the song's MIDI file earlier or later)} -> the settings",
             crate::midi_sync::midi_set,
         ),
         cmd("voice.prepare", "Speak cues now", "", None, "{song?: id}", crate::voice::voice_prepare),
@@ -807,6 +823,9 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
     if prm.get("midi_file").is_some_and(Value::is_null) {
         next.midi_file = None;
     } else if let Some(v) = p::opt_str_max(prm, "midi_file", MAX_TEXT)? {
+        if !crate::midi_file::is_midi_path(v) {
+            return Err(invalid("`midi_file` must be a .mid, .midi or .smf file"));
+        }
         next.midi_file = Some(v.to_owned());
     }
     if let Some(v) = p::opt_str_max(prm, "lyrics", actcraft_show::limits::MAX_LYRICS)? {

@@ -157,14 +157,22 @@ pub fn midi_set(e: &mut crate::Engine, prm: &serde_json::Value) -> actcraft_comm
         }
         next.timecode_fps = fps;
     }
+    let offset = p::opt_f64_in(prm, "latency_offset_ms", -500.0, 500.0)?;
     if next != e.show.midi {
         e.show.midi = next;
+        e.mark_changed();
+    }
+    if let Some(ms) = offset
+        && ms != e.show.mixer.midi_latency_offset_ms
+    {
+        e.show.mixer.midi_latency_offset_ms = ms;
         e.mark_changed();
     }
     Ok(serde_json::json!({
         "clock": e.show.midi.clock,
         "timecode": e.show.midi.timecode,
         "timecode_fps": e.show.midi.timecode_fps,
+        "latency_offset_ms": e.show.mixer.midi_latency_offset_ms,
     }))
 }
 
@@ -247,7 +255,13 @@ mod tests {
         let mut e = crate::Engine::new(Box::new(crate::MemoryServices::default()));
         assert_eq!(e.show.midi, actcraft_show::MidiSettings::default());
         let r = e.run("midi.set", &json!({"clock": true, "timecode_fps": 30}));
-        assert_eq!(r.ok(), Some(json!({"clock": true, "timecode": false, "timecode_fps": 30})));
+        assert_eq!(
+            r.ok(),
+            Some(json!({"clock": true, "timecode": false, "timecode_fps": 30, "latency_offset_ms": 0.0}))
+        );
+        assert!(e.run("midi.set", &json!({"latency_offset_ms": -40})).is_ok());
+        assert_eq!(e.show.mixer.midi_latency_offset_ms, -40.0);
+        assert!(e.run("midi.set", &json!({"latency_offset_ms": 900})).is_err());
         assert!(e.dirty, "the show has changed");
         assert_eq!(SyncConfig::from(&e.show.midi), SyncConfig { clock: true, timecode: false, timecode_fps: 30 });
         for bad in [json!({"timecode_fps": 29}), json!({"timecode_fps": 60}), json!({"clock": "yes"})] {

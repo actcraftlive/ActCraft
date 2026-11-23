@@ -870,6 +870,31 @@ impl ActCraftApp {
                 self.ask_track_file(e, FileAsk::AddTrack { song: song.id });
             }
             ui.label(RichText::new(format!("{} {}", song.tracks.len(), tr("tracks"))).color(t.text_dim));
+            ui.separator();
+            // The song's MIDI file plays to the MIDI output (Settings > MIDI) with the song.
+            let midi_name = song.midi_file.as_deref().map(actcraft_engine::services::file_name);
+            let attach =
+                if midi_name.is_some() { tr("Other MIDI file\u{2026}") } else { tr("Attach MIDI file\u{2026}") };
+            if ui
+                .button(attach)
+                .on_hover_text(tr("A MIDI file played to the MIDI output with the song, from its start"))
+                .clicked()
+            {
+                self.ask_file(flows::FileRequest {
+                    ask: FileAsk::AttachMidi { song: song.id },
+                    kind: flows::FileKind::Open,
+                    title: tr("Attach MIDI file"),
+                    filters: vec![(tr("MIDI file"), actcraft_engine::midi_file::MIDI_EXTENSIONS)],
+                    file_name: None,
+                    directory: None,
+                });
+            }
+            if let Some(name) = midi_name {
+                ui.label(RichText::new(name).color(t.text_dim));
+                if ui.button(tr("Remove MIDI file")).clicked() {
+                    self.run(e, "song.set", json!({"song": song.id, "midi_file": null}));
+                }
+            }
         });
         if song.tracks.is_empty() {
             ui.label(

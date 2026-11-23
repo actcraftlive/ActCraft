@@ -660,3 +660,23 @@
 	MIDI time settings	MIDI-Zeit-Einstellungen
 	MIDI: {port}	MIDI: {port}
 	Could not open that MIDI output: {error}	Dieser MIDI-Ausgang ließ sich nicht öffnen: {error}
+	A MIDI file played to the MIDI output with the song, from its start	Eine MIDI-Datei, die mit dem Song ab seinem Anfang an den MIDI-Ausgang geht
+	ActCraft reads MIDI from .mid, .midi and .smf files	ActCraft liest MIDI aus .mid-, .midi- und .smf-Dateien
+	Attach MIDI file	MIDI-Datei anhängen
+	Attach MIDI file…	MIDI-Datei anhängen …
+	MIDI file	MIDI-Datei
+	MIDI file attached: {notes} notes	MIDI-Datei angehängt: {notes} Noten
+	Other MIDI file…	Andere MIDI-Datei …
+	Read MIDI file	MIDI-Datei lesen
+	Remove MIDI file	MIDI-Datei entfernen
+	`midi_file` must be a .mid, .midi or .smf file	`midi_file` muss eine .mid-, .midi- oder .smf-Datei sein
+	`points` must be a list	`points` muss eine Liste sein
+	a note needs `text`	eine Notiz braucht `text`
+	a point is [x, y]	ein Punkt ist [x, y]
+	a point's x and y are fractions of the page, from 0 to 1	x und y eines Punkts sind Anteile der Seite, von 0 bis 1
+	removing marks needs confirm: true	Markierungen entfernen braucht confirm: true
+	that MIDI file is too large	diese MIDI-Datei ist zu groß
+	that file is not a MIDI file ActCraft can read	diese Datei ist keine MIDI-Datei, die ActCraft lesen kann
+	the song has no MIDI file	der Song hat keine MIDI-Datei
+	MIDI file offset	MIDI-Datei-Versatz
+	Plays the songs' MIDI files earlier (minus) or later, to meet the sound of the gear they drive	Spielt die MIDI-Dateien der Songs früher (minus) oder später, passend zum Klang der angesteuerten Geräte

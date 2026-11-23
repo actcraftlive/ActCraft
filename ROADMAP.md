@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. M3: MIDI file per song played to the MIDI output; MIDI in and remote actions; commands at
+2. M3: MIDI in and remote actions; commands at
    lyric timecodes and macros
 
 ## Quality and open questions
@@ -72,7 +72,9 @@ details are in the milestone sections further down.
 - ✅ Settings window: interface, outputs, metronome, playback, library
 - ✅ Beat grid on the waveform (bars numbered, beats faint) from tempo and first beat; clicks snap
   to the nearest beat when "Snap to beat" is on
-- ⬜ MIDI file per song in sync (with M3)
+- ✅ MIDI file per song in sync: played to the MIDI output (Settings > MIDI) from the song's start,
+  through its tempo map, moved by the MIDI latency offset; held notes released on stop and jumps
+  (`midi.attach`, `midi.read`, `song.set {midi_file}`; Mixer tab: Attach MIDI file…)
 - ⬜ Effect plugins per track and bus (format chosen after its licence check)
 - ✅ Show package (`.actcraftpack`): the show and all its audio, MIDI, PDF and score files in one
   file, for backup or another computer; opening it unpacks the files beside it. A package can
@@ -140,7 +142,7 @@ details are in the milestone sections further down.
 ## M3 MIDI and remote ⬜
 
 - 🔶 MIDI out on the computer's ports (done: the ports the system lists, hardware and virtual);
-  MIDI in and a MIDI file per song to do
+  MIDI in to do
 - ⬜ Commands per song and at lyric timecodes; macros (`$CODE`); MIDI learn
 - ✅ MIDI Clock (with start, stop, continue and song position) and MIDI Timecode (quarter frames,
   a full frame on a jump; 24, 25 or 30 fps) out to a MIDI output chosen in Settings > MIDI

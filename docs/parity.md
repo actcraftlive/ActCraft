@@ -25,7 +25,7 @@ Statuses describe what ran in tests, not what is designed.
 | A1.2 | 16 output buses, mono-to-stereo routing, song and master volume | `bus.set`, `mixer.song_volume`, `mixer.master_volume` | done |
 | A1.3 | Realtime engine, no allocation or locks in the callback | renderer | done |
 | A1.4 | Continuous drift correction between tracks | renderer (60 s timing test) | done |
-| A1.5 | Output-latency compensation for click | `metronome.set {latency_offset_ms}` | partial (MIDI file side waits for A5) |
+| A1.5 | Output-latency compensation for click | `metronome.set {latency_offset_ms}`, `midi.set {latency_offset_ms}` | done: the click's offset, and the MIDI file's (Settings > MIDI) |
 | A1.6 | Start/end time per song | `song.set {start, end}` | done |
 | A1.7 | Effect plugin hosting | - | planned (format choice pending licence check) |
 | A1.8 | 6 mute groups with labels and remote actions | `mute_group.toggle/set`, `track.mute_group` | done |
@@ -34,7 +34,7 @@ Statuses describe what ran in tests, not what is designed.
 | A1.11 | Per-song count-in | `song.set {count_in_bars}`, `metronome.count_in` | done |
 | A1.12 | Start quantized to the beat | `metronome.set {quantized_start}` | done |
 | A1.13 | Beat anchor independent of song start; BPM per song; grid with snap | `song.set {beat_anchor, bpm}` | done: grid drawn on the waveform, click-to-jump snaps to beats |
-| A1.14 | MIDI file per song in sync | `song.set {midi_file}` | planned M3 |
+| A1.14 | MIDI file per song in sync | `midi.attach`, `midi.read`, `song.set {midi_file}` | done: played to the MIDI output from the song's start through its tempo map, with the MIDI latency offset |
 | A1.15 | Autoplay, crossfade (ignores requests while running), fade-out, song loop | `song.set {autoplay, fade_out, loop_song}`, `transport.crossfade_to`, `transport.set_crossfade` | done |
 | A1.16 | Waveform view with zoom | `waveform.peaks` | done |
 | A1.17 | Tempo detection on import, tap tempo | `song.detect_bpm`, `song.set {bpm}` | done |

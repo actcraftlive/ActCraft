@@ -44,6 +44,9 @@ pub enum FileAsk {
     AttachNotation {
         song: u64,
     },
+    AttachMidi {
+        song: u64,
+    },
     /// A package of the show, or of one song (`song`) or playlist (`playlist`) of it.
     ExportPackage {
         song: Option<u64>,
@@ -129,6 +132,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "song.import_files"
             | "lyrics.import"
             | "notation.attach"
+            | "midi.attach"
             | "song.add"
             | "song.remove"
             | "track.add"
@@ -226,6 +230,9 @@ impl ActCraftApp {
                 if e.run("lyrics.import", &json!({"song": song, "path": path_string(&first)})).is_ok() {
                     self.centre_tab = crate::CentreTab::Lyrics;
                 }
+            }
+            FileAsk::AttachMidi { song } => {
+                let _ = e.run("midi.attach", &json!({"song": song, "path": path_string(&first)}));
             }
             FileAsk::AttachNotation { song } => {
                 if e.run("notation.attach", &json!({"song": song, "path": path_string(&first)})).is_ok() {
@@ -402,6 +409,18 @@ impl ActCraftApp {
                         kind: FileKind::Open,
                         title: tr("Attach notation"),
                         filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
+                        file_name: None,
+                        directory: show_dir(e),
+                    });
+                }
+            }
+            "midi.attach" => {
+                if let Some(song) = current {
+                    self.ask_file(FileRequest {
+                        ask: FileAsk::AttachMidi { song },
+                        kind: FileKind::Open,
+                        title: tr("Attach MIDI file"),
+                        filters: vec![(tr("MIDI file"), actcraft_engine::midi_file::MIDI_EXTENSIONS)],
                         file_name: None,
                         directory: show_dir(e),
                     });
