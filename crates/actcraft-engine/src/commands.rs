@@ -603,6 +603,22 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::fixtures::fixture_hue,
         ),
         cmd(
+            "fixture.channel",
+            "Set one channel of a fixture",
+            "",
+            None,
+            "{fixture: index, channel: from 1, level: 0-255}",
+            crate::fixtures::fixture_channel,
+        ),
+        cmd(
+            "fixture.range",
+            "Put a fixture's channel in one of its ranges",
+            "",
+            None,
+            "{fixture: index, range: index (see fixture.list), value?: 0-1 through the range} -> {level}",
+            crate::fixtures::fixture_range,
+        ),
+        cmd(
             "fixture.stage",
             "Stage",
             "Lighting/Stage",

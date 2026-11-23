@@ -599,3 +599,27 @@ fn picked_songs_in_a_set_move_up_together() {
     });
     assert_eq!(order, vec!["B", "C", "A"]);
 }
+
+#[test]
+fn a_mixed_channel_is_set_by_picking_its_range() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run(
+            "fixture_type.set",
+            &json!({"name": "Spot", "modes": [{"channels": ["pan", "other", "red"], "ranges": [
+                {"channel": 2, "from": 0, "to": 7, "name": "Off"},
+                {"channel": 2, "from": 8, "to": 134, "name": "Dimmer"},
+                {"channel": 2, "from": 240, "to": 255, "name": "Open"}]}]}),
+        );
+        let _ = e.run("fixture.add", &json!({"type": 0, "universe": 1, "address": 1, "name": "Head"}));
+    });
+    h.state_mut().show_fixtures();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Channel 2 (Head)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Open (240\u{2013}255)").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[1])), Some(240));
+    h.get_by_role_and_label(Role::Slider, "Open (Head)").set_value_accesskit(1.0);
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[1])), Some(255), "through the range");
+}

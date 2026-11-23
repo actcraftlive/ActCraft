@@ -362,8 +362,10 @@ impl ActCraftApp {
             egui::CollapsingHeader::new(title).id_salt(("fixture", i)).default_open(i == 0).show(ui, |ui| {
                 egui::Grid::new(("fixture-attributes", i)).num_columns(2).show(ui, |ui| {
                     let mut seen: Vec<Attribute> = Vec::new();
-                    for a in f.channels.iter().copied().filter(|a| !a.is_fine()) {
-                        if seen.contains(&a) {
+                    // Channels that do several things, or nothing named, get their own rows below.
+                    for a in f.channels.iter().copied().filter(|a| !a.is_fine() && *a != Attribute::Other) {
+                        let ranged = f.channels.iter().position(|c| *c == a).is_some_and(|p| has_ranges(f, p + 1));
+                        if seen.contains(&a) || ranged {
                             continue;
                         }
                         seen.push(a);
@@ -380,6 +382,7 @@ impl ActCraftApp {
                         ui.end_row();
                     }
                 });
+                self.fixture_channels_ui(ui, e, i, f);
                 // A Hue light of the paired bridge that shows what this fixture sends.
                 if let Some(Ok(lights)) = &self.platform.hue_lights {
                     ui.horizontal(|ui| {
@@ -421,6 +424,81 @@ impl ActCraftApp {
         }
         if let Some(i) = remove {
             self.run(e, "fixture.remove", json!({"fixture": i}));
+        }
+    }
+}
+
+/// Whether a fixture's channel (from 1) has named ranges.
+fn has_ranges(f: &actcraft_show::Fixture, channel: usize) -> bool {
+    f.ranges.iter().any(|r| usize::from(r.channel) == channel)
+}
+
+impl ActCraftApp {
+    /// A fixture's channels that do several things (a choice of their ranges and a slider through
+    /// the chosen one) or nothing named (a level 0-255), one row each.
+    fn fixture_channels_ui(&mut self, ui: &mut Ui, e: &mut Engine, i: usize, f: &actcraft_show::Fixture) {
+        let levels = e.dmx.edited(usize::from(f.universe)).copied();
+        let mut run: Option<(&str, serde_json::Value)> = None;
+        egui::Grid::new(("fixture-channels", i)).num_columns(3).show(ui, |ui| {
+            for (k, a) in f.channels.iter().enumerate() {
+                let channel = k + 1;
+                if *a != Attribute::Other && !has_ranges(f, channel) {
+                    continue;
+                }
+                let level = levels.as_ref().and_then(|l| l.get(usize::from(f.address) + k - 1)).copied().unwrap_or(0);
+                let words = actcraft_engine::fill(tr("Channel {n}"), &[("n", &channel.to_string())]);
+                ui.label(&words);
+                let name = format!("{words} ({})", f.name);
+                if has_ranges(f, channel) {
+                    let ranges: Vec<(usize, &actcraft_show::ChannelRange)> =
+                        f.ranges.iter().enumerate().filter(|(_, r)| usize::from(r.channel) == channel).collect();
+                    let now = ranges.iter().find(|(_, r)| (r.from..=r.to).contains(&level));
+                    let shown = now.map_or_else(|| level.to_string(), |(_, r)| r.name.clone());
+                    egui::ComboBox::from_id_salt(("fixture-range", i, channel))
+                        .selected_text(shown)
+                        .show_ui(ui, |ui| {
+                            for (ri, r) in &ranges {
+                                let text = format!("{} ({}\u{2013}{})", r.name, r.from, r.to);
+                                if ui.selectable_label(now.is_some_and(|(n, _)| n == ri), text).clicked() {
+                                    run = Some(("fixture.range", json!({"fixture": i, "range": ri})));
+                                }
+                            }
+                        })
+                        .response
+                        .widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, &name));
+                    // Through the chosen range, when it is more than one level.
+                    if let Some((ri, r)) = now
+                        && r.to > r.from
+                    {
+                        let mut v = f64::from(level - r.from) / f64::from(r.to - r.from);
+                        let slider = egui::Slider::new(&mut v, 0.0..=1.0)
+                            .custom_formatter(|v, _| format!("{:.0} %", v * 100.0))
+                            .custom_parser(|s| {
+                                s.trim().trim_end_matches('%').trim().parse::<f64>().ok().map(|p| p / 100.0)
+                            });
+                        let resp = ui.add(slider);
+                        let slider_name = format!("{} ({})", r.name, f.name);
+                        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_label(slider_name));
+                        if resp.changed() {
+                            run = Some(("fixture.range", json!({"fixture": i, "range": ri, "value": v})));
+                        }
+                    } else {
+                        ui.label("");
+                    }
+                } else {
+                    let mut v = level;
+                    let resp = ui.add(egui::DragValue::new(&mut v).range(0..=255));
+                    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_label(name.clone()));
+                    if resp.changed() {
+                        run = Some(("fixture.channel", json!({"fixture": i, "channel": channel, "level": v})));
+                    }
+                    ui.label("");
+                }
+                ui.end_row();
+            }
+        });
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
         }
     }
 }

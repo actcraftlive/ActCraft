@@ -142,18 +142,18 @@ fn placement(prm: &Value) -> Result<(u16, Option<u16>), CommandError> {
 /// fixture (a built-in kind, an imported type in one of its modes, or channel by channel), or
 /// `count` of the same in a row; without `address` each goes to the first free one.
 pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
-    let (kind_name, channels) = match (prm.get("kind"), prm.get("channels"), prm.get("type")) {
+    let (kind_name, channels, ranges) = match (prm.get("kind"), prm.get("channels"), prm.get("type")) {
         (None, None, Some(_)) => {
             let t = p::index(prm, "type", e.show.fixture_types.len())?;
             let ty = e.show.fixture_types.get(t).ok_or_else(|| invalid("no such fixture type"))?;
             let m = usize::try_from(p::opt_i64_in(prm, "mode", 0, 31)?.unwrap_or(0)).unwrap_or(0);
             let mode = ty.modes.get(m).ok_or_else(|| invalid("that fixture type has no such mode"))?;
-            (format!("{} \u{b7} {}", ty.name, mode.name), mode.channels.clone())
+            (format!("{} \u{b7} {}", ty.name, mode.name), mode.channels.clone(), mode.ranges.clone())
         }
         (Some(_), None, None) => {
             let key = p::str_max(prm, "kind", 32)?;
             let kind = KINDS.iter().find(|k| k.key == key).ok_or_else(|| invalid("no such kind of fixture"))?;
-            (kind.name.to_owned(), kind.channels.to_vec())
+            (kind.name.to_owned(), kind.channels.to_vec(), Vec::new())
         }
         (None, Some(list), None) => {
             let list = list.as_array().ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
@@ -165,7 +165,7 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
                 .map(|v| v.as_str().and_then(attribute_named))
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
-            (String::new(), channels)
+            (String::new(), channels, Vec::new())
         }
         _ => return Err(invalid("give `kind`, `type` or `channels`")),
     };
@@ -193,6 +193,7 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
             channels: channels.clone(),
             universe,
             address: start,
+            ranges: ranges.clone(),
             ..Fixture::default()
         };
         if *fixture.footprint().end() > CHANNELS {
@@ -261,7 +262,9 @@ pub fn fixture_list(e: &mut Engine, _prm: &Value) -> CommandResult {
             .iter()
             .map(|f| {
                 let channels: Vec<&str> = f.channels.iter().map(|a| attribute_key(*a)).collect();
-                json!({"name": f.name, "kind": f.kind, "universe": f.universe, "address": f.address, "channels": channels})
+                let ranges: Vec<Value> =
+                    f.ranges.iter().map(|r| json!({"channel": r.channel, "from": r.from, "to": r.to, "name": r.name})).collect();
+                json!({"name": f.name, "kind": f.kind, "universe": f.universe, "address": f.address, "channels": channels, "ranges": ranges})
             })
             .collect(),
     ))
@@ -372,6 +375,48 @@ pub fn beam(e: &Engine, f: &Fixture) -> Option<Beam> {
     direction = (direction + 180.0).rem_euclid(360.0) - 180.0;
     let reach = from_down.abs().min(90.0).to_radians().sin();
     Some(Beam { direction, reach })
+}
+
+/// Sets one channel of a fixture (from 1) to `level` (0-255), in blind's copy while blind is on.
+fn put_channel(e: &mut Engine, i: usize, channel: u16, level: u8) -> Result<bool, CommandError> {
+    let f = e.show.fixtures.get(i).ok_or_else(|| invalid("no such fixture"))?;
+    if channel == 0 || usize::from(channel) > f.channels.len() {
+        return Err(invalid("the fixture has no such channel"));
+    }
+    let (universe, at) = (usize::from(f.universe), usize::from(f.address) + usize::from(channel) - 1);
+    Ok(e.dmx.set_edited(universe, at, &[level]))
+}
+
+/// `fixture.channel {fixture, channel, level}`: one channel of a fixture (from 1) to a level
+/// (0-255), whatever it does.
+pub fn fixture_channel(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "fixture", e.show.fixtures.len())?;
+    let channel = u16::try_from(p::i64_in(prm, "channel", 1, MAX_FIXTURE_CHANNELS as i64)?).unwrap_or(1);
+    let level = u8::try_from(p::i64_in(prm, "level", 0, 255)?).unwrap_or(0);
+    Ok(json!({"changed": put_channel(e, i, channel, level)?}))
+}
+
+/// `fixture.range {fixture, range, value?}`: puts the range's channel into one of its named
+/// ranges ("Open", "Strobe slow to fast"), `value` (0-1, 0 without) of the way through it.
+pub fn fixture_range(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "fixture", e.show.fixtures.len())?;
+    let count = e.show.fixtures.get(i).map_or(0, |f| f.ranges.len());
+    let r = p::index(prm, "range", count)?;
+    let value = p::opt_f64_in(prm, "value", 0.0, 1.0)?.unwrap_or(0.0);
+    let Some(range) = e.show.fixtures.get(i).and_then(|f| f.ranges.get(r)).cloned() else {
+        return Err(invalid("no such range"));
+    };
+    let span = f64::from(range.to - range.from);
+    let level = range.from.saturating_add((span * value).round() as u8);
+    let changed = put_channel(e, i, range.channel, level)?;
+    Ok(json!({"changed": changed, "level": level}))
+}
+
+/// The range a fixture's channel (from 1) stands in now (from the levels being edited), if it
+/// has ranges there.
+pub fn range_now(e: &Engine, f: &Fixture, channel: u16) -> Option<usize> {
+    let level = e.dmx.edited(usize::from(f.universe))?.get(usize::from(f.address) + usize::from(channel) - 2)?;
+    f.ranges.iter().position(|r| r.channel == channel && (r.from..=r.to).contains(level))
 }
 
 /// `fixture.hue {fixture, light}`: a Philips Hue light (its id on the paired bridge) shows what the
@@ -526,6 +571,44 @@ mod tests {
         let stage = e.run("fixture.stage", &Value::Null).ok().unwrap_or_default();
         assert_eq!(stage[0]["beam"], json!({"direction": -90.0, "reach": 0.71}));
         assert_eq!(stage[1]["beam"], Value::Null);
+    }
+
+    #[test]
+    fn a_mixed_channel_is_set_by_its_named_ranges() {
+        let mut e = engine();
+        let ty = json!({"name": "Spot", "modes": [{"name": "4 ch", "channels": ["pan", "tilt", "other", "red"],
+            "ranges": [{"channel": 3, "from": 0, "to": 7, "name": "Off"},
+                       {"channel": 3, "from": 8, "to": 134, "name": "Dimmer"},
+                       {"channel": 3, "from": 135, "to": 239, "name": "Strobe slow to fast"},
+                       {"channel": 3, "from": 240, "to": 255, "name": "Open"}]}]});
+        assert!(e.run("fixture_type.set", &ty).is_ok());
+        let _ = e.run("fixture.add", &json!({"type": 0, "universe": 1, "address": 10}));
+        assert_eq!(e.show.fixtures[0].ranges.len(), 4, "the fixture takes its mode's ranges");
+        let level = |e: &Engine| e.dmx.universe(1).map_or(0, |u| u[11]);
+        assert_eq!(
+            e.run("fixture.range", &json!({"fixture": 0, "range": 3})).ok(),
+            Some(json!({"changed": true, "level": 240}))
+        );
+        assert_eq!(level(&e), 240);
+        let f = e.show.fixtures[0].clone();
+        assert_eq!(range_now(&e, &f, 3), Some(3), "it stands in Open");
+        assert_eq!(
+            e.run("fixture.range", &json!({"fixture": 0, "range": 1, "value": 1.0})).ok(),
+            Some(json!({"changed": true, "level": 134}))
+        );
+        assert_eq!(range_now(&e, &f, 3), Some(1));
+        assert_eq!(range_now(&e, &f, 1), None, "no ranges on pan");
+        assert!(e.run("fixture.range", &json!({"fixture": 0, "range": 4})).is_err());
+        assert!(e.run("fixture.channel", &json!({"fixture": 0, "channel": 3, "level": 200})).is_ok());
+        assert_eq!(level(&e), 200);
+        assert!(e.run("fixture.channel", &json!({"fixture": 0, "channel": 5, "level": 1})).is_err(), "4 channels");
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.fixtures).unwrap_or_default();
+        assert_eq!(back[0].ranges, e.show.fixtures[0].ranges);
+        // Bad ranges are refused.
+        let bad = |r: Value| json!({"name": "X", "modes": [{"channels": ["other"], "ranges": [r]}]});
+        assert!(e.run("fixture_type.set", &bad(json!({"channel": 2, "from": 0, "to": 9, "name": "A"}))).is_err());
+        assert!(e.run("fixture_type.set", &bad(json!({"channel": 1, "from": 9, "to": 0, "name": "A"}))).is_err());
+        assert!(e.run("fixture_type.set", &bad(json!({"channel": 1, "from": 0, "to": 9, "name": " "}))).is_err());
     }
 
     #[test]
