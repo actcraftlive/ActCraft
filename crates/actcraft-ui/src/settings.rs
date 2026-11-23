@@ -20,6 +20,7 @@ pub(crate) enum Tab {
     Macros,
     Library,
     Lighting,
+    Band,
 }
 
 impl Tab {
@@ -34,6 +35,7 @@ impl Tab {
             "macros" => Tab::Macros,
             "library" => Tab::Library,
             "lighting" => Tab::Lighting,
+            "band" => Tab::Band,
             _ => return None,
         })
     }
@@ -125,6 +127,7 @@ impl ActCraftApp {
                         (Tab::Macros, tr("Macros")),
                         (Tab::Library, tr("Library")),
                         (Tab::Lighting, tr("Lighting")),
+                        (Tab::Band, tr("Band")),
                     ] {
                         ui.selectable_value(&mut self.settings_tab, tab, label);
                     }
@@ -141,6 +144,7 @@ impl ActCraftApp {
                         Tab::Macros => self.macro_settings(ui, e),
                         Tab::Library => self.library_settings(ui, e),
                         Tab::Lighting => self.lighting_settings(ui, e),
+                        Tab::Band => self.band_settings(ui),
                     }
                 });
             });
@@ -926,5 +930,71 @@ fn axis_text(axis: &str) -> &'static str {
         "right_x" => tr("Right stick, left and right"),
         "right_y" => tr("Right stick, up and down"),
         _ => tr("Stick or trigger"),
+    }
+}
+
+impl ActCraftApp {
+    /// Settings > Band: letting band members follow this computer, or following another one.
+    fn band_settings(&mut self, ui: &mut Ui) {
+        use crate::BandRequest;
+        let t = self.tokens;
+        let mut ask = None;
+        ui.label(RichText::new(tr("Band link")).strong());
+        ui.label(
+            RichText::new(tr(
+                "Other ActCraft computers on this network can follow this one: the same song, playing and stopping with it. Each plays its own copy of the songs; if this one stops answering, they keep playing.",
+            ))
+            .color(t.text_dim),
+        );
+        let mut hosting = self.platform.band_hosting.is_some();
+        if ui.checkbox(&mut hosting, tr("Let band members follow this computer")).changed() {
+            ask = Some(BandRequest::Host(hosting));
+        }
+        if let Some((addr, code, followers)) = &self.platform.band_hosting {
+            ui.label(
+                RichText::new(
+                    tr("Code for a new follower: {code} \u{b7} listening on {address} \u{b7} following: {n}")
+                        .replace("{code}", code)
+                        .replace("{address}", addr)
+                        .replace("{n}", &followers.to_string()),
+                )
+                .strong(),
+            );
+        }
+        ui.add_space(8.0);
+        ui.label(RichText::new(tr("Follow another computer")).strong());
+        if let Some((host, connected)) = &self.platform.band_following {
+            ui.horizontal_wrapped(|ui| {
+                let state = if *connected {
+                    tr("Following {host}").replace("{host}", host)
+                } else {
+                    tr("{host} is not answering; playing on, trying again").replace("{host}", host)
+                };
+                ui.label(RichText::new(state).color(if *connected { t.text } else { t.warning }));
+                if ui.button(tr("Stop following")).clicked() {
+                    ask = Some(BandRequest::Unfollow);
+                }
+            });
+        } else {
+            let d = &mut self.band_draft;
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tr("Host address"));
+                ui.add(egui::TextEdit::singleline(&mut d.0).hint_text("192.168.1.20").desired_width(140.0))
+                    .labelled_by(label.id);
+                let label = ui.label(tr("Code"));
+                ui.add(egui::TextEdit::singleline(&mut d.1).desired_width(80.0))
+                    .labelled_by(label.id)
+                    .on_hover_text(tr("The code the other computer shows; empty when paired before"));
+                if ui.add_enabled(!d.0.trim().is_empty(), egui::Button::new(tr("Follow"))).clicked() {
+                    ask = Some(BandRequest::Follow(d.0.trim().to_owned(), d.1.trim().to_owned()));
+                }
+            });
+        }
+        if let Some(note) = &self.platform.band_note {
+            ui.label(RichText::new(note).color(t.warning));
+        }
+        if ask.is_some() {
+            self.band_request = ask;
+        }
     }
 }

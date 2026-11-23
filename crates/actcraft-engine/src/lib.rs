@@ -24,6 +24,7 @@ use actcraft_library::queue::DoubleTap;
 use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
+pub mod band;
 pub mod commands;
 pub mod cues;
 pub mod dmx;

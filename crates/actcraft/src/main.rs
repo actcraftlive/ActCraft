@@ -63,6 +63,11 @@ struct Host {
     hue_job: Option<std::sync::mpsc::Receiver<HueAnswer>>,
     /// Sends fixture colours to the paired bridge's lights (`None` when not paired).
     hue_out: Option<actcraft_platform::hue::HueOut>,
+    /// Band link: hosting, following, a connection being made, and when to try again.
+    band_host: Option<actcraft_platform::band::BandHost>,
+    band_follow: Option<actcraft_platform::band::BandFollow>,
+    band_connecting: Option<std::sync::mpsc::Receiver<Result<BandConnected, String>>>,
+    band_retry: std::time::Instant,
     /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
     /// version and the outputs) and the problems already reported.
     dmx_out: Option<DmxOut>,
@@ -127,6 +132,7 @@ impl eframe::App for Host {
         self.follow_gamepads();
         self.follow_hue();
         self.follow_hue_out();
+        self.follow_band();
         for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
             self.app.engine().osc_in(&address, value);
         }
@@ -264,6 +270,135 @@ impl Host {
         out.set(states);
         for e in out.take_errors() {
             self.app.engine().say_error_with("Hue: {error}", vec![MessageArg::plain("error", e)]);
+        }
+    }
+
+    /// Band link each frame: what Settings asked, the state for followers while hosting, and
+    /// going along with the host while following (connecting again when it went away).
+    fn follow_band(&mut self) {
+        use actcraft_ui::BandRequest;
+        match self.app.take_band_request() {
+            Some(BandRequest::Host(on)) => self.switch_band_host(on),
+            Some(BandRequest::Follow(addr, code)) => {
+                let token = self.prefs.get().audio.band_token.clone();
+                let same_host = self.prefs.get().audio.band_follow == addr;
+                let auth = if code.is_empty() && same_host && !token.is_empty() {
+                    actcraft_platform::band::BandAuth::Token(token)
+                } else {
+                    actcraft_platform::band::BandAuth::Code(code)
+                };
+                self.app.platform.band_note = None;
+                self.start_band_connect(addr, auth);
+            }
+            Some(BandRequest::Unfollow) => {
+                self.band_follow = None;
+                self.band_connecting = None;
+                self.app.platform.band_following = None;
+                self.prefs.update(|pr| {
+                    pr.audio.band_follow.clear();
+                    pr.audio.band_token.clear();
+                });
+            }
+            None => {}
+        }
+        if let Some(host) = &self.band_host {
+            host.publish(self.app.engine().band_state());
+            let new = host.take_new_tokens();
+            if !new.is_empty() {
+                self.prefs.update(|pr| {
+                    pr.audio.band_tokens.extend(new);
+                    // The newest few dozen are enough; old followers pair again.
+                    let extra = pr.audio.band_tokens.len().saturating_sub(64);
+                    pr.audio.band_tokens.drain(..extra);
+                });
+            }
+            self.app.platform.band_hosting = Some((host.addr().to_string(), host.code(), host.followers()));
+        }
+        // A connection being made comes back from its thread.
+        if let Some(rx) = &self.band_connecting
+            && let Ok(result) = rx.try_recv()
+        {
+            self.band_connecting = None;
+            match result {
+                Ok(BandConnected { follow, addr, token }) => {
+                    self.prefs.update(|pr| {
+                        pr.audio.band_follow.clone_from(&addr);
+                        if let Some(t) = token {
+                            pr.audio.band_token = t;
+                        }
+                    });
+                    self.band_follow = Some(follow);
+                    self.app.platform.band_following = Some((addr, true));
+                }
+                Err(e) => {
+                    if self.app.platform.band_following.is_none() {
+                        self.app.platform.band_note = Some(e);
+                    }
+                }
+            }
+        }
+        if let Some(follow) = &self.band_follow {
+            let missing = follow.take_state().and_then(|state| self.app.engine().follow_band(&state));
+            if let Some(missing) = missing {
+                self.app.platform.band_note = Some(
+                    actcraft_ui::tr("The host plays \u{201c}{song}\u{201d}, which this computer does not have.")
+                        .replace("{song}", &missing),
+                );
+            }
+            if !follow.connected() {
+                self.band_follow = None;
+                if let Some(f) = &mut self.app.platform.band_following {
+                    f.1 = false;
+                }
+            }
+        }
+        // Gone or not yet there: try again with the token every few seconds (playing on meanwhile).
+        if self.band_follow.is_none()
+            && self.band_connecting.is_none()
+            && let Some((addr, false)) = self.app.platform.band_following.clone()
+            && self.band_retry.elapsed() >= std::time::Duration::from_secs(3)
+        {
+            let token = self.prefs.get().audio.band_token.clone();
+            if !token.is_empty() {
+                self.start_band_connect(addr, actcraft_platform::band::BandAuth::Token(token));
+            }
+        }
+    }
+
+    /// Connects to a band host on a thread of its own, so the window never waits for it.
+    fn start_band_connect(&mut self, addr: String, auth: actcraft_platform::band::BandAuth) {
+        use actcraft_platform::band::{BAND_PORT, BandFollow};
+        self.band_retry = std::time::Instant::now();
+        let target = addr
+            .parse::<std::net::SocketAddr>()
+            .or_else(|_| addr.parse::<std::net::IpAddr>().map(|ip| std::net::SocketAddr::new(ip, BAND_PORT)));
+        let Ok(target) = target else {
+            self.app.platform.band_note = Some(actcraft_ui::tr("That is not an address like 192.168.1.20.").to_owned());
+            return;
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let job = move || {
+            let result =
+                BandFollow::connect(target, &auth).map(|(follow, token)| BandConnected { follow, addr, token });
+            let _ = tx.send(result);
+        };
+        if std::thread::Builder::new().name("actcraft-band-connect".into()).spawn(job).is_ok() {
+            self.band_connecting = Some(rx);
+        }
+    }
+
+    /// Lets band members follow this computer, or stops. Remembered on this computer.
+    fn switch_band_host(&mut self, on: bool) {
+        self.band_host = None;
+        self.app.platform.band_hosting = None;
+        self.prefs.update(|pr| pr.audio.band_host = on);
+        if !on {
+            return;
+        }
+        let tokens = self.prefs.get().audio.band_tokens.clone();
+        match actcraft_platform::band::BandHost::open(actcraft_platform::band::BAND_PORT, tokens) {
+            Ok(host) => self.band_host = Some(host),
+            Err(e) => self.app.platform.band_note = Some(e),
         }
     }
 
@@ -618,6 +753,12 @@ struct AudioPrefs {
     /// The Hue bridge paired with (its address) and the key it gave; both empty when none.
     hue_bridge: String,
     hue_key: String,
+    /// Band link: whether this computer lets others follow it, the tokens of followers it
+    /// paired with, and the host it follows with the token that host gave (empty: none).
+    band_host: bool,
+    band_tokens: Vec<String>,
+    band_follow: String,
+    band_token: String,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -795,6 +936,10 @@ fn main() {
                 gamepads: Gamepads::open().ok(),
                 hue_job: None,
                 hue_out: None,
+                band_host: None,
+                band_follow: None,
+                band_connecting: None,
+                band_retry: std::time::Instant::now(),
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),
@@ -824,6 +969,13 @@ fn main() {
                 host.switch_dmx_in(Some(pr.dmx_in_network));
             }
             // A Hue bridge paired on this computer before: its lights are read again.
+            // Band link as it was: hosting again, or following the same host again.
+            if pr.band_host {
+                host.switch_band_host(true);
+            }
+            if !pr.band_follow.is_empty() && !pr.band_token.is_empty() {
+                host.app.platform.band_following = Some((pr.band_follow.clone(), false));
+            }
             if !pr.hue_key.is_empty() && !pr.hue_bridge.is_empty() {
                 host.app.platform.hue_paired = Some(pr.hue_bridge.clone());
                 host.start_hue(actcraft_ui::HueRequest::Lights);
@@ -842,4 +994,11 @@ enum HueAnswer {
     Found(Result<Vec<std::net::Ipv4Addr>, String>),
     Paired(String, Result<String, String>),
     Lights(Result<Vec<actcraft_platform::hue::HueLight>, String>),
+}
+
+/// A band host connected to: the follower, the address as typed, and the token a pairing gave.
+struct BandConnected {
+    follow: actcraft_platform::band::BandFollow,
+    addr: String,
+    token: Option<String>,
 }
