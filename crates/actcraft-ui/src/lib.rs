@@ -241,6 +241,8 @@ pub struct ActCraftApp {
     /// What Settings > Band asked for, and the host address and code being typed.
     band_request: Option<BandRequest>,
     band_draft: (String, String),
+    /// Songs picked in a set to move or remove together: (playlist, set, song id).
+    picked_songs: std::collections::HashSet<(usize, usize, u64)>,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -343,6 +345,7 @@ impl ActCraftApp {
             hue_request: None,
             band_request: None,
             band_draft: (String::new(), String::new()),
+            picked_songs: std::collections::HashSet::new(),
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -981,15 +984,40 @@ impl ActCraftApp {
                                 for (k, id) in set.songs.iter().enumerate() {
                                     let title = e.show.song(*id).map_or("?", |s| s.title.as_str()).to_owned();
                                     let row = ui.horizontal(|ui| {
+                                        let which = format!("{}. {title}", k + 1);
+                                        // Picked songs move or go together (the buttons under the set).
+                                        let key = (i, si, *id);
+                                        let mut on = self.picked_songs.contains(&key);
+                                        let pick = ui.checkbox(&mut on, "");
+                                        let name = format!("{} ({which})", tr("Pick"));
+                                        pick.widget_info(|| {
+                                            egui::WidgetInfo::selected(egui::Role::CheckBox, true, on, &name)
+                                        });
+                                        if pick.changed() {
+                                            if on {
+                                                self.picked_songs.insert(key);
+                                            } else {
+                                                self.picked_songs.remove(&key);
+                                            }
+                                        }
                                         // Drag the title to reorder; the buttons do the same without dragging.
                                         let payload = DragSong { playlist: i, set: si, index: k };
                                         ui.dnd_drag_source(egui::Id::unique(("set-song", i, si, k)), payload, |ui| {
-                                            ui.label(format!("{}. {title}", k + 1))
+                                            ui.label(&which)
                                         })
                                         .response
                                         .on_hover_text(tr("Drag to move it in the set"));
-                                        // Move buttons: reordering works without dragging.
-                                        if k > 0 && ui.small_button(tr("Up")).on_hover_text(tr("Move up")).clicked() {
+                                        // Move buttons: reordering works without dragging. Their names
+                                        // say which song, so rows don't share them.
+                                        let button = |ui: &mut Ui, words: &str| {
+                                            let r = ui.small_button(words);
+                                            let name = format!("{words} ({which})");
+                                            r.widget_info(|| {
+                                                egui::WidgetInfo::labeled(egui::Role::Button, true, &name)
+                                            });
+                                            r
+                                        };
+                                        if k > 0 && button(ui, tr("Up")).on_hover_text(tr("Move up")).clicked() {
                                             self.run(
                                                 e,
                                                 "playlist.move_songs",
@@ -997,7 +1025,7 @@ impl ActCraftApp {
                                             );
                                         }
                                         if k + 1 < set.songs.len()
-                                            && ui.small_button(tr("Down")).on_hover_text(tr("Move down")).clicked()
+                                            && button(ui, tr("Down")).on_hover_text(tr("Move down")).clicked()
                                         {
                                             self.run(
                                                 e,
@@ -1005,8 +1033,7 @@ impl ActCraftApp {
                                                 json!({"playlist": i, "set": si, "indexes": [k], "to": k + 2}),
                                             );
                                         }
-                                        if ui.small_button(tr("Remove")).on_hover_text(tr("Remove from set")).clicked()
-                                        {
+                                        if button(ui, tr("Remove")).on_hover_text(tr("Remove from set")).clicked() {
                                             self.run(
                                                 e,
                                                 "playlist.remove_songs",
@@ -1036,6 +1063,7 @@ impl ActCraftApp {
                                         );
                                     }
                                 }
+                                self.picked_ui(ui, e, i, si, &set.songs);
                             }
                             if ui.small_button(tr("Add set")).clicked() {
                                 self.run(e, "playlist.add_set", json!({"playlist": i}));
@@ -1630,6 +1658,43 @@ impl ActCraftApp {
         }
         response.on_hover_text(tr("Click to jump to that point"));
         let _ = Color32::TRANSPARENT;
+    }
+
+    /// Under a set with picked songs: move them up or down together, or take them out.
+    fn picked_ui(&mut self, ui: &mut Ui, e: &mut Engine, playlist: usize, set: usize, songs: &[u64]) {
+        let indexes: Vec<usize> = songs
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| self.picked_songs.contains(&(playlist, set, **id)))
+            .map(|(k, _)| k)
+            .collect();
+        let (Some(&first), Some(&last)) = (indexes.first(), indexes.last()) else { return };
+        let mut run = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(actcraft_engine::fill(tr("{n} picked:"), &[("n", &indexes.len().to_string())]));
+            if ui.add_enabled(first > 0, egui::Button::new(tr("Move picked up"))).clicked() {
+                run = Some((
+                    "playlist.move_songs",
+                    json!({"playlist": playlist, "set": set, "indexes": indexes, "to": first - 1}),
+                ));
+            }
+            if ui.add_enabled(last + 1 < songs.len(), egui::Button::new(tr("Move picked down"))).clicked() {
+                run = Some((
+                    "playlist.move_songs",
+                    json!({"playlist": playlist, "set": set, "indexes": indexes, "to": last + 2}),
+                ));
+            }
+            if ui.button(tr("Remove picked")).clicked() {
+                run = Some(("playlist.remove_songs", json!({"playlist": playlist, "set": set, "indexes": indexes})));
+                self.picked_songs.retain(|(p, s, _)| !(*p == playlist && *s == set));
+            }
+            if ui.button(tr("Clear picks")).clicked() {
+                self.picked_songs.retain(|(p, s, _)| !(*p == playlist && *s == set));
+            }
+        });
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
+        }
     }
 
     /// The engine, for hosts that need it (screenshots, tests).
