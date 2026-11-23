@@ -1354,12 +1354,19 @@ impl ActCraftApp {
                 ui.horizontal(|ui| {
                     let mut rgb = colour.to_array();
                     let mut c3 = [rgb[0], rgb[1], rgb[2]];
-                    if ui.color_edit_button_srgb(&mut c3).on_hover_text(tr("Track colour")).changed() {
+                    // Named with the track, so screen readers say which strip's button it is.
+                    let picker = ui.color_edit_button_srgb(&mut c3);
+                    let name = format!("{} ({})", tr("Track colour"), track.name);
+                    picker.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                    if picker.on_hover_text(tr("Track colour")).changed() {
                         rgb = [c3[0], c3[1], c3[2], 255];
                         let hex = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
                         self.run(e, "track.set", json!({"song": song, "track": i, "colour": hex}));
                     }
-                    if ui.small_button("\u{00d7}").on_hover_text(tr("Remove track")).clicked() {
+                    let remove = ui.small_button("\u{00d7}");
+                    let name = format!("{} ({})", tr("Remove track"), track.name);
+                    remove.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                    if remove.on_hover_text(tr("Remove track")).clicked() {
                         self.modal = Some(flows::Modal::Confirm {
                             title: tr("Remove track"),
                             text: format!("{} \u{201c}{}\u{201d}?", tr("Remove the track"), track.name),
@@ -1459,11 +1466,22 @@ impl ActCraftApp {
                                 self.run(e, "track.set", json!({"song": song, "track": i, "bus": b}));
                             }
                         }
+                    })
+                    .response
+                    .widget_info(|| {
+                        egui::WidgetInfo::labeled(
+                            egui::Role::ComboBox,
+                            true,
+                            format!("{} ({})", tr("Output bus"), track.name),
+                        )
                     });
                 ui.horizontal_wrapped(|ui| {
                     for g in 0..6u8 {
                         let member = track.mute_groups & (1 << g) != 0;
-                        if ui.selectable_label(member, format!("{}", g + 1)).on_hover_text(tr("Mute group")).clicked() {
+                        let r = ui.selectable_label(member, format!("{}", g + 1));
+                        let name = format!("{} {} ({})", tr("Mute group"), g + 1, track.name);
+                        r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, member, &name));
+                        if r.on_hover_text(tr("Mute group")).clicked() {
                             self.run(
                                 e,
                                 "track.mute_group",
