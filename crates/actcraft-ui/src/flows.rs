@@ -148,6 +148,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "playlist.export_package"
             | "show.open_package"
             | "dmx.get"
+            | "fixture.list"
     )
 }
 
@@ -486,6 +487,7 @@ impl ActCraftApp {
                 self.modal = Some(Modal::About);
             }
             "dmx.get" => self.dmx_monitor = Some(self.dmx_monitor.unwrap_or_default()),
+            "fixture.list" => self.fixtures_open = true,
             "app.commands" => {
                 let lines = registry()
                     .iter()

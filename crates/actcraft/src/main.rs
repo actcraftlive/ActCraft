@@ -463,6 +463,7 @@ fn main() {
     let sheet = args.iter().any(|a| a == "--sheet");
     let about = args.iter().any(|a| a == "--about");
     let dmx = args.iter().any(|a| a == "--dmx");
+    let fixtures = args.iter().any(|a| a == "--fixtures");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
         started: std::time::Instant::now(),
@@ -520,6 +521,9 @@ fn main() {
             }
             if dmx {
                 app.show_dmx_monitor();
+            }
+            if fixtures {
+                app.show_fixtures();
             }
             let repaint = cc.egui_ctx.clone();
             let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || repaint.request_repaint());

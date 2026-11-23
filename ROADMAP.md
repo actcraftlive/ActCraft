@@ -25,7 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M4: fixture types and the patch (DMX levels, the monitor and Art-Net/sACN output are done)
+2. M4: Open Fixture Library import and a fixture type editor (levels, monitor, output and the
+   patch are done)
 
 ## Quality and open questions
 
@@ -171,6 +172,11 @@ details are in the milestone sections further down.
   to one address) or sACN (a universe and priority, multicast or to one address), when it
   changes and again every 0.8 s (`dmx.output_add`, `dmx.output_remove`, `dmx.output_list`).
   Art-Net node discovery and USB interfaces to do
+- ✅ Fixtures and patch: Lighting > Fixtures patches lights by kind (dimmer, RGB, RGBW, RGBAW+UV,
+  a moving head with 16-bit pan and tilt) or channel by channel into a universe, one or a row of
+  them, at an address or the first free one, refusing overlaps; each fixture's attributes are set
+  with sliders (`fixture.add`, `fixture.move`, `fixture.remove`, `fixture.list`, `fixture.kinds`,
+  `fixture.set`). A fixture type editor and Open Fixture Library import to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
