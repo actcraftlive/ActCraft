@@ -75,6 +75,10 @@ pub mod limits {
     pub const MAX_GROUPS: usize = 256;
     pub const MAX_PRESETS: usize = 1_024;
     pub const MAX_PRESET_VALUES: usize = 16_384;
+    /// Cue lists in a show, cues in one, and the longest fade (seconds).
+    pub const MAX_CUE_LISTS: usize = 64;
+    pub const MAX_CUES: usize = 1_000;
+    pub const MAX_FADE_S: f64 = 600.0;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -168,6 +172,9 @@ pub struct Show {
     /// Stored looks: attribute values of fixtures, recalled at once.
     #[serde(default)]
     pub presets: Vec<Preset>,
+    /// Lists of cues gone through one by one during a show.
+    #[serde(default)]
+    pub cue_lists: Vec<CueList>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -200,6 +207,7 @@ impl Default for Show {
             fixture_types: Vec::new(),
             groups: Vec::new(),
             presets: Vec::new(),
+            cue_lists: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -683,6 +691,29 @@ pub struct Group {
 pub struct Preset {
     pub name: String,
     pub values: Vec<PresetValue>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Cues gone through one by one.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CueList {
+    pub name: String,
+    pub cues: Vec<Cue>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// One step of a cue list: a preset faded in over some seconds.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Cue {
+    pub name: String,
+    /// The preset's name.
+    pub preset: String,
+    /// Seconds to fade in; 0 for at once.
+    pub fade: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -1375,6 +1406,16 @@ impl Show {
             p.values.truncate(MAX_PRESET_VALUES);
             for v in &mut p.values {
                 v.value = v.value.clamp(0.0, 1.0);
+            }
+        }
+        self.cue_lists.truncate(MAX_CUE_LISTS);
+        for l in &mut self.cue_lists {
+            cut(&mut l.name, 64);
+            l.cues.truncate(MAX_CUES);
+            for c in &mut l.cues {
+                cut(&mut c.name, 64);
+                cut(&mut c.preset, 64);
+                c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
             }
         }
         self.dmx_outputs.truncate(MAX_DMX_OUTPUTS);

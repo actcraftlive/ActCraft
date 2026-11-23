@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: cues and cue lists with fades, run from songs and pads
+2. M5: cues run by song position (a cue list per song, fired at lyric or marker times)
 
 ## Quality and open questions
 
@@ -186,7 +186,11 @@ details are in the milestone sections further down.
 - ✅ Groups and presets: fixtures picked together by name (`group.set`), set as one
   (`fixture.set {group}`); presets keep what fixtures show (every fixture or a group) and bring
   it back with one press (`preset.store`, `preset.recall`); Lighting > Presets. Fixtures have ids
-  so groups and presets follow them. Fades, cues and cue lists to do
+  so groups and presets follow them
+- ✅ Fades and cue lists: a preset fades in over seconds (`preset.recall {fade}`); cue lists go
+  through presets with Go and Back (`cue.go`, `cue.back`, `cue.jump`; Lighting > Next Cue and Cue
+  Before, so pads, keys, MIDI and OSC can run them). Cues from songs (timecode), effects and
+  control pages to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX

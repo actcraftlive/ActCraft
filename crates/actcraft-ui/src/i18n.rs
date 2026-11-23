@@ -112,6 +112,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/fixtures.rs"),
             include_str!("../../actcraft-engine/src/fixture_library.rs"),
             include_str!("../../actcraft-engine/src/looks.rs"),
+            include_str!("../../actcraft-engine/src/cues.rs"),
             include_str!("../../actcraft-engine/src/voice.rs"),
             include_str!("../../actcraft/src/main.rs"),
         ];

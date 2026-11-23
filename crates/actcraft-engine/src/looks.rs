@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 pub use actcraft_show::{Group, Preset, PresetValue};
 
 use crate::Engine;
-use crate::fixtures::{attribute_key, levels_for, targets, value_of};
+use crate::fixtures::{attribute_key, targets, value_of};
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -127,18 +127,14 @@ pub fn preset_store(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(json!({"preset": i, "values": count}))
 }
 
-/// `preset.recall {preset}`: sets every stored value again.
+/// `preset.recall {preset, fade?}`: sets every stored value again, at once or fading in over
+/// `fade` seconds.
 pub fn preset_recall(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "preset", e.show.presets.len())?;
+    let fade = p::opt_f64_in(prm, "fade", 0.0, actcraft_show::limits::MAX_FADE_S)?.unwrap_or(0.0);
     let Some(preset) = e.show.presets.get(i).cloned() else { return Err(invalid("no such preset")) };
-    let mut changed = false;
-    for v in &preset.values {
-        let Some(f) = e.show.fixtures.iter().find(|f| f.id == v.fixture).cloned() else { continue };
-        for (offset, level) in levels_for(&f, v.attribute, v.value) {
-            changed |= e.dmx.set(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
-        }
-    }
-    Ok(json!({"changed": changed}))
+    let changed = e.fade_to(&preset, fade);
+    Ok(json!({"changed": changed, "fade": fade}))
 }
 
 /// `preset.remove {preset}`.
@@ -219,7 +215,7 @@ mod tests {
         let r = e.run("preset.store", &json!({"name": "Blue", "fixtures": [0, 1]}));
         assert_eq!(r.ok(), Some(json!({"preset": 0, "values": 8})), "four attributes each");
         let _ = e.run("dmx.clear", &Value::Null);
-        assert_eq!(e.run("preset.recall", &json!({"preset": 0})).ok(), Some(json!({"changed": true})));
+        assert_eq!(e.run("preset.recall", &json!({"preset": 0})).ok(), Some(json!({"changed": true, "fade": 0.0})));
         let blue = |e: &Engine, i: usize| e.show.fixtures.get(i).and_then(|f| value_of(e, f, Attribute::Blue));
         assert!(blue(&e, 0).is_some_and(|v| (v - 0.5).abs() < 0.01));
         assert_eq!(blue(&e, 2), Some(0.0), "not in the preset");
