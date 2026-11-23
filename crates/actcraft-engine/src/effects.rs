@@ -1,7 +1,8 @@
 //! Effects: a group's attribute moved in a wave (sine, square, saw, triangle) between two
 //! values, cycle by cycle, each fixture of the group a little later than the one before. A
-//! cycle is seconds long, or a number of beats at the playing song's tempo. Running effects are
-//! moved on by the engine's tick; they are not saved as running.
+//! cycle is seconds long, or a number of beats at the playing song's tempo, locked to its beat
+//! grid while it plays, so pulses land on the beat. Running effects are moved on by the engine's
+//! tick; they are not saved as running.
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
@@ -49,6 +50,21 @@ impl Engine {
         if fx.beats > 0.0 && bpm > 0.0 { fx.beats * 60.0 / bpm } else { fx.period.max(0.05) }
     }
 
+    /// Where in its cycles `fx` is now: from the playing song's beat grid when it counts in beats
+    /// and a song plays (so its pulses land on the beat), else from when it started.
+    fn effect_cycles(&self, fx: &Effect, started: DateTime<FixedOffset>, now: DateTime<FixedOffset>) -> f64 {
+        if fx.beats > 0.0
+            && self.status.playing
+            && self.status.time.is_finite()
+            && let Some(song) = self.current().filter(|s| s.bpm > 0.0)
+        {
+            let clock = crate::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
+            return clock.beat_at(self.status.time) / fx.beats;
+        }
+        let elapsed = (now - started).num_milliseconds() as f64 / 1000.0;
+        elapsed / self.cycle_seconds(fx)
+    }
+
     /// Moves every running effect on to `now`.
     pub fn step_effects(&mut self, now: DateTime<FixedOffset>) {
         let running = self.running_effects.clone();
@@ -56,8 +72,7 @@ impl Engine {
             let Some(fx) = self.show.effects.iter().find(|f| f.name == name).cloned() else { continue };
             let Some(group) = self.show.groups.iter().find(|g| g.name == fx.group) else { continue };
             let ids = group.fixtures.clone();
-            let elapsed = (now - started).num_milliseconds() as f64 / 1000.0;
-            let base = elapsed / self.cycle_seconds(&fx);
+            let base = self.effect_cycles(&fx, started, now);
             let n = ids.len().max(1) as f64;
             let parts: Vec<(Attribute, f64, f64, f64)> = std::iter::once((fx.attribute, fx.low, fx.high, 0.0))
                 .chain(fx.also.iter().map(|p| (p.attribute, p.low, p.high, p.offset)))
@@ -417,5 +432,36 @@ mod tests {
         let fx = Effect { beats: 4.0, period: 9.0, ..Effect::default() };
         assert!((e.cycle_seconds(&fx) - 2.0).abs() < 1e-9, "4 beats at 120 BPM");
         assert!((e.cycle_seconds(&Effect { beats: 0.0, ..fx }) - 9.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_beat_effect_locks_to_the_beats_of_the_playing_song() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("group.set", &json!({"name": "All", "fixtures": [0]}));
+        let _ = e.run("song.add", &Value::Null);
+        // 120 BPM, beat one at 0.25 s: beats at 0.25, 0.75, 1.25 s …
+        let _ = e.run("song.set", &json!({"bpm": 120.0, "beat_anchor": 0.25}));
+        // A square on and off once a beat: on in the first half of each beat.
+        let _ = e.run(
+            "effect.set",
+            &json!({"name": "Pulse", "group": 0, "attribute": "intensity", "shape": "square", "beats": 1.0}),
+        );
+        let start = e.services().now();
+        assert!(e.run("effect.start", &json!({"effect": 0})).is_ok());
+        let level = |e: &mut Engine, song_time: f64, playing: bool, since: i64| {
+            e.status.playing = playing;
+            e.status.time = song_time;
+            e.step_effects(start + TimeDelta::milliseconds(since));
+            let f = e.show.fixtures[0].clone();
+            value_of(e, &f, Attribute::Intensity).unwrap_or(-1.0)
+        };
+        // Started at an odd moment, it still turns on with each beat of the song …
+        assert_eq!(level(&mut e, 0.30, true, 0), 1.0, "just after a beat: on");
+        assert_eq!(level(&mut e, 0.60, true, 300), 0.0, "late in the beat: off");
+        assert_eq!(level(&mut e, 0.80, true, 500), 1.0, "the next beat: on again");
+        // … and runs from its own start when nothing plays.
+        assert_eq!(level(&mut e, 0.60, false, 0), 1.0, "its own first half beat");
+        assert_eq!(level(&mut e, 0.60, false, 300), 0.0);
     }
 }

@@ -13,8 +13,8 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ✅ |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
-| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists, fades, blind, freeze and pad pages done; beat sync to do |
-| M7 | One show: lighting lane on the song timeline, shared clock | 🔶 lighting lane done |
+| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
+| M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
@@ -25,7 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M6: beat sync for lighting (cues and effects on the beat of the playing song)
+2. M8: DMX input (levels from a desk over Art-Net or sACN, to see and to trigger cues)
+3. M8: Philips Hue lights as fixtures
 
 ## Quality and open questions
 
@@ -204,7 +205,9 @@ details are in the milestone sections further down.
   values, seconds or beats per cycle at the song tempo, spread over the group; started and
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects); one
   effect moves more attributes on the same wave, each later in the cycle (pan and tilt make a
-  circle, red, green and blue a rainbow; `effect.set {also}`, "Move another attribute too")
+  circle, red, green and blue a rainbow; `effect.set {also}`, "Move another attribute too"). An
+  effect counted in beats locks to the playing song's beat grid, so its pulses land on the beat
+  wherever it was started
 - ✅ Ready-made effects: eighteen to start from (breathe, pulse on the beat, chase, wave, build
   over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom, circles,
   rainbows); none flashes
