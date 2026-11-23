@@ -476,6 +476,16 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("dmx.master", "Lighting master", "", None, "{level: 0-1}", crate::dmx::dmx_master),
         cmd(
+            "dmx.trigger_add",
+            "Add a DMX trigger",
+            "",
+            None,
+            "{universe: Art-Net port address 0-32767, channel: 1-512, command: id (one that needs nothing more)} (runs when the channel goes up past half) -> {trigger: index}",
+            crate::dmx::dmx_trigger_add,
+        ),
+        cmd("dmx.trigger_remove", "Remove a DMX trigger", "", None, "{trigger: index}", crate::dmx::dmx_trigger_remove),
+        cmd("dmx.trigger_list", "List DMX triggers", "", None, "none", crate::dmx::dmx_trigger_list),
+        cmd(
             "dmx.input_list",
             "List DMX inputs",
             "",

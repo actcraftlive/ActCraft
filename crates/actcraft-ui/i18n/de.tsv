@@ -1083,3 +1083,14 @@
 	List DMX inputs	DMX-Eingänge auflisten
 	Read DMX input	DMX-Eingang lesen
 	no DMX came in on that universe	auf diesem Universum kam kein DMX an
+	Desk universe	Pult-Universum
+	Desk channel	Pult-Kanal
+	Universe {u}, channel {c}	Universum {u}, Kanal {c}
+	Add trigger	Auslöser hinzufügen
+	Runs the command when the channel goes up past half	Führt den Befehl aus, wenn der Kanal über die Hälfte steigt
+	A fader or button on a desk can run a command, like a MIDI remote action.	Ein Fader oder Knopf am Pult kann einen Befehl ausführen, wie eine MIDI-Fernaktion.
+	Add a DMX trigger	DMX-Auslöser hinzufügen
+	Remove a DMX trigger	DMX-Auslöser entfernen
+	List DMX triggers	DMX-Auslöser auflisten
+	a trigger runs a command that needs nothing more	ein Auslöser führt einen Befehl aus, der nichts weiter braucht
+	a show holds at most 256 DMX triggers	eine Show hat höchstens 256 DMX-Auslöser

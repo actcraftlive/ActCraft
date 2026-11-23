@@ -374,7 +374,9 @@ fn a_usb_output_is_added_by_picking_its_port() {
 
 #[test]
 fn dmx_from_other_gear_is_switched_on_in_settings_and_shown_in_the_monitor() {
-    let (mut h, _engine) = window(|e| e.dmx_in(3, &[200, 0, 9]));
+    let (mut h, _engine) = window(|e| {
+        e.dmx_in(3, &[200, 0, 9]);
+    });
     h.state_mut().open_settings_at("lighting");
     frames(&mut h, 3);
     h.get_by_role_and_label(Role::CheckBox, "Receive DMX over Art-Net").click_accesskit();
@@ -388,4 +390,25 @@ fn dmx_from_other_gear_is_switched_on_in_settings_and_shown_in_the_monitor() {
     frames(&mut h, 3);
     assert!(h.query_by_label_contains("Channel 1: 200").is_some(), "the heard level shows");
     assert!(h.query_by_role_and_label(Role::Button, "This universe to zero").is_none(), "read only");
+}
+
+#[test]
+fn a_dmx_trigger_is_added_and_removed_in_settings() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().open_settings_at("lighting");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::SpinButton, "Desk universe").set_value_accesskit(2.0);
+    h.get_by_role_and_label(Role::SpinButton, "Desk channel").set_value_accesskit(7.0);
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "Runs").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Metronome on or off").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add trigger").click_accesskit();
+    frames(&mut h, 3);
+    let got = with(&engine, |e| e.show.dmx_triggers.first().map(|t| (t.universe, t.channel, t.command.clone())));
+    assert_eq!(got, Some((2, 7, "metronome.toggle".to_owned())));
+    h.get_by_role_and_label(Role::Button, "Remove (Universe 2, channel 7)").click_accesskit();
+    frames(&mut h, 3);
+    assert!(with(&engine, |e| e.show.dmx_triggers.is_empty()));
 }

@@ -3,7 +3,7 @@
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
-pub use actcraft_show::{DmxOutput, DmxProtocol};
+pub use actcraft_show::{DmxOutput, DmxProtocol, DmxTrigger};
 use serde_json::{Value, json};
 
 use crate::Engine;
@@ -233,15 +233,34 @@ impl Engine {
 
     /// Takes levels heard from other gear on Art-Net port address `port_address` (at most 512;
     /// missing ones are 0). At most 256 universes are kept.
-    pub fn dmx_in(&mut self, port_address: u16, levels: &[u8]) {
+    /// A channel that goes up past half sets off its DMX triggers (once, not again while it stays
+    /// up); returns how many commands ran.
+    pub fn dmx_in(&mut self, port_address: u16, levels: &[u8]) -> usize {
         if self.dmx.input.len() >= 256 && !self.dmx.input.contains_key(&port_address) {
-            return;
+            return 0;
         }
         let mut u = [0; CHANNELS];
         for (slot, v) in u.iter_mut().zip(levels) {
             *slot = *v;
         }
-        self.dmx.input.insert(port_address, u);
+        let before = self.dmx.input.insert(port_address, u).unwrap_or([0; CHANNELS]);
+        let up = |levels: &[u8; CHANNELS], channel: u16| {
+            levels.get(usize::from(channel).saturating_sub(1)).is_some_and(|v| *v >= HALF)
+        };
+        let due: Vec<String> = self
+            .show
+            .dmx_triggers
+            .iter()
+            .filter(|t| t.universe == port_address && up(&u, t.channel) && !up(&before, t.channel))
+            .map(|t| t.command.clone())
+            .collect();
+        let mut ran = 0;
+        for command in due {
+            if crate::remote::runnable(&command) && self.run(&command, &Value::Null).is_ok() {
+                ran += 1;
+            }
+        }
+        ran
     }
 
     /// Whether fades and effects are held.
@@ -283,6 +302,50 @@ pub fn lighting_blind(e: &mut Engine, prm: &Value) -> CommandResult {
     let on = opt_on(prm, e.dmx.blind())?;
     e.dmx.set_blind(on);
     Ok(json!({"on": on}))
+}
+
+/// A DMX channel counts as up from this level (half way).
+const HALF: u8 = 128;
+
+/// `dmx.trigger_add {universe, channel, command}`: a channel heard on an Art-Net port address
+/// runs a command when it goes up past half.
+pub fn dmx_trigger_add(e: &mut Engine, prm: &Value) -> CommandResult {
+    let universe = p::i64_in(prm, "universe", 0, i64::from(DmxOutput::ARTNET_MAX))?;
+    let channel = p::i64_in(prm, "channel", 1, CHANNELS as i64)?;
+    let command = p::str_max(prm, "command", 64)?.to_owned();
+    if !crate::remote::runnable(&command) {
+        return Err(invalid("a trigger runs a command that needs nothing more"));
+    }
+    if e.show.dmx_triggers.len() >= actcraft_show::limits::MAX_DMX_TRIGGERS {
+        return Err(failed("a show holds at most 256 DMX triggers"));
+    }
+    e.show.dmx_triggers.push(DmxTrigger {
+        universe: u16::try_from(universe).unwrap_or(0),
+        channel: u16::try_from(channel).unwrap_or(1),
+        command,
+        ..DmxTrigger::default()
+    });
+    e.mark_changed();
+    Ok(json!({"trigger": e.show.dmx_triggers.len() - 1}))
+}
+
+/// `dmx.trigger_remove {trigger}`.
+pub fn dmx_trigger_remove(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "trigger", e.show.dmx_triggers.len())?;
+    e.show.dmx_triggers.remove(i);
+    e.mark_changed();
+    Ok(Value::Null)
+}
+
+/// `dmx.trigger_list`: every DMX trigger.
+pub fn dmx_trigger_list(e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        e.show
+            .dmx_triggers
+            .iter()
+            .map(|t| json!({"universe": t.universe, "channel": t.channel, "command": t.command}))
+            .collect(),
+    ))
 }
 
 /// `dmx.input_list`: the Art-Net port addresses DMX came in on.
@@ -433,6 +496,36 @@ mod tests {
             e.dmx_in(n, &[1]);
         }
         assert_eq!(e.dmx.inputs().len(), 256, "bounded");
+    }
+
+    #[test]
+    fn a_channel_from_a_desk_going_up_past_half_runs_its_command_once() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let on = |e: &Engine| e.show.metronome.enabled;
+        let start = on(&e);
+        let add = |e: &mut Engine, prm: Value| e.run("dmx.trigger_add", &prm);
+        assert_eq!(
+            add(&mut e, json!({"universe": 2, "channel": 3, "command": "metronome.toggle"})).ok(),
+            Some(json!({"trigger": 0}))
+        );
+        assert!(add(&mut e, json!({"universe": 2, "channel": 513, "command": "metronome.toggle"})).is_err());
+        assert!(add(&mut e, json!({"universe": 2, "channel": 3, "command": "dmx.set"})).is_err(), "needs params");
+        let level = |v: u8| [0, 0, v];
+        assert_eq!(e.dmx_in(2, &level(100)), 0, "below half");
+        assert_eq!(e.dmx_in(2, &level(200)), 1, "up past half");
+        assert_eq!(on(&e), !start);
+        assert_eq!(e.dmx_in(2, &level(255)), 0, "still up: not again");
+        assert_eq!(e.dmx_in(3, &level(0)), 0);
+        assert_eq!(e.dmx_in(3, &level(255)), 0, "another universe");
+        assert_eq!(e.dmx_in(2, &level(0)), 0);
+        assert_eq!(e.dmx_in(2, &level(128)), 1, "down and up again");
+        assert_eq!(on(&e), start);
+        let list = e.run("dmx.trigger_list", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(list, json!([{"universe": 2, "channel": 3, "command": "metronome.toggle"}]));
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.dmx_triggers).unwrap_or_default();
+        assert_eq!(back, e.show.dmx_triggers);
+        assert!(e.run("dmx.trigger_remove", &json!({"trigger": 0})).is_ok());
+        assert_eq!(e.dmx_in(2, &level(0)) + e.dmx_in(2, &level(255)), 0, "gone");
     }
 
     #[test]

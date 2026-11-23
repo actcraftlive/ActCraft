@@ -200,7 +200,7 @@ impl ActCraftApp {
 
     /// DMX in: whether ActCraft listens for Art-Net from other gear (a desk, another program),
     /// whether from other computers too, and the universes heard.
-    pub(crate) fn dmx_input_settings(&mut self, ui: &mut Ui, e: &Engine) {
+    pub(crate) fn dmx_input_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
         ui.label(RichText::new(tr("DMX in")).strong());
         let mut on = self.platform.dmx_in_listening.is_some();
@@ -226,6 +226,74 @@ impl ActCraftApp {
         ui.label(RichText::new(help).color(t.text_dim));
         if changed {
             self.dmx_in_request = Some(on.then_some(self.platform.dmx_in_network));
+        }
+        self.dmx_triggers_ui(ui, e);
+    }
+
+    /// DMX triggers: a channel from a desk that runs a command when pushed up past half.
+    fn dmx_triggers_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        let label_of = |id: &str| {
+            actcraft_engine::registry().get(id).map_or_else(|| id.to_owned(), |c| tr(c.spec.label).to_owned())
+        };
+        let mut run: Option<(&str, serde_json::Value)> = None;
+        if !e.show.dmx_triggers.is_empty() {
+            egui::Grid::new("dmx-triggers").num_columns(3).striped(true).show(ui, |ui| {
+                for (i, trig) in e.show.dmx_triggers.iter().enumerate() {
+                    let at = tr("Universe {u}, channel {c}")
+                        .replace("{u}", &trig.universe.to_string())
+                        .replace("{c}", &trig.channel.to_string());
+                    ui.label(&at);
+                    ui.label(label_of(&trig.command));
+                    let r = ui.button(tr("Remove"));
+                    let name = format!("{} ({at})", tr("Remove"));
+                    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                    if r.clicked() {
+                        run = Some(("dmx.trigger_remove", json!({"trigger": i})));
+                    }
+                    ui.end_row();
+                }
+            });
+        }
+        let mut commands: Vec<(&'static str, String)> = actcraft_engine::registry()
+            .iter()
+            .filter(|c| actcraft_engine::remote::runnable(c.spec.id))
+            .map(|c| (c.spec.id, tr(c.spec.label).to_owned()))
+            .collect();
+        commands.sort_by(|a, b| a.1.cmp(&b.1));
+        let d = &mut self.dmx_trigger_draft;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Desk universe"));
+            ui.add(egui::DragValue::new(&mut d.0).range(0..=DmxOutput::ARTNET_MAX)).labelled_by(label.id);
+            let label = ui.label(tr("Desk channel"));
+            ui.add(egui::DragValue::new(&mut d.1).range(1..=CHANNELS as u16)).labelled_by(label.id);
+            let label = ui.label(tr("Runs"));
+            let shown = if d.2.is_empty() { tr("Choose a command").to_owned() } else { label_of(&d.2) };
+            egui::ComboBox::from_id_salt("dmx-trigger-command")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for (id, name) in &commands {
+                        ui.selectable_value(&mut d.2, (*id).to_owned(), name);
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if ui
+                .add_enabled(!d.2.is_empty(), egui::Button::new(tr("Add trigger")))
+                .on_hover_text(tr("Runs the command when the channel goes up past half"))
+                .clicked()
+            {
+                run = Some(("dmx.trigger_add", json!({"universe": d.0, "channel": d.1, "command": d.2})));
+            }
+        });
+        if e.show.dmx_triggers.is_empty() {
+            ui.label(
+                RichText::new(tr("A fader or button on a desk can run a command, like a MIDI remote action."))
+                    .color(t.text_dim),
+            );
+        }
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
         }
     }
 

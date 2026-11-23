@@ -25,8 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M8: DMX input sets off cues (a channel from a desk as a trigger, like a MIDI remote action)
-3. M8: Philips Hue lights as fixtures
+2. M8: Philips Hue lights as fixtures
 
 ## Quality and open questions
 
@@ -244,7 +243,9 @@ sync.
   beat (`song.light_cue_add {bar, beat}`, `song.light_cue_move`)
 - ✅ DMX in: Settings > Lighting listens for Art-Net from a desk or another program (this
   computer only, or other computers too); the DMX monitor shows each universe heard, read only
-  (`dmx.input_list`, `dmx.input_get`). Triggers from it are next
+  (`dmx.input_list`, `dmx.input_get`); a channel heard there runs a command when it goes up past
+  half, once, like a MIDI remote action (`dmx.trigger_add`, `dmx.trigger_remove`,
+  `dmx.trigger_list`; "Add trigger")
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for
