@@ -724,3 +724,18 @@
 	a macro's name is capitals, digits and _, starting with a capital	der Name eines Makros besteht aus Großbuchstaben, Ziffern und _ und beginnt mit einem Großbuchstaben
 	a show holds at most 128 macros	eine Show hat höchstens 128 Makros
 	no macro named {name}	kein Makro namens {name}
+	Add pad	Pad hinzufügen
+	Add pads…	Pads hinzufügen …
+	Buttons that run a command or a macro with one press	Knöpfe, die mit einem Druck einen Befehl oder ein Makro ausführen
+	Done	Fertig
+	Edit pads	Pads bearbeiten
+	Label	Beschriftung
+	List pads	Pads auflisten
+	Press pad	Pad drücken
+	Remove pad	Pad entfernen
+	a pad needs a label	ein Pad braucht eine Beschriftung
+	a pad runs a command or a macro, one of them	ein Pad führt einen Befehl oder ein Makro aus, eines davon
+	a pad runs a command that needs nothing more, or a macro	ein Pad führt einen Befehl aus, der nichts weiter braucht, oder ein Makro
+	a show holds at most 64 pads	eine Show hat höchstens 64 Pads
+	no such pad	dieses Pad gibt es nicht
+	this pad's command can't run without more	der Befehl dieses Pads läuft nicht ohne weitere Angaben
