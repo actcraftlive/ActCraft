@@ -10,12 +10,12 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M0 | Foundation: commands, CLI, control channel, MCP, build gate | ✅ |
 | M1 | Audio engine, mixer, outputs, metronome, library, playlists, queue | 🔶 |
 | M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
-| M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | 🔶 in progress |
-| M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ⬜ |
-| M5 | 2D stage preview, programming, presets, sequences, effects engine | ⬜ |
-| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ⬜ |
+| M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
+| M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | 🔶 USB to do |
+| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 groups and presets done |
+| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists and fades done |
 | M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
-| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ⬜ |
+| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
 ## Next up
@@ -34,8 +34,9 @@ details are in the milestone sections further down.
 - ⬜ Lyrics in audio tags (ID3 `USLT`, Vorbis comments, MP4 `©lyr`) and markers in formats other
   than WAV need readers that belong in the shared audio library (`craft-audio`, which reads WAV
   markers today), not in ActCraft (house rule 16); the owner agreed to propose them there
-- ⬜ Keyboard and accessibility-tree tests (kittest) for the window: the helpers don't exist in
-  this repository yet; every new control should get one once they do
+- 🔶 Keyboard and accessibility-tree tests (kittest): `crates/actcraft-ui/src/ui_tests.rs` drives the
+  window through its AccessKit tree with the accessibility check on (pads, DMX monitor, cue lists,
+  presets); older controls get tests as they are touched
 - ⬜ The MusicXML reader (`actcraft-notation`) is app-independent: offer it to the shared
   libraries (craft-libs), whose `craft-score` only writes MusicXML
 - ⬜ Serif and script font tags wait for fonts from the shared font store

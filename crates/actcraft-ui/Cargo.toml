@@ -17,5 +17,10 @@ serde_json = { workspace = true }
 craft-i18n = { workspace = true }
 craft-pdf = { workspace = true }
 
+[dev-dependencies]
+egui_kittest = { workspace = true }
+# The window draws text in tests too; the app gets its fonts through eframe.
+egui = { workspace = true, features = ["default_fonts"] }
+
 [lints]
 workspace = true
