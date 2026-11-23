@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M4: a fixture type editor; then M5 programming (presets, cues)
+2. M5: programming: groups, presets and cues for the patched fixtures
 
 ## Quality and open questions
 
@@ -180,7 +180,9 @@ details are in the milestone sections further down.
 - ✅ Open Fixture Library import: "Import fixture type…" reads a fixture file (.json) into the show
   as a type with its modes; each channel's capability becomes its attribute and fine channels
   follow theirs; patched by type and mode (`fixture_type.import`, `fixture_type.list`,
-  `fixture_type.remove`, `fixture.add {type, mode}`). A fixture type editor to do
+  `fixture_type.remove`, `fixture.add {type, mode}`)
+- ✅ Fixture type editor: a new type, or a change to the chosen one, with its modes and each
+  channel's attribute, moved up and down or removed (`fixture_type.set`)
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX

@@ -184,6 +184,8 @@ pub struct ActCraftApp {
     /// The Fixtures window, and the patch being put together there.
     fixtures_open: bool,
     fixture_draft: fixtures_view::FixtureDraft,
+    /// A fixture type being made or changed by hand.
+    type_editor: Option<fixtures_view::TypeEditor>,
     /// The pads' editor is open, and the pad being put together.
     pads_editing: bool,
     pad_draft: pads_view::PadDraft,
@@ -265,6 +267,7 @@ impl ActCraftApp {
             dmx_draft: actcraft_show::DmxOutput::default(),
             fixtures_open: false,
             fixture_draft: fixtures_view::FixtureDraft::default(),
+            type_editor: None,
             pads_editing: false,
             pad_draft: pads_view::PadDraft::default(),
             language_request: None,
@@ -338,6 +341,12 @@ impl ActCraftApp {
     /// Opens the Fixtures window (`--fixtures`, for screenshots).
     pub fn show_fixtures(&mut self) {
         self.fixtures_open = true;
+    }
+
+    /// Opens the fixture type editor with a new type (`--new-fixture-type`, for screenshots).
+    pub fn show_type_editor(&mut self) {
+        self.fixtures_open = true;
+        self.type_editor = Some(fixtures_view::TypeEditor::default());
     }
 
     /// Shows the Spoken cues tab (`--cues`, for screenshots).

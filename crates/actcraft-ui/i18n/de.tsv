@@ -862,3 +862,23 @@
 	No Art-Net node answered.	Kein Art-Net-Node hat geantwortet.
 	Universes	Universen
 	Use for the next output	Für den nächsten Ausgang nehmen
+	Add channel	Kanal hinzufügen
+	Add mode	Modus hinzufügen
+	Change this fixture type	Diesen Gerätetyp ändern
+	Channel {n}	Kanal {n}
+	Fixture type	Gerätetyp
+	Intensity (fine)	Helligkeit (fein)
+	Like its channel count	Wie die Kanalzahl
+	Make a fixture type	Einen Gerätetyp anlegen
+	Mode name	Modusname
+	Modes	Modi
+	New fixture type	Neuer Gerätetyp
+	Pan position (fine)	Pan-Position (fein)
+	Remove this mode	Diesen Modus entfernen
+	Save fixture type	Gerätetyp speichern
+	Saving under a name that is there replaces that type.	Speichern unter einem vorhandenen Namen ersetzt diesen Typ.
+	Tilt position (fine)	Tilt-Position (fein)
+	`modes` must be a list of modes	`modes` muss eine Liste von Modi sein
+	a fixture type has 1 to 32 modes	ein Gerätetyp hat 1 bis 32 Modi
+	a fixture type needs a name	ein Gerätetyp braucht einen Namen
+	each mode needs `channels`	jeder Modus braucht `channels`

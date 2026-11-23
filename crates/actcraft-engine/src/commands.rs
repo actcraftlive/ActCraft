@@ -513,6 +513,14 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("fixture_type.list", "List fixture types", "", None, "none", crate::fixture_library::fixture_type_list),
         cmd(
+            "fixture_type.set",
+            "Make a fixture type",
+            "",
+            None,
+            "{name, modes: [{name?, channels: [attribute, ...]}]} (replaces the type of that name) -> {type: index, name, modes: [name]}",
+            crate::fixture_library::fixture_type_set,
+        ),
+        cmd(
             "fixture.set",
             "Set fixture attributes",
             "",

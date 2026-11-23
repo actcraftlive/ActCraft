@@ -88,7 +88,8 @@ pub fn attribute_key(a: Attribute) -> &'static str {
     }
 }
 
-const ATTRIBUTES: [Attribute; 18] = [
+/// Every attribute, in the order lists show them.
+pub const ATTRIBUTES: [Attribute; 18] = [
     A::Intensity,
     A::IntensityFine,
     A::Red,
@@ -109,7 +110,7 @@ const ATTRIBUTES: [Attribute; 18] = [
     A::Other,
 ];
 
-fn attribute_named(key: &str) -> Option<Attribute> {
+pub(crate) fn attribute_named(key: &str) -> Option<Attribute> {
     ATTRIBUTES.iter().copied().find(|a| attribute_key(*a) == key)
 }
 
