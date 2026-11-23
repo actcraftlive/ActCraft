@@ -168,11 +168,38 @@ fn song_id(e: &Engine, prm: &Value) -> Result<u64, CommandError> {
     }
 }
 
-/// `song.light_cue_add {song?, time, list, cue}`: the song (the current one without) fires cue `cue` of list `list` when
-/// playback passes `time` seconds.
+/// Where a song lighting cue goes: `time` in seconds, or `bar` (from 1, as the grid numbers them)
+/// and `beat` (from 1; 1 without) on the song's beat grid.
+fn cue_time(e: &Engine, id: u64, prm: &Value) -> Result<f64, CommandError> {
+    let Some(song) = e.show.song(id) else { return Err(invalid("no such song")) };
+    let time = match (p::has(prm, "time"), p::has(prm, "bar")) {
+        (true, false) => p::f64_in(prm, "time", 0.0, 86_400.0)?,
+        (false, true) => {
+            let clock = crate::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
+            let bar = p::i64_in(prm, "bar", -9_999, 99_999)?;
+            let beat = p::opt_i64_in(prm, "beat", 1, i64::from(clock.beats_per_bar))?.unwrap_or(1);
+            clock.time_of_beat(((bar - 1) * i64::from(clock.beats_per_bar) + beat - 1) as f64)
+        }
+        _ => return Err(invalid("give `time`, or `bar` and maybe `beat`")),
+    };
+    if !(0.0..=86_400.0).contains(&time) {
+        return Err(invalid("that bar is before the song starts"));
+    }
+    Ok(time)
+}
+
+/// Puts a lighting cue into a song's list in time order; its place.
+fn place(song: &mut actcraft_show::Song, cue: LightCue) -> usize {
+    let at = song.light_cues.partition_point(|c| c.time <= cue.time);
+    song.light_cues.insert(at, cue);
+    at
+}
+
+/// `song.light_cue_add {song?, time | bar + beat?, list, cue}`: the song (the current one
+/// without) fires cue `cue` of list `list` when playback passes that point.
 pub fn light_cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
-    let time = p::f64_in(prm, "time", 0.0, 86_400.0)?;
+    let time = cue_time(e, id, prm)?;
     let list = p::index(prm, "list", e.show.cue_lists.len())?;
     let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
     let cue = p::index(prm, "cue", len)?;
@@ -181,9 +208,21 @@ pub fn light_cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
     if song.light_cues.len() >= actcraft_show::limits::MAX_LIGHT_CUES {
         return Err(failed("a song fires at most 1000 lighting cues"));
     }
-    song.light_cues.push(LightCue { time, list: list_name, cue, ..LightCue::default() });
-    song.light_cues.sort_by(|a, b| a.time.total_cmp(&b.time));
-    let at = song.light_cues.iter().position(|c| c.time == time && c.cue == cue).unwrap_or(0);
+    let at = place(song, LightCue { time, list: list_name, cue, ..LightCue::default() });
+    e.mark_changed();
+    Ok(json!({"light_cue": at}))
+}
+
+/// `song.light_cue_move {song?, light_cue, time | bar + beat?}`: the cue fires at another point.
+pub fn light_cue_move(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_id(e, prm)?;
+    let len = e.show.song(id).map(|s| s.light_cues.len()).ok_or_else(|| invalid("no such song"))?;
+    let i = p::index(prm, "light_cue", len)?;
+    let time = cue_time(e, id, prm)?;
+    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
+    let mut cue = song.light_cues.remove(i);
+    cue.time = time;
+    let at = place(song, cue);
     e.mark_changed();
     Ok(json!({"light_cue": at}))
 }
@@ -373,6 +412,38 @@ mod tests {
         assert_eq!(e.cue_position(0), Some(1));
         assert!(e.run("song.light_cue_remove", &json!({"song": song, "light_cue": 0})).is_ok());
         assert_eq!(e.show.song(song).map(|s| s.light_cues.len()), Some(1));
+    }
+
+    #[test]
+    fn lighting_cues_are_placed_and_moved_by_bar_and_beat() {
+        let mut e = engine();
+        let _ = e.run("song.add", &Value::Null);
+        let song = e.current_song.unwrap_or(0);
+        // 120 BPM in 4/4, beat one of bar one at 1 s: a beat is 0.5 s, a bar 2 s.
+        let _ = e.run("song.set", &json!({"song": song, "bpm": 120.0, "beats_per_bar": 4, "beat_anchor": 1.0}));
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1}));
+        let times = |e: &Engine| e.show.song(song).map(|s| s.light_cues.iter().map(|c| c.time).collect::<Vec<_>>());
+        assert!(e.run("song.light_cue_add", &json!({"bar": 3, "list": 0, "cue": 0})).is_ok());
+        assert!(e.run("song.light_cue_add", &json!({"bar": 2, "beat": 3, "list": 0, "cue": 1})).is_ok());
+        assert_eq!(times(&e), Some(vec![4.0, 5.0]), "bar 2 beat 3 = 1 + 2 + 1; bar 3 = 1 + 4");
+        assert!(e.run("song.light_cue_add", &json!({"bar": 2, "beat": 5, "list": 0, "cue": 0})).is_err(), "4/4");
+        assert!(e.run("song.light_cue_add", &json!({"bar": -3, "list": 0, "cue": 0})).is_err(), "before 0 s");
+        assert!(e.run("song.light_cue_add", &json!({"list": 0, "cue": 0})).is_err(), "no point");
+        assert!(e.run("song.light_cue_add", &json!({"time": 1, "bar": 1, "list": 0, "cue": 0})).is_err(), "two points");
+        // Moving keeps the list in time order and says where the cue went.
+        assert_eq!(
+            e.run("song.light_cue_move", &json!({"light_cue": 0, "bar": 5})).ok(),
+            Some(json!({"light_cue": 1}))
+        );
+        assert_eq!(times(&e), Some(vec![5.0, 9.0]));
+        assert_eq!(e.show.song(song).map(|s| s.light_cues[1].cue), Some(1), "the cue moved, not another");
+        assert_eq!(
+            e.run("song.light_cue_move", &json!({"light_cue": 1, "time": 0.5})).ok(),
+            Some(json!({"light_cue": 0}))
+        );
+        assert!(e.run("song.light_cue_move", &json!({"light_cue": 2, "time": 1.0})).is_err());
     }
 
     #[test]

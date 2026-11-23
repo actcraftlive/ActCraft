@@ -1041,3 +1041,12 @@
 	that page is past the next new one	diese Seite liegt hinter der nächsten neuen
 	give `page`	`page` angeben
 	Page	Seite
+	Bar	Takt
+	Beat earlier	Einen Schlag früher
+	Beat later	Einen Schlag später
+	Lighting lane	Lichtspur
+	Click to jump there; drag to move the cue	Klicken springt dorthin; Ziehen verschiebt den Cue
+	Click to set where a new cue goes	Klicken legt fest, wohin ein neuer Cue kommt
+	give `time`, or `bar` and maybe `beat`	`time` angeben, oder `bar` und eventuell `beat`
+	that bar is before the song starts	dieser Takt liegt vor dem Songanfang
+	Move a song's lighting cue	Licht-Cue eines Songs verschieben
