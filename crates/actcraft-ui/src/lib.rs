@@ -33,6 +33,8 @@ mod sheet_view;
 pub mod shortcuts;
 mod text_history;
 pub mod theme;
+#[cfg(test)]
+mod ui_tests;
 
 pub use flows::{FileAsk, FileKind, FileRequest};
 
