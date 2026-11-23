@@ -99,7 +99,7 @@ impl ActCraftApp {
                             let hex = format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
                             self.run(e, "region.set", json!({"song": id, "region": i, "colour": hex}));
                         }
-                        if let Some(name) = edit_text(ui, egui::Id::unique(("region-name", id, i)), &r.name, 140.0) {
+                        if let Some(name) = edit_text(ui, tr("Region name"), egui::Id::unique(("region-name", id, i)), &r.name, 140.0) {
                             self.run(e, "region.set", json!({"song": id, "region": i, "name": name}));
                         }
                         ui.horizontal(|ui| {
@@ -133,7 +133,7 @@ impl ActCraftApp {
                         }
                         // Words the computer's voice says just before this part ("Chorus", "End 3 2 1").
                         ui.horizontal(|ui| {
-                            if let Some(words) = edit_text(ui, egui::Id::unique(("region-voice", id, i)), &r.voice, 120.0) {
+                            if let Some(words) = edit_text(ui, tr("Spoken words"), egui::Id::unique(("region-voice", id, i)), &r.voice, 120.0) {
                                 self.run(e, "region.set", json!({"song": id, "region": i, "voice": words}));
                             }
                             if r.voice.is_empty()

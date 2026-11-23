@@ -503,6 +503,7 @@ fn main() {
     let fixtures = args.iter().any(|a| a == "--fixtures");
     let new_fixture_type = args.iter().any(|a| a == "--new-fixture-type");
     let presets = args.iter().any(|a| a == "--presets");
+    let light_cues = args.iter().any(|a| a == "--light-cues");
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(|p| Screenshot {
         path: std::path::PathBuf::from(p),
         started: std::time::Instant::now(),
@@ -569,6 +570,9 @@ fn main() {
             }
             if presets {
                 app.show_presets();
+            }
+            if light_cues {
+                app.show_light_cues();
             }
             let repaint = cc.egui_ctx.clone();
             let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || repaint.request_repaint());

@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: cues run by song position (a cue list per song, fired at lyric or marker times)
+2. M5: an effects engine (chases, colour and movement effects on groups)
 
 ## Quality and open questions
 
@@ -190,8 +190,10 @@ details are in the milestone sections further down.
   so groups and presets follow them
 - ✅ Fades and cue lists: a preset fades in over seconds (`preset.recall {fade}`); cue lists go
   through presets with Go and Back (`cue.go`, `cue.back`, `cue.jump`; Lighting > Next Cue and Cue
-  Before, so pads, keys, MIDI and OSC can run them). Cues from songs (timecode), effects and
-  control pages to do
+  Before, so pads, keys, MIDI and OSC can run them)
+- ✅ Light cues per song: a song fires cues of a cue list at its times as it plays, like its
+  macros (a jump skips what it passes; `song.light_cue_add`, `song.light_cue_remove`; the song's
+  Light cues tab with "Now"). Effects and control pages to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX

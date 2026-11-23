@@ -8,7 +8,7 @@ use actcraft_show::limits::{MAX_CUE_LISTS, MAX_CUES, MAX_FADE_S};
 use chrono::{DateTime, FixedOffset};
 use serde_json::{Value, json};
 
-pub use actcraft_show::{Cue, CueList};
+pub use actcraft_show::{Cue, CueList, LightCue};
 
 use crate::Engine;
 use crate::fixtures::{Attribute, levels_for, value_of};
@@ -110,6 +110,75 @@ impl Engine {
         self.cue_at.insert(list, cue);
         Ok(json!({"cue": cue, "name": c.name}))
     }
+}
+
+impl Engine {
+    /// Fires the playing song's lighting cues whose time playback has just passed (as the
+    /// song's macros: a jump does not fire what it skipped).
+    pub(crate) fn run_due_light_cues(&mut self) {
+        let (playing, now) = (self.status.playing, self.status.time);
+        let Some(song) = self.current_song.filter(|_| playing && now.is_finite()) else {
+            self.light_at = None;
+            return;
+        };
+        let from = match self.light_at {
+            Some(t) if now >= t && now - t <= crate::macros::MAX_STEP => t,
+            _ => now - crate::macros::LEAD_IN,
+        };
+        self.light_at = Some(now);
+        let due: Vec<LightCue> = self
+            .show
+            .song(song)
+            .map(|s| s.light_cues.iter().filter(|c| c.time > from && c.time <= now).cloned().collect())
+            .unwrap_or_default();
+        for c in due {
+            if let Some(list) = self.show.cue_lists.iter().position(|l| l.name == c.list) {
+                let _ = self.go_to(list, c.cue);
+            }
+        }
+    }
+}
+
+/// The `song` param, or the current song.
+fn song_id(e: &Engine, prm: &Value) -> Result<u64, CommandError> {
+    if p::has(prm, "song") {
+        let id = u64::try_from(p::i64_in(prm, "song", 1, i64::MAX)?).map_err(|_| invalid("no such song"))?;
+        if e.show.song(id).is_some() { Ok(id) } else { Err(invalid("no such song")) }
+    } else {
+        e.current_song.filter(|&id| e.show.song(id).is_some()).ok_or_else(|| invalid("no song chosen"))
+    }
+}
+
+/// `song.light_cue_add {song?, time, list, cue}`: the song (the current one without) fires cue `cue` of list `list` when
+/// playback passes `time` seconds.
+pub fn light_cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_id(e, prm)?;
+    let time = p::f64_in(prm, "time", 0.0, 86_400.0)?;
+    let list = p::index(prm, "list", e.show.cue_lists.len())?;
+    let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
+    let cue = p::index(prm, "cue", len)?;
+    let list_name = e.show.cue_lists.get(list).map(|l| l.name.clone()).unwrap_or_default();
+    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
+    if song.light_cues.len() >= actcraft_show::limits::MAX_LIGHT_CUES {
+        return Err(failed("a song fires at most 1000 lighting cues"));
+    }
+    song.light_cues.push(LightCue { time, list: list_name, cue, ..LightCue::default() });
+    song.light_cues.sort_by(|a, b| a.time.total_cmp(&b.time));
+    let at = song.light_cues.iter().position(|c| c.time == time && c.cue == cue).unwrap_or(0);
+    e.mark_changed();
+    Ok(json!({"light_cue": at}))
+}
+
+/// `song.light_cue_remove {song?, light_cue}`.
+pub fn light_cue_remove(e: &mut Engine, prm: &Value) -> CommandResult {
+    let id = song_id(e, prm)?;
+    let len = e.show.song(id).map(|s| s.light_cues.len()).ok_or_else(|| invalid("no such song"))?;
+    let i = p::index(prm, "light_cue", len)?;
+    if let Some(song) = e.show.song_mut(id) {
+        song.light_cues.remove(i);
+    }
+    e.mark_changed();
+    Ok(Value::Null)
 }
 
 fn list_index(e: &Engine, prm: &Value) -> Result<usize, CommandError> {
@@ -250,6 +319,41 @@ mod tests {
         assert_eq!(level(&e), 255);
         assert!(!e.fading(), "the fade is over");
         assert!(e.run("preset.recall", &json!({"preset": 0, "fade": 601.0})).is_err());
+    }
+
+    #[test]
+    fn a_song_fires_its_lighting_cues_as_playback_passes_them() {
+        let mut e = engine();
+        let _ = e.run("song.add", &Value::Null);
+        let song = e.current_song.unwrap_or(0);
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1}));
+        assert!(e.run("song.light_cue_add", &json!({"time": 10.0, "list": 0, "cue": 1})).is_ok());
+        assert_eq!(
+            e.run("song.light_cue_add", &json!({"time": 2.0, "list": 0, "cue": 0})).ok(),
+            Some(json!({"light_cue": 0})),
+            "kept in time order"
+        );
+        assert!(e.run("song.light_cue_add", &json!({"time": 3.0, "list": 0, "cue": 7})).is_err());
+        let at = |e: &mut Engine, t: f64| {
+            e.status.playing = true;
+            e.status.time = t;
+            e.run_due_light_cues();
+        };
+        at(&mut e, 1.9);
+        assert_eq!(e.cue_position(0), None);
+        at(&mut e, 2.1);
+        assert_eq!((e.cue_position(0), level(&e)), (Some(0), 255), "cue 1 at 2 s");
+        // A jump over 10 s does not fire what it skipped.
+        at(&mut e, 30.0);
+        assert_eq!(e.cue_position(0), Some(0));
+        // Playing through it does.
+        at(&mut e, 9.9);
+        at(&mut e, 10.2);
+        assert_eq!(e.cue_position(0), Some(1));
+        assert!(e.run("song.light_cue_remove", &json!({"song": song, "light_cue": 0})).is_ok());
+        assert_eq!(e.show.song(song).map(|s| s.light_cues.len()), Some(1));
     }
 
     #[test]

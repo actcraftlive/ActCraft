@@ -20,9 +20,9 @@ fn failed(msg: impl Into<String>) -> CommandError {
 
 /// Playback that moves further than this between two looks (seconds) jumped; lines in between
 /// don't run their macros.
-const MAX_STEP: f64 = 1.0;
+pub(crate) const MAX_STEP: f64 = 1.0;
 /// On a start or a jump, lines this close before the new place still run.
-const LEAD_IN: f64 = 0.05;
+pub(crate) const LEAD_IN: f64 = 0.05;
 
 /// The timecoded lines of a song's lyrics that call macros: (time, names).
 pub type MacroCues = Vec<(f64, Vec<String>)>;
