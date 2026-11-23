@@ -18,6 +18,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) and the update check (Help > About, only when asked) done; installers, CI artifacts and a first alpha release to do |
 | M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
+| M11 | Light sequences: animations for moving heads, steps on the click, started by cues | 🔶 sequences done; more from the owner's list to come |
 
 ## Next up
 
@@ -323,6 +324,21 @@ Planned with the owner on 2026-11-23 and done the same day, one pull request per
 - ✅ Looping a part (asked for with this plan; already there): a region in loop mode repeats, and
   Leave Loop (L, or a MIDI foot switch through a remote action) lets the current pass play to its
   end and goes on
+
+## M11 Light sequences 🔶
+
+Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can be animated";
+"single beats of the click can be different things").
+
+- ✅ Sequences (Presets window > Sequences): steps of looks over time, each a preset the lights
+  move to over part of the step and hold for the rest; they run over and over, once, or back and
+  forth. Step lengths are seconds, or beats of the song's click (each beat or bar can be another
+  look, on the song's tempo and bar). Record step stores the look on stage as the next step;
+  steps can be given another look, length and move time, moved and removed. A cue can start a
+  sequence or an effect, or stop all of them, with or without a preset of its own, so one cue
+  (from the song's lighting lane, a pad, MIDI or a foot switch) runs a whole animation
+  (`sequence.set`, `sequence.step_add` and the other `sequence.*` commands, `cue.set {starts,
+  stops}`, `sequence.toggle` for pads)
 
 ## Languages
 

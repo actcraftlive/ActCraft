@@ -123,9 +123,18 @@ impl Engine {
             .and_then(|l| l.cues.get(cue))
             .cloned()
             .ok_or_else(|| invalid("no such cue"))?;
-        let preset = self.show.presets.iter().find(|p| p.name == c.preset).cloned();
-        let Some(preset) = preset else { return Err(failed("that cue's preset is not in the show")) };
-        self.fade_to(&preset, c.fade);
+        // A cue may have no preset of its own and only start or stop sequences and effects.
+        if !c.preset.is_empty() {
+            let preset = self.show.presets.iter().find(|p| p.name == c.preset).cloned();
+            let Some(preset) = preset else { return Err(failed("that cue's preset is not in the show")) };
+            self.fade_to(&preset, c.fade);
+        }
+        for name in &c.stops {
+            self.stop_by_name(name);
+        }
+        for name in &c.starts {
+            self.start_by_name(name);
+        }
         self.cue_at.insert(list, cue);
         let now = self.services().now();
         self.cue_went.insert(list, now);

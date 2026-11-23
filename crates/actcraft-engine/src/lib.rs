@@ -44,6 +44,7 @@ pub mod pads;
 pub mod pdf_commands;
 pub mod region_commands;
 pub mod remote;
+pub mod sequences;
 pub mod services;
 pub mod setlist;
 pub mod sheet_commands;
@@ -168,6 +169,8 @@ pub struct Engine {
     light_at: Option<f64>,
     /// Effects running now (by name) and when each started.
     running_effects: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
+    /// Sequences running, with when each started.
+    running_sequences: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
     /// Since when fades and effects are held (lighting freeze).
     frozen_at: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// Messages for the person, newest last.
@@ -253,6 +256,7 @@ impl Engine {
             pad_page: 0,
             light_at: None,
             running_effects: Vec::new(),
+            running_sequences: Vec::new(),
             frozen_at: None,
             audio: None,
             loaded_song: None,
@@ -312,6 +316,10 @@ impl Engine {
         if !self.running_effects.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();
             self.step_effects(now);
+        }
+        if !self.running_sequences.is_empty() && self.frozen_at.is_none() {
+            let now = self.services.now();
+            self.step_sequences(now);
         }
         if !self.cue_went.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();

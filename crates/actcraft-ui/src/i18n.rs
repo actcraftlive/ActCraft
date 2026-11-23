@@ -101,6 +101,7 @@ mod tests {
             include_str!("fixtures_view.rs"),
             include_str!("looks_view.rs"),
             include_str!("stage_view.rs"),
+            include_str!("sequences_view.rs"),
             include_str!("../../actcraft-platform/src/sheet_web.rs"),
         ];
         let engine = [
@@ -112,6 +113,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/pdf_commands.rs"),
             include_str!("../../actcraft-engine/src/sheet_commands.rs"),
             include_str!("../../actcraft-engine/src/setlist.rs"),
+            include_str!("../../actcraft-engine/src/sequences.rs"),
             include_str!("../../actcraft-engine/src/midi_file.rs"),
             include_str!("../../actcraft-engine/src/midi_sync.rs"),
             include_str!("../../actcraft-engine/src/remote.rs"),

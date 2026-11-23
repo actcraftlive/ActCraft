@@ -850,3 +850,40 @@ fn the_moving_head_comes_from_the_library_with_its_ranges() {
     let fixture = with(&engine, |e| e.show.fixtures.first().cloned());
     assert_eq!(fixture.map(|f| (f.channels.len(), f.ranges.len())), Some((14, 15)), "14 channels, all ranges");
 }
+
+#[test]
+fn a_sequence_is_recorded_step_by_step_and_a_cue_starts_it() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("preset.store", &json!({"name": "Dark"}));
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::TextInput, "New sequence").focus();
+    frames(&mut h, 1);
+    h.get_by_role_and_label(Role::TextInput, "New sequence").type_text("Sweep");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add sequence").click_accesskit();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Record step (Sweep)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Record step (Sweep)").click_accesskit();
+    frames(&mut h, 3);
+    let steps = with(&engine, |e| e.show.sequences.first().map(|s| s.steps.len()));
+    assert_eq!(steps, Some(2));
+    assert!(h.query_by_label("Look, Step 2").is_some(), "each step's look is named by its step");
+    h.get_by_role_and_label(Role::Button, "Start (Sweep)").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(with(&engine, |e| e.running_sequences()), vec!["Sweep".to_owned()]);
+    h.get_by_role_and_label(Role::Button, "Stop (Sweep)").click_accesskit();
+    frames(&mut h, 2);
+    // The cue starts it from now on.
+    h.get_by_label("Also, Dark").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Start Sweep").click_accesskit();
+    frames(&mut h, 3);
+    let starts = with(&engine, |e| e.show.cue_lists[0].cues[0].starts.clone());
+    assert_eq!(starts, vec!["Sweep".to_owned()]);
+}
