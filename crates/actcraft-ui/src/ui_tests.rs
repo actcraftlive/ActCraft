@@ -307,3 +307,21 @@ fn a_circle_effect_brings_its_second_attribute_and_another_can_be_added() {
         Some((actcraft_engine::fixtures::Attribute::Pan, vec![(actcraft_engine::fixtures::Attribute::Tilt, 0.25)]))
     );
 }
+
+#[test]
+fn a_moving_light_on_the_stage_says_where_it_points() {
+    let (mut h, _engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1, "name": "Head"}));
+        // Panned a sixth of 540° (90°) and tilted a sixth of 270° (45°) forward.
+        let _ = e.run(
+            "fixture.set",
+            &json!({"fixture": 0, "values": {"pan": 0.5 + 1.0 / 6.0, "tilt": 0.5 + 1.0 / 6.0, "intensity": 1.0}}),
+        );
+    });
+    h.state_mut().show_stage_view();
+    frames(&mut h, 3);
+    assert!(
+        h.query_by_label_contains("aimed 90° from the audience, 71 % out").is_some(),
+        "the fixture's name says where its beam goes"
+    );
+}

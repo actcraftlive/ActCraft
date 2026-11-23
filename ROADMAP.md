@@ -25,8 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: beams and moving-head direction in the stage preview
-3. M4: USB DMX interfaces
+2. M4: USB DMX interfaces
 
 ## Quality and open questions
 
@@ -220,7 +219,10 @@ details are in the milestone sections further down.
   window, Lighting menu, toggle pads)
 - ✅ 2D stage preview: Lighting > Stage shows the fixtures from above in the colour they show now;
   placed by dragging or by numbers (`fixture.place`; `fixture.stage` lists places and colours).
-  Beams and moving-head direction to do
+  Light shows under each fixture: a glow where it shines down, and for a moving light a beam out
+  to where pan and tilt send it, as wide as its zoom and as bright as the light; its name says
+  where it points (`fixture.stage` gives `beam`). Pan 540° and tilt 270° are taken for every
+  moving light until fixture types carry their ranges
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
