@@ -15,7 +15,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | ✅ |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
-| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in, DMX in with triggers, game controller buttons done |
+| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in, DMX in with triggers, game controllers, Hue done; band network and backup to do |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
 ## Next up
@@ -25,9 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M8: Hue lights follow fixtures (finding and pairing a bridge is done)
-3. M8: band network and backup machine (pairing code; owner agreed)
-4. M9: unsigned installers and CI build artifacts (owner agreed; no release, no signing)
+2. M8: band network and backup machine (pairing code; owner agreed)
+3. M9: unsigned installers and CI build artifacts (owner agreed; no release, no signing)
 
 ## Quality and open questions
 
@@ -257,7 +256,9 @@ sync.
   lighting master (`gamepad.fader_add`, `gamepad.move`; "Add fader")
 - ✅ Philips Hue, first part: Settings > Lighting finds a bridge on this network (mDNS, no online
   service) and pairs with it once its round button is pressed; the key stays in this computer's
-  settings, never in the show; the bridge's lights are listed. Hue lights following fixtures next
+  settings, never in the show; the bridge's lights are listed. A Hue light can follow a fixture
+  (Fixtures window, `fixture.hue`): it shows the colour and brightness the fixture sends, blackout
+  and master included, sent only when it changes, about nine changes a second in all
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for

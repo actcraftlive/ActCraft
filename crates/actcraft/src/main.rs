@@ -61,6 +61,8 @@ struct Host {
     gamepads: Option<Gamepads>,
     /// A Hue request running off the window's thread.
     hue_job: Option<std::sync::mpsc::Receiver<HueAnswer>>,
+    /// Sends fixture colours to the paired bridge's lights (`None` when not paired).
+    hue_out: Option<actcraft_platform::hue::HueOut>,
     /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
     /// version and the outputs) and the problems already reported.
     dmx_out: Option<DmxOut>,
@@ -124,6 +126,7 @@ impl eframe::App for Host {
         }
         self.follow_gamepads();
         self.follow_hue();
+        self.follow_hue_out();
         for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
             self.app.engine().osc_in(&address, value);
         }
@@ -225,6 +228,42 @@ impl Host {
             HueAnswer::Lights(lights) => {
                 self.app.platform.hue_lights = Some(lights.map(|ls| ls.into_iter().map(|l| (l.id, l.name)).collect()));
             }
+        }
+    }
+
+    /// Hands the paired bridge what each Hue light should show: the colour its fixture sends now.
+    /// Starts sending when a bridge is paired and stops when it is forgotten.
+    fn follow_hue_out(&mut self) {
+        use actcraft_platform::hue;
+        let pr = self.prefs.get().audio.clone();
+        let paired = self.app.platform.hue_paired.is_some() && !pr.hue_key.is_empty();
+        if !paired {
+            self.hue_out = None;
+            return;
+        }
+        if self.hue_out.is_none() {
+            let Ok(ip) = pr.hue_bridge.parse::<std::net::Ipv4Addr>() else { return };
+            match hue::HueOut::start(hue::bridge_at(ip), pr.hue_key.clone()) {
+                Ok(out) => self.hue_out = Some(out),
+                Err(e) => {
+                    self.app.platform.hue_note = Some(e);
+                    return;
+                }
+            }
+        }
+        let Some(out) = &self.hue_out else { return };
+        let engine = self.app.engine();
+        let states = engine
+            .show
+            .fixtures
+            .iter()
+            .filter(|f| !f.hue.is_empty())
+            .map(|f| (f.hue.clone(), hue::state_of(actcraft_engine::fixtures::output_colour(&engine, f))))
+            .collect();
+        drop(engine);
+        out.set(states);
+        for e in out.take_errors() {
+            self.app.engine().say_error_with("Hue: {error}", vec![MessageArg::plain("error", e)]);
         }
     }
 
@@ -755,6 +794,7 @@ fn main() {
                 dmx_in_levels: DmxInLevels::default(),
                 gamepads: Gamepads::open().ok(),
                 hue_job: None,
+                hue_out: None,
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),

@@ -1212,3 +1212,7 @@
 	Pair	Koppeln
 	Press the round button on the bridge first, then pair within 30 seconds	Zuerst den runden Knopf an der Bridge drücken, dann innerhalb von 30 Sekunden koppeln
 	Press the round button on the bridge, then pair again within 30 seconds.	Den runden Knopf an der Bridge drücken, dann innerhalb von 30 Sekunden erneut koppeln.
+	Hue light	Hue-Lampe
+	Let a Hue light follow a fixture	Eine Hue-Lampe einem Gerät folgen lassen
+	`light` must be a Hue light's id, like 3	`light` muss die ID einer Hue-Lampe sein, etwa 3
+	Hue: {error}	Hue: {error}

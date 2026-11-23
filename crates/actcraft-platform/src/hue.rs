@@ -2,8 +2,11 @@
 //! (its link button pressed) and talking to its local API over plain HTTP. The key a pairing
 //! gives is kept in this computer's settings by the window, never in a show file.
 
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, UdpSocket};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -134,6 +137,123 @@ pub fn lights(bridge: SocketAddr, key: &str) -> Result<Vec<HueLight>, String> {
     Ok(out)
 }
 
+/// What a Hue light should show: off, or on with a brightness (1-254) and a colour (CIE xy).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HueState {
+    pub on: bool,
+    pub bri: u8,
+    pub xy: [f64; 2],
+}
+
+/// The state for a colour (red, green, blue 0-1, brightness included): its brightest channel
+/// sets the brightness, the colour goes through sRGB to CIE xy.
+pub fn state_of(rgb: [f64; 3]) -> HueState {
+    let bright = rgb.iter().copied().fold(0.0_f64, f64::max).clamp(0.0, 1.0);
+    if !bright.is_finite() || bright < 0.004 {
+        return HueState { on: false, bri: 1, xy: [0.3127, 0.3290] };
+    }
+    let lin = |c: f64| {
+        let c = (c / bright).clamp(0.0, 1.0);
+        if c <= 0.040_45 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    };
+    let [r, g, b] = rgb.map(lin);
+    let x = r * 0.4124 + g * 0.3576 + b * 0.1805;
+    let y = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    let z = r * 0.0193 + g * 0.1192 + b * 0.9505;
+    let sum = x + y + z;
+    let round = |v: f64| (v * 10_000.0).round() / 10_000.0;
+    let xy = if sum > 0.0 { [round(x / sum), round(y / sum)] } else { [0.3127, 0.3290] };
+    HueState { on: true, bri: u8::try_from((bright * 253.0).round() as i64 + 1).unwrap_or(254), xy }
+}
+
+/// Sets one light's state.
+pub fn set_state(bridge: SocketAddr, key: &str, light: &str, s: HueState) -> Result<(), String> {
+    // A tenth of a second to get there, so changes look smooth rather than stepped.
+    let body = if s.on {
+        json!({"on": true, "bri": s.bri, "xy": s.xy, "transitiontime": 1})
+    } else {
+        json!({"on": false, "transitiontime": 1})
+    };
+    let answer = request(bridge, "PUT", &format!("/api/{key}/lights/{light}/state"), Some(&body))?;
+    let answer: Value = serde_json::from_str(&answer).map_err(|e| e.to_string())?;
+    error_of(&answer).map_or(Ok(()), Err)
+}
+
+/// The lights' states, sent to a bridge by a thread of its own: only what changed, one light at a
+/// time, about nine a second (a bridge takes about ten).
+pub struct HueOut {
+    wanted: Arc<Mutex<HashMap<String, HueState>>>,
+    errors: Arc<Mutex<Vec<String>>>,
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+/// Time between two requests to the bridge.
+const PACE: Duration = Duration::from_millis(110);
+
+impl HueOut {
+    /// Starts sending to the bridge at `bridge` with `key`.
+    pub fn start(bridge: SocketAddr, key: String) -> Result<Self, String> {
+        let wanted: Arc<Mutex<HashMap<String, HueState>>> = Arc::default();
+        let errors: Arc<Mutex<Vec<String>>> = Arc::default();
+        let stop = Arc::new(AtomicBool::new(false));
+        let (w, errs, quit) = (Arc::clone(&wanted), Arc::clone(&errors), Arc::clone(&stop));
+        let thread = std::thread::Builder::new()
+            .name("actcraft-hue-out".into())
+            .spawn(move || {
+                let mut sent: HashMap<String, HueState> = HashMap::new();
+                while !quit.load(Ordering::Relaxed) {
+                    std::thread::sleep(PACE);
+                    let now = w.lock().map(|m| m.clone()).unwrap_or_default();
+                    sent.retain(|id, _| now.contains_key(id));
+                    // The first light (by id) whose state changed.
+                    let mut ids: Vec<&String> = now.keys().collect();
+                    ids.sort();
+                    let Some(id) = ids.into_iter().find(|id| sent.get(*id) != now.get(*id)) else { continue };
+                    let Some(state) = now.get(id).copied() else { continue };
+                    match set_state(bridge, &key, id, state) {
+                        Ok(()) => {
+                            sent.insert(id.clone(), state);
+                        }
+                        Err(e) => {
+                            if let Ok(mut list) = errs.lock()
+                                && !list.contains(&e)
+                                && list.len() < 16
+                            {
+                                list.push(e);
+                            }
+                            // Not again at once: the next change or a while later.
+                            sent.insert(id.clone(), state);
+                        }
+                    }
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        Ok(Self { wanted, errors, stop, thread: Some(thread) })
+    }
+
+    /// What each light (by id) should show now.
+    pub fn set(&self, states: HashMap<String, HueState>) {
+        if let Ok(mut w) = self.wanted.lock() {
+            *w = states;
+        }
+    }
+
+    /// Problems since the last call, as text.
+    pub fn take_errors(&self) -> Vec<String> {
+        self.errors.lock().map(|mut e| std::mem::take(&mut *e)).unwrap_or_default()
+    }
+}
+
+impl Drop for HueOut {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+
 /// The bridge on its normal port.
 pub fn bridge_at(ip: Ipv4Addr) -> SocketAddr {
     SocketAddr::new(IpAddr::V4(ip), 80)
@@ -211,6 +331,38 @@ mod tests {
         assert_eq!(lights(addr, "nope"), Err("unauthorized user".to_owned()));
         let seen = bridge.join().unwrap_or_default();
         assert!(seen[0].starts_with("GET /api/key1/lights HTTP/1.1"));
+    }
+
+    #[test]
+    fn colours_become_hue_states() {
+        let off = state_of([0.0, 0.0, 0.0]);
+        assert!(!off.on);
+        let red = state_of([1.0, 0.0, 0.0]);
+        assert_eq!((red.on, red.bri), (true, 254));
+        assert!((red.xy[0] - 0.64).abs() < 0.01 && (red.xy[1] - 0.33).abs() < 0.01, "{:?}", red.xy);
+        let dim_white = state_of([0.5, 0.5, 0.5]);
+        assert_eq!(dim_white.bri, 128);
+        assert!((dim_white.xy[0] - 0.3127).abs() < 0.001, "white stays white when dim: {:?}", dim_white.xy);
+        assert!(!state_of([f64::NAN, 0.0, 0.0]).on);
+    }
+
+    #[test]
+    fn the_sender_puts_only_what_changed_one_light_at_a_time() {
+        let Some((addr, bridge)) =
+            fake_bridge(vec![r#"[{"success":{"/lights/1/state/on":true}}]"#, r#"[{"success":{}}]"#])
+        else {
+            return;
+        };
+        let Ok(out) = HueOut::start(addr, "k".to_owned()) else { return };
+        let red = state_of([1.0, 0.0, 0.0]);
+        out.set(HashMap::from([("1".to_owned(), red), ("2".to_owned(), state_of([0.0; 3]))]));
+        std::thread::sleep(Duration::from_millis(600));
+        drop(out);
+        let seen = bridge.join().unwrap_or_default();
+        assert_eq!(seen.len(), 2, "two lights, once each: {seen:?}");
+        assert!(seen[0].starts_with("PUT /api/k/lights/1/state HTTP/1.1"));
+        assert!(seen[0].contains(r#""on":true"#) && seen[0].contains(r#""bri":254"#));
+        assert!(seen[1].starts_with("PUT /api/k/lights/2/state") && seen[1].contains(r#""on":false"#));
     }
 
     #[test]
