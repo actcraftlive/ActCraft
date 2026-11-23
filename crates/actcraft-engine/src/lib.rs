@@ -32,6 +32,7 @@ pub mod notation_commands;
 pub mod package_commands;
 pub mod pdf_commands;
 pub mod region_commands;
+pub mod remote;
 pub mod services;
 pub mod voice;
 
@@ -122,6 +123,9 @@ pub struct Engine {
     pub current_song: Option<u64>,
     /// The playlist playback follows for next/previous.
     pub current_playlist: Option<usize>,
+    /// Last value of each MIDI controller (channel, number) seen, so a foot switch sets off its
+    /// remote action once per press.
+    remote_cc: std::collections::HashMap<(u8, u8), u8>,
     pub queue: Queue,
     pub double_tap: DoubleTap,
     /// Last search and its results.
@@ -197,6 +201,7 @@ impl Engine {
             dirty: false,
             current_song: None,
             current_playlist: None,
+            remote_cc: std::collections::HashMap::new(),
             queue: Queue::new(),
             double_tap: DoubleTap::default(),
             search_query: String::new(),

@@ -106,6 +106,9 @@ pub struct PlatformInfo {
     /// The computer's MIDI outputs, and the one MIDI time goes to.
     pub midi_ports: Vec<String>,
     pub midi_port: Option<String>,
+    /// The computer's MIDI inputs, and the one remote actions listen to.
+    pub midi_inputs: Vec<String>,
+    pub midi_input: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -139,6 +142,10 @@ pub struct ActCraftApp {
     midi_request: Option<Option<String>>,
     /// The person asked to look for MIDI outputs again.
     midi_refresh: bool,
+    /// A MIDI input the person picked in Settings (`None`: none); the host opens it.
+    midi_input_request: Option<Option<String>>,
+    /// The remote action being put together in Settings > MIDI.
+    remote_draft: settings::RemoteDraft,
     /// A language the person picked in Settings; the host remembers it.
     language_request: Option<String>,
     /// Tap-tempo times (seconds of app time).
@@ -205,6 +212,8 @@ impl ActCraftApp {
             device_request: None,
             midi_request: None,
             midi_refresh: false,
+            midi_input_request: None,
+            remote_draft: settings::RemoteDraft::default(),
             language_request: None,
             taps: Vec::new(),
             centre_tab: CentreTab::Mixer,
@@ -283,9 +292,27 @@ impl ActCraftApp {
         self.midi_request.take()
     }
 
-    /// Whether the person asked to look for MIDI outputs again.
+    /// Whether the person asked to look for MIDI outputs (and inputs) again.
     pub fn take_midi_refresh(&mut self) -> bool {
         std::mem::take(&mut self.midi_refresh)
+    }
+
+    /// A MIDI input the person picked (`Some(None)`: none); the host calls this every frame.
+    pub fn take_midi_input_request(&mut self) -> Option<Option<String>> {
+        self.midi_input_request.take()
+    }
+
+    /// Whether Settings waits for a MIDI message to learn a remote action's trigger from; the
+    /// host then hands incoming messages to [`Self::midi_learned`] instead of the engine.
+    pub fn wants_midi_learn(&self) -> bool {
+        self.remote_draft.learning
+    }
+
+    /// A MIDI message came in while learning: it becomes the remote action's trigger.
+    pub fn midi_learned(&mut self, bytes: &[u8]) {
+        if let Some((trigger, _)) = actcraft_engine::remote::trigger_of(bytes) {
+            self.remote_draft.learn(trigger);
+        }
     }
 
     /// A language the person picked (already applied to the window); the host saves it.

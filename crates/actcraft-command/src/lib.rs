@@ -93,6 +93,18 @@ pub struct CommandSpec {
     pub params: &'static str,
 }
 
+impl CommandSpec {
+    /// Whether the command asks for nothing that's required (params `none`, or only `name?:`
+    /// fields), so a menu or a remote action can run it as it is.
+    pub fn runs_without_params(&self) -> bool {
+        if self.params == "none" {
+            return true;
+        }
+        let Some(fields) = self.params.strip_prefix('{').and_then(|d| d.split('}').next()) else { return false };
+        fields.match_indices(':').all(|(i, _)| fields.get(..i).is_some_and(|before| before.ends_with('?')))
+    }
+}
+
 /// A command bound to a context type `C` (the engine).
 pub struct Command<C> {
     pub spec: CommandSpec,
