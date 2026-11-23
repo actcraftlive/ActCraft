@@ -760,3 +760,18 @@
 	OSC: listening on {address}	OSC: Empfang auf {address}
 	Port	Port
 	an ActCraft OSC address starts with /actcraft/	eine ActCraft-OSC-Adresse beginnt mit /actcraft/
+	All DMX levels to zero	Alle DMX-Werte auf null
+	All Levels to Zero	Alle Werte auf null
+	Channel {channel}: {level}	Kanal {channel}: {level}
+	DMX monitor	DMX-Monitor
+	Level	Wert
+	Levels 0-255 of every channel; click one to set it, or pick it by number.	Werte 0-255 aller Kanäle; einen anklicken, um ihn zu setzen, oder per Nummer wählen.
+	Lighting	Licht
+	Set DMX levels	DMX-Werte setzen
+	This universe to zero	Dieses Universum auf null
+	Universe	Universum
+	`values` must be a list of levels 0-255	`values` muss eine Liste von Werten 0-255 sein
+	`values` must fit in the universe from `channel` on	`values` muss ab `channel` in das Universum passen
+	give `value` or `values`	`value` oder `values` angeben
+	no such channel	kein solcher Kanal
+	no such universe	kein solches Universum

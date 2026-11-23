@@ -441,6 +441,31 @@ pub fn all() -> Vec<Command<Engine>> {
             "{address: /actcraft/<command id> | /actcraft/macro/<NAME> | /actcraft/pad/<n>, value?: number (0 or less does nothing)} (as if the OSC message came in) -> {ran}",
             crate::osc::osc_trigger,
         ),
+        // Lighting
+        cmd(
+            "dmx.get",
+            "DMX monitor",
+            "Lighting/DMX monitor",
+            None,
+            "{universe: 1-64} -> {universe, levels: [512 levels 0-255, channel 1 first]}",
+            crate::dmx::dmx_get,
+        ),
+        cmd(
+            "dmx.set",
+            "Set DMX levels",
+            "",
+            None,
+            "{universe: 1-64, channel: 1-512, value: 0-255 | values: [0-255, ...] from channel on} -> {changed}",
+            crate::dmx::dmx_set,
+        ),
+        cmd(
+            "dmx.clear",
+            "All DMX levels to zero",
+            "Lighting/All Levels to Zero",
+            None,
+            "{universe?: 1-64} (every universe without one)",
+            crate::dmx::dmx_clear,
+        ),
         cmd(
             "macro.set",
             "Set macro",

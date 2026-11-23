@@ -19,6 +19,7 @@ use egui::{Align, Color32, Layout, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::{Value, json};
 
 mod cues_view;
+mod dmx_view;
 pub mod flows;
 pub mod i18n;
 mod lyrics_view;
@@ -178,6 +179,8 @@ pub struct ActCraftApp {
     lyrics_follow_state: lyrics_view::LyricsFollow,
     /// The second lyrics window, while open.
     stage: Option<lyrics_view::StageScreen>,
+    /// The DMX monitor, while open.
+    dmx_monitor: Option<dmx_view::DmxMonitor>,
     /// The open PDF of the Sheet music tab.
     sheet: Option<sheet_view::SheetDoc>,
     sheet_view: sheet_view::SheetLook,
@@ -249,6 +252,7 @@ impl ActCraftApp {
             lyrics_size: 28.0,
             lyrics_follow_state: lyrics_view::LyricsFollow::default(),
             stage: None,
+            dmx_monitor: None,
             sheet: None,
             sheet_view: sheet_view::SheetLook::default(),
             mark_edit: sheet_view::MarkEdit::default(),
@@ -300,6 +304,11 @@ impl ActCraftApp {
     /// Shows the About window (`--about`, for screenshots).
     pub fn show_about(&mut self) {
         self.modal = Some(flows::Modal::About);
+    }
+
+    /// Opens the DMX monitor (`--dmx`, for screenshots).
+    pub fn show_dmx_monitor(&mut self) {
+        self.dmx_monitor = Some(self.dmx_monitor.unwrap_or_default());
     }
 
     /// Shows the Spoken cues tab (`--cues`, for screenshots).
@@ -407,6 +416,7 @@ impl ActCraftApp {
         });
         self.settings_window(&ctx, e);
         self.stage_window(&ctx, e);
+        self.dmx_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);
