@@ -286,6 +286,8 @@ pub struct ActCraftApp {
     /// A further sheet of a song picked in the Sheet music tab (song id, sheet); the song's own
     /// sheet otherwise.
     sheet_pick: Option<(u64, usize)>,
+    /// The setlist note being written in a playlist's set (playlist, set, song).
+    set_note_edit: Option<(usize, usize, u64)>,
     /// The name typed for a new sheet or a new musician in the Sheet music tab.
     sheet_draft: (String, String),
     /// "Remove all marks" waits for a second click.
@@ -377,6 +379,7 @@ impl ActCraftApp {
             mark_edit: sheet_view::MarkEdit::default(),
             note_prompt: None,
             sheet_pick: None,
+            set_note_edit: None,
             sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,
             sheet_top_page: 0,
@@ -990,6 +993,30 @@ impl ActCraftApp {
                                 ui.label(RichText::new(&set.name).strong().color(t.text_dim));
                                 for (k, id) in set.songs.iter().enumerate() {
                                     let title = e.show.song(*id).map_or("?", |s| s.title.as_str()).to_owned();
+                                    // The line printed before the song on the setlist (Note edits it).
+                                    let note = set
+                                        .notes
+                                        .iter()
+                                        .find(|n| n.song == *id)
+                                        .map(|n| n.text.clone())
+                                        .unwrap_or_default();
+                                    let note_id = egui::Id::unique(("set-note", i, si, *id));
+                                    if self.set_note_edit == Some((i, si, *id)) {
+                                        ui.horizontal(|ui| {
+                                            ui.label(tr("Note before"));
+                                            let name = format!("{} ({title})", tr("Note before"));
+                                            if let Some(v) = edit_text(ui, &name, note_id, &note, 240.0) {
+                                                self.run(
+                                                    e,
+                                                    "set.note",
+                                                    json!({"playlist": i, "set": si, "song": id, "text": v}),
+                                                );
+                                                self.set_note_edit = None;
+                                            }
+                                        });
+                                    } else if !note.is_empty() {
+                                        ui.label(RichText::new(&note).italics().color(t.text_dim));
+                                    }
                                     let row = ui.horizontal(|ui| {
                                         let which = format!("{}. {title}", k + 1);
                                         // Picked songs move or go together (the buttons under the set).
@@ -1039,6 +1066,14 @@ impl ActCraftApp {
                                                 "playlist.move_songs",
                                                 json!({"playlist": i, "set": si, "indexes": [k], "to": k + 2}),
                                             );
+                                        }
+                                        if button(ui, tr("Note"))
+                                            .on_hover_text(tr("A line printed before this song on the setlist, such as a break or an instrument change"))
+                                            .clicked()
+                                        {
+                                            let here = Some((i, si, *id));
+                                            self.set_note_edit = if self.set_note_edit == here { None } else { here };
+                                            ui.memory_mut(|m| m.request_focus(note_id));
                                         }
                                         if button(ui, tr("Remove")).on_hover_text(tr("Remove from set")).clicked() {
                                             self.run(

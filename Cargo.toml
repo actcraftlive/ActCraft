@@ -88,3 +88,5 @@ hayro-syntax = { git = "https://github.com/storytold/craft-libs", rev = "8048f8e
 hayro-jbig2 = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 hayro-cmap = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 hayro-postscript = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
+# craft-pdf's writer needs craft-libs' patched krilla in the same way.
+krilla = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }

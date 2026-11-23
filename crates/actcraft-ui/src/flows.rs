@@ -50,6 +50,11 @@ pub enum FileAsk {
     AttachMidi {
         song: u64,
     },
+    /// Where the printed setlist of a playlist goes.
+    ExportSetlist {
+        playlist: usize,
+    },
+    BandLogo,
     /// A package of the show, or of one song (`song`) or playlist (`playlist`) of it.
     ExportPackage {
         song: Option<u64>,
@@ -121,6 +126,11 @@ fn has_ext(path: &Path, exts: &[&str]) -> bool {
     path.extension().and_then(|x| x.to_str()).is_some_and(|x| exts.iter().any(|e| x.eq_ignore_ascii_case(e)))
 }
 
+/// A title as a file name: characters no file name can hold become `_`.
+fn safe_file_name(name: &str) -> String {
+    name.chars().map(|c| if r#"/\:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect()
+}
+
 fn path_string(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
@@ -137,6 +147,8 @@ pub fn handled_by_window(id: &str) -> bool {
             | "song.import_files"
             | "lyrics.import"
             | "notation.attach"
+            | "playlist.export_setlist"
+            | "setlist.logo"
             | "midi.attach"
             | "song.add"
             | "song.remove"
@@ -239,6 +251,16 @@ impl ActCraftApp {
                     self.fixture_draft.mode = 0;
                 }
             }
+            FileAsk::ExportSetlist { playlist } => {
+                let mut path = first;
+                if !has_ext(&path, &["pdf"]) {
+                    path.set_extension("pdf");
+                }
+                let _ = e.run("playlist.export_setlist", &json!({"playlist": playlist, "path": path_string(&path)}));
+            }
+            FileAsk::BandLogo => {
+                let _ = e.run("setlist.logo", &json!({"path": path_string(&first)}));
+            }
             FileAsk::AttachMidi { song } => {
                 let _ = e.run("midi.attach", &json!({"song": song, "path": path_string(&first)}));
             }
@@ -308,9 +330,7 @@ impl ActCraftApp {
             _ => (e.show.name.clone(), tr("Export show package")),
         };
         let name = if name.trim().is_empty() { tr("My show").to_owned() } else { name };
-        // A title may hold characters no file name can.
-        let name: String =
-            name.chars().map(|c| if r#"/\:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect();
+        let name = safe_file_name(&name);
         self.ask_file(FileRequest {
             ask: FileAsk::ExportPackage { song, playlist },
             kind: FileKind::Save,
@@ -400,6 +420,30 @@ impl ActCraftApp {
             "show.export_package" => self.ask_export_package(e, None, None),
             "song.export_package" => self.ask_export_package(e, e.current_song, None),
             "playlist.export_package" => self.ask_export_package(e, None, e.current_playlist),
+            "playlist.export_setlist" => {
+                if let Some(i) = e.current_playlist {
+                    let name = e.show.playlists.get(i).map(|pl| safe_file_name(&pl.name)).unwrap_or_default();
+                    self.ask_file(FileRequest {
+                        ask: FileAsk::ExportSetlist { playlist: i },
+                        kind: FileKind::Save,
+                        title: tr("Print setlist"),
+                        filters: vec![(tr("PDF file"), crate::sheet_view::PDF_EXTENSIONS)],
+                        file_name: Some(format!(
+                            "{}.pdf",
+                            if name.trim().is_empty() { tr("Setlist") } else { name.as_str() }
+                        )),
+                        directory: show_dir(e),
+                    });
+                }
+            }
+            "setlist.logo" => self.ask_file(FileRequest {
+                ask: FileAsk::BandLogo,
+                kind: FileKind::Open,
+                title: tr("Band logo"),
+                filters: vec![(tr("Picture (.png, .jpg)"), &["png", "jpg", "jpeg"])],
+                file_name: None,
+                directory: show_dir(e),
+            }),
             "show.open_package" => self.guard_unsaved(e, AfterDiscard::OpenPackage),
             "show.rename" => {
                 self.modal = Some(Modal::Text {

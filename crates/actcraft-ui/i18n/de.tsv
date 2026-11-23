@@ -1274,6 +1274,20 @@
 	no such sheet	kein solches Notenblatt
 	the song's own sheet has no name, musician or part; give `sheet`	das Notenblatt des Songs selbst hat keinen Namen, Musiker oder Stimme; `sheet` angeben
 	there is already a musician called `{name}`	es gibt schon einen Musiker namens `{name}`
+	A line printed before this song on the setlist, such as a break or an instrument change	Eine Zeile, die auf der Setlist vor diesem Song steht, etwa eine Pause oder ein Instrumentenwechsel
+	Band Logo…	Bandlogo …
+	Band logo	Bandlogo
+	Note before	Notiz davor
+	Picture (.png, .jpg)	Bild (.png, .jpg)
+	Print Setlist as PDF…	Setlist als PDF drucken …
+	Print setlist	Setlist drucken
+	Setlist	Setlist
+	Setlist note	Setlist-Notiz
+	Setlist written: {songs} songs on {pages} pages	Setlist geschrieben: {songs} Songs auf {pages} Seiten
+	a setlist is written as a .pdf file	eine Setlist wird als .pdf-Datei geschrieben
+	that song is not in the set	dieser Song ist nicht im Set
+	the logo must be a .png or .jpg file	das Logo muss eine .png- oder .jpg-Datei sein
+	the playlist has no songs to print	die Playlist hat keine Songs zum Drucken
 	ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl) and MIDI files (.mid)	ActCraft liest Noten aus MusicXML-Dateien (.musicxml, .xml, .mxl) und MIDI-Dateien (.mid)
 	MusicXML score or MIDI file	MusicXML-Partitur oder MIDI-Datei
 	Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl), which notation and tab editors export, or notes written out from a MIDI file (.mid)	Noten und Tabulatur als MusicXML-Datei (.musicxml, .xml oder .mxl), wie Noten- und Tab-Programme sie exportieren, oder aus einer MIDI-Datei (.mid) ausgeschriebene Noten
