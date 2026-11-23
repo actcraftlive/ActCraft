@@ -698,7 +698,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Import a fixture type",
             "",
             None,
-            "{path: an Open Fixture Library .json file or an .r20 file} -> {type: index, name, modes: [name]}",
+            "{path: an ActCraft fixture file or an Open Fixture Library fixture (.json), or an .r20 file} -> {type: index, name, modes: [name]}",
             crate::fixture_library::fixture_type_import,
         ),
         cmd(
@@ -711,11 +711,28 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("fixture_type.list", "List fixture types", "", None, "none", crate::fixture_library::fixture_type_list),
         cmd(
+            "fixture_type.export",
+            "Export a fixture type",
+            "",
+            None,
+            "{type: index, path: .json file} (an ActCraft fixture file another show can import)",
+            crate::fixture_library::fixture_type_export,
+        ),
+        cmd("fixture_library.list", "Fixture library", "", None, "none", crate::fixture_library::fixture_library_list),
+        cmd(
+            "fixture_type.from_library",
+            "Fixture type from the library",
+            "",
+            None,
+            "{name: a type of fixture_library.list} -> {type: index, name, modes: [name]}",
+            crate::fixture_library::fixture_type_from_library,
+        ),
+        cmd(
             "fixture_type.set",
             "Make a fixture type",
             "",
             None,
-            "{name, modes: [{name?, channels: [attribute, ...]}]} (replaces the type of that name) -> {type: index, name, modes: [name]}",
+            "{name, modes: [{name?, channels: [attribute, ...], ranges?: [{channel (from 1), from, to, name}]}]} (replaces the type of that name; the same shape as an ActCraft fixture file) -> {type: index, name, modes: [name]}",
             crate::fixture_library::fixture_type_set,
         ),
         cmd(

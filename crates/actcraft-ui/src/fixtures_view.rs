@@ -370,6 +370,13 @@ impl ActCraftApp {
         ui.label(RichText::new(tr("Patch fixtures")).strong());
         let types = e.show.fixture_types.clone();
         let mut import = false;
+        let mut export = false;
+        // Library types not in the show yet: picking one brings it in.
+        let library: Vec<serde_json::Value> = actcraft_engine::fixture_library::library()
+            .into_iter()
+            .filter(|t| !types.iter().any(|s| Some(s.name.as_str()) == t["name"].as_str()))
+            .collect();
+        let mut from_library: Option<serde_json::Value> = None;
         let d = &mut self.fixture_draft;
         // Built-in kinds first, then the types brought in from fixture files.
         if d.kind >= KINDS.len() + types.len() {
@@ -401,6 +408,17 @@ impl ActCraftApp {
                             d.mode = 0;
                         }
                     }
+                    if !library.is_empty() {
+                        ui.separator();
+                        ui.label(RichText::new(tr("From the library")).small());
+                    }
+                    for t in &library {
+                        let name = t["name"].as_str().unwrap_or_default();
+                        let words = tr("{name} (library)").replace("{name}", name);
+                        if ui.selectable_label(false, words).clicked() {
+                            from_library = Some(t.clone());
+                        }
+                    }
                 })
                 .response
                 .labelled_by(label.id);
@@ -420,8 +438,16 @@ impl ActCraftApp {
             }
             import = ui
                 .button(tr("Import fixture type\u{2026}"))
-                .on_hover_text(tr("A fixture file from the Open Fixture Library (.json)"))
+                .on_hover_text(tr(
+                    "An ActCraft fixture file or one from the Open Fixture Library (.json), or an .r20 file",
+                ))
                 .clicked();
+            if imported.is_some() {
+                export = ui
+                    .button(tr("Export fixture type\u{2026}"))
+                    .on_hover_text(tr("Save this fixture type as a file another show or computer can import"))
+                    .clicked();
+            }
         });
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Name"));
@@ -442,6 +468,39 @@ impl ActCraftApp {
             let label = ui.label(tr("How many"));
             ui.add(egui::DragValue::new(&mut d.count).range(1..=64)).labelled_by(label.id);
         });
+        // A library type comes in with its mode and range names in the window's language.
+        if let Some(mut doc) = from_library {
+            for mode in doc["modes"].as_array_mut().into_iter().flatten() {
+                if let Some(name) = mode["name"].as_str() {
+                    mode["name"] = json!(tr(name));
+                }
+                for range in mode["ranges"].as_array_mut().into_iter().flatten() {
+                    if let Some(name) = range["name"].as_str() {
+                        range["name"] = json!(tr(name));
+                    }
+                }
+            }
+            if let Ok(v) = e.run("fixture_type.set", &doc) {
+                let i = v["type"].as_u64().and_then(|i| usize::try_from(i).ok()).unwrap_or(0);
+                self.fixture_draft.kind = KINDS.len() + i;
+                self.fixture_draft.mode = 0;
+            }
+        }
+        let chosen_type = self.fixture_draft.kind.checked_sub(KINDS.len());
+        if export
+            && let Some(i) = chosen_type
+            && let Some(t) = e.show.fixture_types.get(i)
+        {
+            let name = crate::flows::safe_file_name(&t.name);
+            self.ask_file(crate::flows::FileRequest {
+                ask: crate::flows::FileAsk::ExportFixtureType { fixture_type: i },
+                kind: crate::flows::FileKind::Save,
+                title: tr("Export fixture type"),
+                filters: vec![(tr("ActCraft fixture file (.json)"), &["json"])],
+                file_name: Some(format!("{name}.json")),
+                directory: crate::flows::show_dir(e),
+            });
+        }
         if import {
             self.ask_file(crate::flows::FileRequest {
                 ask: crate::flows::FileAsk::ImportFixtureType,
@@ -694,5 +753,29 @@ mod range_tests {
         assert_eq!(m.ranges.iter().map(|r| (r.channel, r.name.as_str())).collect::<Vec<_>>(), vec![(1, "b")]);
         let json = m.to_json();
         assert_eq!(json["ranges"][0]["channel"], json!(2), "counted from 1 for the command");
+    }
+}
+
+#[cfg(test)]
+mod library_tests {
+    /// Every mode and range name in ActCraft's fixture library has a row in each language file, as
+    /// they are shown in the window's language.
+    #[test]
+    fn library_names_are_translated() {
+        crate::set_language("de");
+        let mut missing = Vec::new();
+        for t in actcraft_engine::fixture_library::library() {
+            for m in t["modes"].as_array().into_iter().flatten() {
+                let names =
+                    std::iter::once(&m["name"]).chain(m["ranges"].as_array().into_iter().flatten().map(|r| &r["name"]));
+                for n in names.filter_map(|n| n.as_str()) {
+                    if crate::tr(n) == n {
+                        missing.push(n.to_owned());
+                    }
+                }
+            }
+        }
+        crate::set_language("en");
+        assert!(missing.is_empty(), "de.tsv lacks {missing:?}");
     }
 }

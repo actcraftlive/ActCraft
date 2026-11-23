@@ -133,7 +133,9 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     let path = p::str_max(prm, "path", 4096)?;
     let ext = crate::services::extension(path).unwrap_or_default();
     if !EXTENSIONS.contains(&ext.as_str()) {
-        return Err(invalid("ActCraft reads fixture types from Open Fixture Library .json and .r20 files"));
+        return Err(invalid(
+            "ActCraft reads fixture types from ActCraft and Open Fixture Library .json files and .r20 files",
+        ));
     }
     let bytes = e.services().read_file(path).map_err(failed)?;
     if bytes.len() > MAX_BYTES {
@@ -143,8 +145,12 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
         let ty = read_r20(&String::from_utf8_lossy(&bytes))?;
         return keep(e, ty);
     }
-    let doc: Value =
-        serde_json::from_slice(&bytes).map_err(|_| failed("that file is not an Open Fixture Library fixture"))?;
+    let doc: Value = serde_json::from_slice(&bytes)
+        .map_err(|_| failed("that file is not an ActCraft or Open Fixture Library fixture"))?;
+    // ActCraft's own fixture files (exported or from the library) go in as they are.
+    if doc["format"].as_str() == Some(FORMAT) {
+        return fixture_type_set(e, &doc);
+    }
     let ty = read_ofl(&doc)?;
     keep(e, ty)
 }
@@ -331,6 +337,80 @@ fn ranges_param(mode: &Value, channels: usize) -> Result<Vec<actcraft_show::Chan
 }
 
 /// `fixture_type.remove {type}`: patched fixtures keep their channels.
+/// The marker of ActCraft's own fixture type files: the type as `fixture_type.set` takes it.
+pub const FORMAT: &str = "actcraft-fixture-type";
+
+/// The fixture types that come with ActCraft, in ActCraft's own fixture format (their channel
+/// layouts and ranges from the makers' manuals).
+const BUILT_IN: &str = include_str!("../fixtures/library.json");
+
+/// The library's types, each as an ActCraft fixture file holds it.
+pub fn library() -> Vec<Value> {
+    serde_json::from_str::<Vec<Value>>(BUILT_IN).unwrap_or_default()
+}
+
+/// A fixture type in ActCraft's own fixture format, which `fixture_type.set` and the import read.
+pub fn type_json(ty: &FixtureType) -> Value {
+    let modes: Vec<Value> = ty
+        .modes
+        .iter()
+        .map(|m| {
+            let channels: Vec<&str> = m.channels.iter().map(|a| crate::fixtures::attribute_key(*a)).collect();
+            let ranges: Vec<Value> = m
+                .ranges
+                .iter()
+                .map(|r| json!({"channel": r.channel, "from": r.from, "to": r.to, "name": r.name}))
+                .collect();
+            json!({"name": m.name, "channels": channels, "ranges": ranges})
+        })
+        .collect();
+    json!({"format": FORMAT, "version": 1, "name": ty.name, "modes": modes})
+}
+
+/// `fixture_type.export {type, path}`: writes a fixture type to a file (`.json`) another show or
+/// another computer can import.
+pub fn fixture_type_export(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "type", e.show.fixture_types.len())?;
+    let path = p::str_max(prm, "path", 4096)?.to_owned();
+    if crate::services::extension(&path).as_deref() != Some("json") {
+        return Err(invalid("a fixture type is written as a .json file"));
+    }
+    let Some(ty) = e.show.fixture_types.get(i) else { return Err(invalid("no such fixture type")) };
+    let text = serde_json::to_string_pretty(&type_json(ty)).map_err(|err| failed(err.to_string()))?;
+    e.services_mut().write_file(&path, text.as_bytes()).map_err(failed)?;
+    Ok(json!({"path": path}))
+}
+
+/// `fixture_library.list`: the fixture types that come with ActCraft, with their modes.
+pub fn fixture_library_list(_e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        library()
+            .iter()
+            .map(|t| {
+                let modes: Vec<Value> = t["modes"]
+                    .as_array()
+                    .map(|ms| {
+                        ms.iter()
+                            .map(|m| json!({"name": m["name"], "channels": m["channels"].as_array().map_or(0, Vec::len)}))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                json!({"name": t["name"], "modes": modes})
+            })
+            .collect(),
+    ))
+}
+
+/// `fixture_type.from_library {name}`: puts a type from ActCraft's library into the show (in place
+/// of one of the same name).
+pub fn fixture_type_from_library(e: &mut Engine, prm: &Value) -> CommandResult {
+    let name = p::str_max(prm, "name", 64)?.trim();
+    let Some(doc) = library().into_iter().find(|t| t["name"].as_str() == Some(name)) else {
+        return Err(invalid(format!("the library has no fixture type called `{name}`")));
+    };
+    fixture_type_set(e, &doc)
+}
+
 pub fn fixture_type_remove(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "type", e.show.fixture_types.len())?;
     e.show.fixture_types.remove(i);
@@ -351,7 +431,12 @@ pub fn fixture_type_list(e: &mut Engine, _prm: &Value) -> CommandResult {
                     .map(|m| {
                         let channels: Vec<&str> =
                             m.channels.iter().map(|a| crate::fixtures::attribute_key(*a)).collect();
-                        json!({"name": m.name, "channels": channels})
+                        let ranges: Vec<Value> = m
+                            .ranges
+                            .iter()
+                            .map(|r| json!({"channel": r.channel, "from": r.from, "to": r.to, "name": r.name}))
+                            .collect();
+                        json!({"name": m.name, "channels": channels, "ranges": ranges})
                     })
                     .collect();
                 json!({"name": t.name, "modes": modes})
@@ -499,5 +584,35 @@ mod tests {
             e.run("fixture_type.import", &json!({"path": "/f/Spot.R20"})).ok().map(|v| v["name"].clone()),
             Some(json!("Spot_6ch"))
         );
+    }
+
+    #[test]
+    fn the_library_type_goes_into_a_show_and_out_and_back_with_its_ranges() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let names = e.run("fixture_library.list", &Value::Null).ok().unwrap_or_default();
+        assert!(names.as_array().is_some_and(|l| l.iter().any(|t| t["name"] == "Betopper LM70SR")));
+        assert!(e.run("fixture_type.from_library", &json!({"name": "Nothing Like It"})).is_err());
+        let r = e.run("fixture_type.from_library", &json!({"name": "Betopper LM70SR"}));
+        assert_eq!(r.ok().map(|v| v["modes"].clone()), Some(json!(["14 channels", "9 channels"])));
+        let lm = e.show.fixture_types[0].modes[0].clone();
+        assert_eq!(lm.channels.len(), 14);
+        assert_eq!(lm.channels[0], Attribute::Pan);
+        assert_eq!(lm.channels[1], Attribute::PanFine);
+        assert_eq!(lm.channels[6], Attribute::Red);
+        let six: Vec<_> = lm.ranges.iter().filter(|r| r.channel == 6).map(|r| (r.from, r.to)).collect();
+        assert_eq!(six, vec![(0, 7), (8, 134), (135, 239), (240, 255)], "channel 6: off, dimmer, strobe, open");
+        // Out to a file and into another show, ranges and all.
+        assert!(e.run("fixture_type.export", &json!({"type": 0, "path": "/f/lm.txt"})).is_err());
+        assert!(e.run("fixture_type.export", &json!({"type": 0, "path": "/f/lm.json"})).is_ok());
+        let bytes = e.services().read_file("/f/lm.json").unwrap_or_default();
+        let mut other = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = other.services_mut().write_file("/g/lm.json", &bytes);
+        assert!(other.run("fixture_type.import", &json!({"path": "/g/lm.json"})).is_ok());
+        assert_eq!(other.show.fixture_types, e.show.fixture_types);
+        // Every library type is a valid one.
+        for doc in library() {
+            let mut fresh = Engine::new(Box::new(crate::MemoryServices::default()));
+            assert!(fixture_type_set(&mut fresh, &doc).is_ok(), "{}", doc["name"]);
+        }
     }
 }

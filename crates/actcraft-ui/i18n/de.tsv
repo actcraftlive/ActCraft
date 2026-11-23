@@ -832,7 +832,6 @@
 	that address is taken by another fixture	diese Adresse belegt schon ein anderes Gerät
 	the fixture does not fit in the universe from that address	das Gerät passt ab dieser Adresse nicht ins Universum
 	there is no room left in that universe	in diesem Universum ist kein Platz mehr
-	A fixture file from the Open Fixture Library (.json)	Eine Gerätedatei aus der Open Fixture Library (.json)
 	ActCraft reads fixture types from Open Fixture Library .json files	ActCraft liest Gerätetypen aus .json-Dateien der Open Fixture Library
 	Import a fixture type	Einen Gerätetyp importieren
 	Import fixture type	Gerätetyp importieren
@@ -844,7 +843,6 @@
 	a show holds at most 256 fixture types	eine Show fasst höchstens 256 Gerätetypen
 	give `kind`, `type` or `channels`	`kind`, `type` oder `channels` angeben
 	no such fixture type	kein solcher Gerätetyp
-	that file is not an Open Fixture Library fixture	diese Datei ist kein Gerät der Open Fixture Library
 	that fixture file is too large	diese Gerätedatei ist zu groß
 	that fixture type has no such mode	dieser Gerätetyp hat keinen solchen Modus
 	that fixture has no mode ActCraft can patch	dieses Gerät hat keinen Modus, den ActCraft patchen kann
@@ -1243,7 +1241,6 @@
 	the fixture has no such channel	das Gerät hat diesen Kanal nicht
 	no such range	diesen Bereich gibt es nicht
 	Fixture file (.json, .r20)	Gerätedatei (.json, .r20)
-	ActCraft reads fixture types from Open Fixture Library .json and .r20 files	ActCraft liest Gerätetypen aus Open-Fixture-Library-.json- und .r20-Dateien
 	that file is not an .r20 fixture file	diese Datei ist keine .r20-Gerätedatei
 	Add musician	Musiker hinzufügen
 	Add sheet	Notenblatt hinzufügen
@@ -1351,3 +1348,33 @@
 	{app} {version} is available with the latest features and bug fixes.	{app} {version} ist verfügbar, mit den neuesten Funktionen und Fehlerbehebungen.
 	{app} {version} is the newest version available.	{app} {version} ist die neueste verfügbare Version.
 	ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, MIDI and DMX lighting, all on one clock and in one show file.	ActCraft ist Showsteuerung für Live-Musiker: Playbacks mit Songtexten, Akkorden, Noten, Ansagen, Setlisten und Klick, MIDI und DMX-Licht, alles auf einer Uhr und in einer Showdatei.
+	14 channels	14 Kanäle
+	9 channels	9 Kanäle
+	Master dimmer	Hauptdimmer
+	Strobe, slow to fast	Stroboskop langsam bis schnell
+	Open	Offen
+	Colour mix from channels 7 to 10	Mischfarbe aus Kanal 7 bis 10
+	Colour macro	Makro-Farbe
+	Colour jump	Farbsprung
+	DMX control (channels 1 to 12)	DMX-Steuerung (Kanal 1 bis 12)
+	Fast run	Schnelles Laufen
+	Slow run	Langsamer Lauf
+	Sound 1	Ton 1
+	Sound 2	Ton 2
+	Nothing	Keine Funktion
+	Reset	Zurücksetzen
+	From the library	Aus der Bibliothek
+	{name} (library)	{name} (Bibliothek)
+	An ActCraft fixture file or one from the Open Fixture Library (.json), or an .r20 file	Eine ActCraft-Gerätedatei oder eine aus der Open Fixture Library (.json) oder eine .r20-Datei
+	Export fixture type…	Gerätetyp exportieren …
+	Save this fixture type as a file another show or computer can import	Diesen Gerätetyp als Datei speichern, die eine andere Show oder ein anderer Computer importieren kann
+	Export fixture type	Gerätetyp exportieren
+	ActCraft fixture file (.json)	ActCraft-Gerätedatei (.json)
+	a fixture type is written as a .json file	ein Gerätetyp wird als .json-Datei geschrieben
+	the library has no fixture type called `{name}`	die Bibliothek hat keinen Gerätetyp namens `{name}`
+	that file is not an ActCraft or Open Fixture Library fixture	diese Datei ist keine ActCraft- oder Open-Fixture-Library-Gerätedatei
+	ActCraft reads fixture types from ActCraft and Open Fixture Library .json files and .r20 files	ActCraft liest Gerätetypen aus ActCraft- und Open-Fixture-Library-.json-Dateien und .r20-Dateien
+	Export a fixture type	Gerätetyp exportieren
+	Fixture library	Gerätebibliothek
+	Fixture type from the library	Gerätetyp aus der Bibliothek
+	that file is not an Open Fixture Library fixture	diese Datei ist kein Gerät der Open Fixture Library

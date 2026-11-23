@@ -241,6 +241,11 @@ M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section
   set by picking a range and a level in the Fixtures window (`fixture.range`), kept by fixture
   types and set in the fixture type editor (Ranges beside each channel: from, to, name); `.r20`
   fixture files can be imported (`fixture_type.import`) and their ranges added there
+- ✅ Fixture library: ActCraft brings fixture types of its own (first the Betopper LM70SR, 14 and
+  9 channels, with every range from its manual), offered under Kind in the Fixtures window and
+  named in the window's language; a type can be exported as an ActCraft fixture file (.json) and
+  imported into another show or on another computer (`fixture_library.list`,
+  `fixture_type.from_library`, `fixture_type.export`, `fixture_type.import`)
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
