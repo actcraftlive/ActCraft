@@ -739,3 +739,5 @@
 	a show holds at most 64 pads	eine Show hat höchstens 64 Pads
 	no such pad	dieses Pad gibt es nicht
 	this pad's command can't run without more	der Befehl dieses Pads läuft nicht ohne weitere Angaben
+	Show time	Showzeit
+	Start show time again	Showzeit neu starten
