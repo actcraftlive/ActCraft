@@ -251,7 +251,8 @@ sync.
 - ✅ Game controllers: a button on any connected controller runs a command, like a MIDI remote
   action; Settings > MIDI lists the connected controllers, learns a button by pressing it and
   saves the buttons with the show (`gamepad.add`, `gamepad.remove`, `gamepad.list`,
-  `gamepad.press`). Sticks as faders to do
+  `gamepad.press`); a stick or an analogue trigger moves a volume (master, song, a bus) or the
+  lighting master (`gamepad.fader_add`, `gamepad.move`; "Add fader")
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for

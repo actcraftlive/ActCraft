@@ -452,3 +452,26 @@ fn a_cue_that_goes_on_by_itself_is_added_from_the_presets_window() {
     assert_eq!(follow, Some(0.5));
     assert!(h.query_by_label("then on after 0.5 s").is_some(), "the list says so");
 }
+
+#[test]
+fn a_controller_trigger_is_set_to_move_the_lighting_master() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().open_settings_at("midi");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Stick or trigger").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Right trigger").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "Moves").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Lighting master").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add fader").click_accesskit();
+    frames(&mut h, 3);
+    let got = with(&engine, |e| e.show.gamepad_faders.first().map(|f| (f.axis.clone(), f.volume)));
+    assert_eq!(got, Some(("right_trigger".to_owned(), None)));
+    assert!(h.query_by_role_and_label(Role::Button, "Remove (Right trigger: Lighting master)").is_some());
+    // Pulled half way, the lighting master follows.
+    with(&engine, |e| e.gamepad_axis("right_trigger", 0.5));
+    assert!(with(&engine, |e| (e.dmx.master - 0.5).abs() < 1e-9));
+}

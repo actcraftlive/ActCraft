@@ -2,7 +2,7 @@
 //! look, by name ([`actcraft_engine::gamepad::GamepadAction::BUTTONS`]). The window polls it every
 //! frame and hands the presses to the engine.
 
-use gilrs::{Button, EventType, Gilrs};
+use gilrs::{Axis, Button, EventType, Gilrs};
 
 /// The controllers, while it lives.
 pub struct Gamepads {
@@ -20,25 +20,56 @@ impl Gamepads {
         }
     }
 
-    /// The buttons pressed since the last call, in order, by name.
-    pub fn pressed(&mut self) -> Vec<&'static str> {
-        let mut out = Vec::new();
+    /// What happened since the last call: the buttons pressed, in order, and where each stick or
+    /// trigger that moved stands now (0-1; a stick's middle is 0.5, up and right are 1).
+    pub fn poll(&mut self) -> GamepadInput {
+        let mut input = GamepadInput::default();
         // Bounded, so a flood of events can't hold up a frame.
         for _ in 0..256 {
             let Some(event) = self.gilrs.next_event() else { break };
-            if let EventType::ButtonPressed(button, _) = event.event
-                && let Some(name) = button_name(button)
-            {
-                out.push(name);
+            let moved = match event.event {
+                EventType::ButtonPressed(button, _) => {
+                    if let Some(name) = button_name(button) {
+                        input.pressed.push(name);
+                    }
+                    None
+                }
+                EventType::ButtonChanged(Button::LeftTrigger2, v, _) => Some(("left_trigger", f64::from(v))),
+                EventType::ButtonChanged(Button::RightTrigger2, v, _) => Some(("right_trigger", f64::from(v))),
+                EventType::AxisChanged(axis, v, _) => axis_name(axis).map(|name| (name, (f64::from(v) + 1.0) / 2.0)),
+                _ => None,
+            };
+            if let Some((name, value)) = moved {
+                // Only where it ended up counts.
+                input.moved.retain(|(n, _)| *n != name);
+                input.moved.push((name, value.clamp(0.0, 1.0)));
             }
         }
-        out
+        input
     }
 
     /// The names of the controllers connected now.
     pub fn connected(&self) -> Vec<String> {
         self.gilrs.gamepads().map(|(_, pad)| pad.name().to_owned()).collect()
     }
+}
+
+/// What the controllers did since the last look.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GamepadInput {
+    pub pressed: Vec<&'static str>,
+    pub moved: Vec<(&'static str, f64)>,
+}
+
+/// A stick's direction by name; `None` for others (the triggers come as buttons).
+pub fn axis_name(axis: Axis) -> Option<&'static str> {
+    Some(match axis {
+        Axis::LeftStickX => "left_x",
+        Axis::LeftStickY => "left_y",
+        Axis::RightStickX => "right_x",
+        Axis::RightStickY => "right_y",
+        _ => return None,
+    })
 }
 
 /// A button's name by where it sits on a standard controller; `None` for ones without a place.
@@ -94,5 +125,15 @@ mod tests {
         let names: Vec<&str> = all.iter().filter_map(|b| button_name(*b)).collect();
         assert_eq!(names, GamepadAction::BUTTONS, "the same buttons, in the same order");
         assert_eq!(button_name(Button::C), None);
+        let sticks: Vec<&str> = [Axis::LeftStickX, Axis::LeftStickY, Axis::RightStickX, Axis::RightStickY]
+            .into_iter()
+            .filter_map(axis_name)
+            .collect();
+        let mut known: Vec<&str> = sticks.clone();
+        known.extend(["left_trigger", "right_trigger"]);
+        known.sort_unstable();
+        let mut axes = actcraft_engine::gamepad::GamepadFader::AXES.to_vec();
+        axes.sort_unstable();
+        assert_eq!(known, axes, "every stick and trigger the show knows comes in");
     }
 }

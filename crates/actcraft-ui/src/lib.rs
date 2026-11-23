@@ -196,6 +196,9 @@ pub struct ActCraftApp {
     /// Settings waits for a controller button to learn; and the button and command being added.
     gamepad_learning: bool,
     gamepad_draft: (String, String),
+    /// A new controller fader: stick or trigger, what it moves (master, song, bus, lighting) and
+    /// the bus.
+    gamepad_fader_draft: (String, String, u8),
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -294,6 +297,7 @@ impl ActCraftApp {
             dmx_trigger_draft: (0, 1, String::new()),
             gamepad_learning: false,
             gamepad_draft: (String::new(), String::new()),
+            gamepad_fader_draft: (String::new(), String::new(), 0),
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
