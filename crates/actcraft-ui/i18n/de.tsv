@@ -1001,7 +1001,7 @@
 	Lighting master	Licht-Master
 	Switch holding fades and effects	Das Anhalten von Überblendungen und Effekten schalten
 	Switch the blackout	Den Blackout schalten
-	`toggle` must be metronome, loop_song, autoplay, blackout or freeze	`toggle` muss metronome, loop_song, autoplay, blackout oder freeze sein
+	`toggle` must be metronome, loop_song, autoplay, blackout, freeze or blind	`toggle` muss metronome, loop_song, autoplay, blackout, freeze oder blind sein
 	A ready-made effect	Ein fertiger Effekt
 	Blue wave	Blaue Welle
 	Bounce	Federn
@@ -1021,3 +1021,8 @@
 	Warm drift	Warmes Treiben
 	Zoom in and out	Zoom rein und raus
 	no such template	keine solche Vorlage
+	Blind	Blind
+	Switch blind	Blind schalten
+	Fixture changes and recalled presets stay off the lights	Geräteänderungen und abgerufene Presets erreichen die Lampen nicht
+	Blind is on: changes here stay off the lights; store them as presets.	Blind ist an: Änderungen hier erreichen die Lampen nicht; als Presets speichern.
+	Leave blind	Blind verlassen

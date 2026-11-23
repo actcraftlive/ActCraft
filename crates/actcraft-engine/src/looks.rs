@@ -128,11 +128,15 @@ pub fn preset_store(e: &mut Engine, prm: &Value) -> CommandResult {
 }
 
 /// `preset.recall {preset, fade?}`: sets every stored value again, at once or fading in over
-/// `fade` seconds.
+/// `fade` seconds. In blind it goes to blind's copy at once, to be changed and stored again.
 pub fn preset_recall(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "preset", e.show.presets.len())?;
     let fade = p::opt_f64_in(prm, "fade", 0.0, actcraft_show::limits::MAX_FADE_S)?.unwrap_or(0.0);
     let Some(preset) = e.show.presets.get(i).cloned() else { return Err(invalid("no such preset")) };
+    if e.dmx.blind() {
+        let changed = e.recall_edited(&preset);
+        return Ok(json!({"changed": changed, "fade": 0.0}));
+    }
     let changed = e.fade_to(&preset, fade);
     Ok(json!({"changed": changed, "fade": fade}))
 }

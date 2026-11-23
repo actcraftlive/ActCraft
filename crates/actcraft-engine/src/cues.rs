@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 pub use actcraft_show::{Cue, CueList, LightCue};
 
 use crate::Engine;
-use crate::fixtures::{Attribute, levels_for, value_of};
+use crate::fixtures::{Attribute, levels_for, live_value_of};
 use crate::looks::Preset;
 
 fn invalid(msg: impl Into<String>) -> CommandError {
@@ -56,6 +56,18 @@ impl Engine {
         changed
     }
 
+    /// Sets a preset's values in blind's copy (the levels being edited), at once.
+    pub(crate) fn recall_edited(&mut self, preset: &Preset) -> bool {
+        let mut changed = false;
+        for v in &preset.values {
+            let Some(f) = self.show.fixtures.iter().find(|f| f.id == v.fixture).cloned() else { continue };
+            for (offset, level) in levels_for(&f, v.attribute, v.value) {
+                changed |= self.dmx.set_edited(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
+            }
+        }
+        changed
+    }
+
     /// Brings a preset's values in over `seconds` (at once for 0); whether a level changed at once.
     pub(crate) fn fade_to(&mut self, preset: &Preset, seconds: f64) -> bool {
         if seconds <= 0.0 {
@@ -71,7 +83,7 @@ impl Engine {
             .iter()
             .filter_map(|v| {
                 let f = self.show.fixtures.iter().find(|f| f.id == v.fixture)?;
-                let from = value_of(self, f, v.attribute)?;
+                let from = live_value_of(self, f, v.attribute)?;
                 Some(Part { fixture: v.fixture, attribute: v.attribute, from, to: v.value })
             })
             .collect();

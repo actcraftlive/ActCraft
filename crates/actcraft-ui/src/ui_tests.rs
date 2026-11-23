@@ -198,3 +198,25 @@ fn a_ready_made_effect_fills_the_effect_form() {
         Some(("Fan out".to_owned(), actcraft_engine::fixtures::Attribute::Pan))
     );
 }
+
+#[test]
+fn blind_is_switched_on_says_so_where_fixtures_change_and_is_left_from_there() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1, "name": "Front"}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Blind \u{b7} off").click_accesskit();
+    frames(&mut h, 3);
+    assert!(with(&engine, |e| e.dmx.blind()));
+    assert!(h.query_by_role_and_label(Role::Button, "Blind \u{b7} on").is_some());
+    with(&engine, |e| e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}})).is_ok());
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[0])), Some(0), "the light stays dark");
+    h.state_mut().show_fixtures();
+    frames(&mut h, 3);
+    assert!(h.query_by_label_contains("Blind is on").is_some());
+    h.get_by_role_and_label(Role::Button, "Leave blind").click_accesskit();
+    frames(&mut h, 3);
+    assert!(!with(&engine, |e| e.dmx.blind()));
+    assert!(h.query_by_label_contains("Blind is on").is_none());
+}
