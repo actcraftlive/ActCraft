@@ -420,7 +420,7 @@ impl ActCraftApp {
                         },
                         kind: FileKind::Open,
                         title: tr("Attach notation"),
-                        filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
+                        filters: vec![(tr("MusicXML score or MIDI file"), crate::notation_view::NOTATION_EXTENSIONS)],
                         file_name: None,
                         directory: show_dir(e),
                     });

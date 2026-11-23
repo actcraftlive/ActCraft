@@ -519,7 +519,6 @@
 	Free and open source for Windows, macOS and Linux.	Frei und quelloffen für Windows, macOS und Linux.
 	Version	Version
 # Notation (MusicXML scores as notes and tablature)
-	ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl)	ActCraft liest Noten aus MusicXML-Dateien (.musicxml, .xml, .mxl)
 	Attach Notation…	Partitur anhängen…
 	Attach notation	Partitur anhängen
 	Attach notation…	Partitur anhängen…
@@ -543,19 +542,17 @@
 	P.M.	P.M.
 	T	T
 	The bar of the song's beat grid where the score's first bar plays; 0 or less for a pickup bar	Der Takt im Taktraster des Songs, in dem der erste Takt der Noten spielt; 0 oder kleiner für einen Auftakt
-	MusicXML score	MusicXML-Partitur
 	Notation	Partitur
 	Notation attached: {parts} parts, {bars} bars	Partitur angehängt: {parts} Stimmen, {bars} Takte
 	Notation:	Partitur:
 	Notes	Noten
 	Notes and tab	Noten und Tab
-	Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl); notation and tab editors can export it	Noten und Tabulatur als MusicXML-Datei (.musicxml, .xml oder .mxl); Noten- und Tab-Programme können sie exportieren
 	PDF	PDF
 	Read notation	Partitur lesen
 	Remove notation	Partitur entfernen
 	Tab	Tab
 	The notation could not be opened:	Die Partitur ließ sich nicht öffnen:
-	`notation_file` must be a .musicxml, .xml or .mxl file	`notation_file` muss eine .musicxml-, .xml- oder .mxl-Datei sein
+	`notation_file` must be a .musicxml, .xml, .mxl or .mid file	`notation_file` muss eine .musicxml-, .xml-, .mxl- oder .mid-Datei sein
 	that compressed file holds no MusicXML score	Diese komprimierte Datei enthält keine MusicXML-Partitur
 	that file is not a MusicXML score	Diese Datei ist keine MusicXML-Partitur
 	that notation file cannot be read	Diese Partitur-Datei lässt sich nicht lesen
@@ -1277,3 +1274,8 @@
 	no such sheet	kein solches Notenblatt
 	the song's own sheet has no name, musician or part; give `sheet`	das Notenblatt des Songs selbst hat keinen Namen, Musiker oder Stimme; `sheet` angeben
 	there is already a musician called `{name}`	es gibt schon einen Musiker namens `{name}`
+	ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl) and MIDI files (.mid)	ActCraft liest Noten aus MusicXML-Dateien (.musicxml, .xml, .mxl) und MIDI-Dateien (.mid)
+	MusicXML score or MIDI file	MusicXML-Partitur oder MIDI-Datei
+	Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl), which notation and tab editors export, or notes written out from a MIDI file (.mid)	Noten und Tabulatur als MusicXML-Datei (.musicxml, .xml oder .mxl), wie Noten- und Tab-Programme sie exportieren, oder aus einer MIDI-Datei (.mid) ausgeschriebene Noten
+	Notes from the MIDI file	Noten aus der MIDI-Datei
+	Write the song's MIDI file out as notes; each MIDI track becomes a part	Die MIDI-Datei des Songs als Noten ausschreiben; jede MIDI-Spur wird eine Stimme
