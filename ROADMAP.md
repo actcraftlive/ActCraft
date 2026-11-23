@@ -17,7 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
-| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF and MIDI to notes done; the browser view to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF, MIDI to notes and PDF sheets in the browser done; scores in the browser to do |
 
 ## Next up
 
@@ -30,7 +30,7 @@ details are in the milestone sections further down.
 
 Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
 
-3. M10: musicians follow their sheets in a browser on the local network
+3. M10: scores (MusicXML, MIDI) in the browser view, as they are for PDF sheets
 
 ## Quality and open questions
 
