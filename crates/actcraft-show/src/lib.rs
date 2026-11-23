@@ -474,7 +474,19 @@ impl Default for VoiceSettings {
     }
 }
 
-/// A button on the screen: one press runs its command or its macro.
+/// The volume a fader pad moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FaderTarget {
+    Master,
+    /// The song that is playing (or chosen).
+    Song,
+    /// An output bus, 0-based.
+    Bus(u8),
+}
+
+/// A button on the screen: one press runs its command or its macro; or a fader that moves a
+/// volume.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Pad {
@@ -486,6 +498,8 @@ pub struct Pad {
     /// A macro's name; empty when the pad runs a command.
     #[serde(rename = "macro")]
     pub macro_name: String,
+    /// A fader instead of a button: the volume it moves.
+    pub fader: Option<FaderTarget>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -497,6 +511,7 @@ impl Default for Pad {
             colour: "#4f9cf0".to_owned(),
             command: String::new(),
             macro_name: String::new(),
+            fader: None,
             extra: Map::new(),
         }
     }
@@ -1044,6 +1059,11 @@ impl Show {
             fix_colour(&mut pad.colour, "#4f9cf0");
             cut(&mut pad.command, 64);
             cut(&mut pad.macro_name, 32);
+            if let Some(FaderTarget::Bus(b)) = pad.fader
+                && usize::from(b) >= BUSES
+            {
+                pad.fader = None;
+            }
         }
         self.macros.truncate(MAX_MACROS);
         self.macros.retain(|m| Macro::valid_name(&m.name));

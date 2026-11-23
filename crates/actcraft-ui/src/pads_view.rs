@@ -2,6 +2,7 @@
 //! with one press (`pad.press`), and their editor.
 
 use actcraft_engine::Engine;
+use actcraft_show::FaderTarget;
 use egui::{Color32, RichText, Ui, vec2};
 use serde_json::json;
 
@@ -15,6 +16,37 @@ pub(crate) struct PadDraft {
     pub label: String,
     pub colour: usize,
     pub runs: String,
+    /// A fader instead (then `runs` is empty).
+    pub fader: Option<FaderTarget>,
+}
+
+/// The volume a fader shows now, in dB.
+fn fader_db(e: &Engine, target: FaderTarget) -> f64 {
+    match target {
+        FaderTarget::Master => e.show.mixer.master_volume_db,
+        FaderTarget::Song => e.current().map_or(0.0, |s| s.volume_db),
+        FaderTarget::Bus(b) => e.show.buses.get(usize::from(b)).map_or(0.0, |bus| bus.volume_db),
+    }
+}
+
+/// The command that sets a fader's volume.
+fn fader_command(e: &Engine, target: FaderTarget, db: f64) -> Option<(&'static str, serde_json::Value)> {
+    match target {
+        FaderTarget::Master => Some(("mixer.master_volume", json!({"db": db}))),
+        FaderTarget::Song => e.current_song.map(|id| ("song.set", json!({"song": id, "volume_db": db}))),
+        FaderTarget::Bus(b) => Some(("bus.set", json!({"bus": b, "volume_db": db}))),
+    }
+}
+
+/// A fader's target in words.
+fn fader_text(target: FaderTarget) -> String {
+    match target {
+        FaderTarget::Master => tr("Master volume").to_owned(),
+        FaderTarget::Song => tr("Song volume").to_owned(),
+        FaderTarget::Bus(b) => {
+            actcraft_engine::fill(tr("Bus {bus} volume"), &[("bus", &(u16::from(b) + 1).to_string())])
+        }
+    }
 }
 
 /// Black or white words, whichever stands out more from a pad's colour (WCAG contrast).
@@ -36,8 +68,26 @@ impl ActCraftApp {
         let pads = e.show.pads.clone();
         let mut press = None;
         let mut remove = None;
+        let mut moved: Option<(FaderTarget, f64)> = None;
         ui.horizontal_wrapped(|ui| {
             for (i, pad) in pads.iter().enumerate() {
+                if let Some(target) = pad.fader {
+                    // A fader: its label and the volume it moves, in dB.
+                    let label = ui.label(RichText::new(&pad.label).strong());
+                    let mut db = fader_db(e, target);
+                    ui.spacing_mut().slider_width = 140.0;
+                    if ui
+                        .add(egui::Slider::new(&mut db, -60.0..=12.0).suffix(" dB").fixed_decimals(1))
+                        .labelled_by(label.id)
+                        .changed()
+                    {
+                        moved = Some((target, db));
+                    }
+                    if self.pads_editing && ui.small_button(tr("Remove")).clicked() {
+                        remove = Some(i);
+                    }
+                    continue;
+                }
                 let [r, g, b] = actcraft_show::parse_colour(&pad.colour).unwrap_or([79, 156, 240]);
                 let fill = Color32::from_rgb(r, g, b);
                 let text = text_on([r, g, b]);
@@ -76,6 +126,11 @@ impl ActCraftApp {
         if let Some(i) = press {
             self.run(e, "pad.press", json!({"pad": i}));
         }
+        if let Some((target, db)) = moved
+            && let Some((id, prm)) = fader_command(e, target, db)
+        {
+            self.run(e, id, prm);
+        }
         if let Some(i) = remove {
             self.run(e, "pad.remove", json!({"pad": i}));
         }
@@ -87,6 +142,7 @@ impl ActCraftApp {
     /// The form for a new pad: its label, colour and what it runs.
     fn pad_editor(&mut self, ui: &mut Ui, e: &mut Engine) {
         let macros: Vec<String> = e.show.macros.iter().map(|m| m.name.clone()).collect();
+        let buses = u8::try_from(e.show.buses.len()).unwrap_or(0);
         let d = &mut self.pad_draft;
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Label"));
@@ -108,40 +164,59 @@ impl ActCraftApp {
                 .map(|c| (c.spec.id, tr(c.spec.label)))
                 .collect();
             commands.sort_by(|a, b| a.1.cmp(b.1));
-            let shown = match d.runs.strip_prefix('$') {
-                Some(name) => format!("${name}"),
-                None => commands
+            let shown = match (d.fader, d.runs.strip_prefix('$')) {
+                (Some(target), _) => fader_text(target),
+                (None, Some(name)) => format!("${name}"),
+                (None, None) => commands
                     .iter()
                     .find(|c| c.0 == d.runs)
                     .map_or(tr("Choose a command").to_owned(), |c| c.1.to_owned()),
             };
+            let mut targets = vec![FaderTarget::Master, FaderTarget::Song];
+            targets.extend((0..buses).map(FaderTarget::Bus));
             egui::ComboBox::from_id_salt("pad-runs")
                 .width(240.0)
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
+                    for target in &targets {
+                        if ui.selectable_label(d.fader == Some(*target), fader_text(*target)).clicked() {
+                            d.fader = Some(*target);
+                            d.runs.clear();
+                        }
+                    }
+                    ui.separator();
                     for name in &macros {
                         let key = format!("${name}");
-                        if ui.selectable_label(d.runs == key, &key).clicked() {
+                        if ui.selectable_label(d.fader.is_none() && d.runs == key, &key).clicked() {
                             d.runs = key;
+                            d.fader = None;
                         }
                     }
                     for (id, name) in &commands {
-                        if ui.selectable_label(d.runs == *id, *name).clicked() {
+                        if ui.selectable_label(d.fader.is_none() && d.runs == *id, *name).clicked() {
                             d.runs = (*id).to_owned();
+                            d.fader = None;
                         }
                     }
                 })
                 .response
                 .labelled_by(label.id);
         });
-        let ready = !self.pad_draft.label.trim().is_empty() && !self.pad_draft.runs.is_empty();
+        let d = &self.pad_draft;
+        let ready = !d.label.trim().is_empty() && (!d.runs.is_empty() || d.fader.is_some());
         if ui.add_enabled(ready, egui::Button::new(tr("Add pad"))).clicked() {
             let d = std::mem::take(&mut self.pad_draft);
             let colour = MARK_COLOURS.get(d.colour).map_or("#4f9cf0", |c| c.1);
             let mut prm = json!({"label": d.label.trim(), "colour": colour});
-            match d.runs.strip_prefix('$') {
-                Some(name) => prm["macro"] = json!(name),
-                None => prm["command"] = json!(d.runs),
+            match (d.fader, d.runs.strip_prefix('$')) {
+                (Some(FaderTarget::Master), _) => prm["fader"] = json!("master"),
+                (Some(FaderTarget::Song), _) => prm["fader"] = json!("song"),
+                (Some(FaderTarget::Bus(b)), _) => {
+                    prm["fader"] = json!("bus");
+                    prm["bus"] = json!(b);
+                }
+                (None, Some(name)) => prm["macro"] = json!(name),
+                (None, None) => prm["command"] = json!(d.runs),
             }
             self.run(e, "pad.add", prm);
         }
