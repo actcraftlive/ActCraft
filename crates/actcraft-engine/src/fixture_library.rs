@@ -20,7 +20,7 @@ const MAX_BYTES: usize = 2 << 20;
 /// Most channels of a file looked at.
 const MAX_CHANNELS_LOOKED_AT: usize = 1_024;
 /// Extensions of fixture files.
-pub const EXTENSIONS: &[&str] = &["json"];
+pub const EXTENSIONS: &[&str] = &["json", "r20"];
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -128,20 +128,121 @@ pub fn read_ofl(doc: &Value) -> Result<FixtureType, CommandError> {
 }
 
 /// `fixture_type.import {path}`: brings a fixture type in from an Open Fixture Library file
-/// (`.json`); one of the same name is replaced.
+/// (`.json`) or an `.r20` file; one of the same name is replaced.
 pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     let path = p::str_max(prm, "path", 4096)?;
-    if !crate::services::extension(path).is_some_and(|ext| EXTENSIONS.contains(&ext.as_str())) {
-        return Err(invalid("ActCraft reads fixture types from Open Fixture Library .json files"));
+    let ext = crate::services::extension(path).unwrap_or_default();
+    if !EXTENSIONS.contains(&ext.as_str()) {
+        return Err(invalid("ActCraft reads fixture types from Open Fixture Library .json and .r20 files"));
     }
     let bytes = e.services().read_file(path).map_err(failed)?;
     if bytes.len() > MAX_BYTES {
         return Err(failed("that fixture file is too large"));
     }
+    if ext == "r20" {
+        let ty = read_r20(&String::from_utf8_lossy(&bytes))?;
+        return keep(e, ty);
+    }
     let doc: Value =
         serde_json::from_slice(&bytes).map_err(|_| failed("that file is not an Open Fixture Library fixture"))?;
     let ty = read_ofl(&doc)?;
     keep(e, ty)
+}
+
+/// What an `.r20` attribute letter is (the letters the file format's own comments list), or by
+/// the channel's name for the ones they leave open (colour mixing).
+fn r20_attribute(letter: &str, name: &str) -> Attribute {
+    let n = name.to_ascii_lowercase();
+    match letter {
+        "E" => return Attribute::Pan,
+        "F" => return Attribute::Tilt,
+        "H" => return Attribute::Intensity,
+        "A" | "N" => return Attribute::ColourWheel,
+        "I" | "J" => return Attribute::Gobo,
+        "L" => return Attribute::Focus,
+        "O" => return Attribute::Strobe,
+        "Q" => return Attribute::Zoom,
+        _ => {}
+    }
+    const NAMED: &[(&str, Attribute)] = &[
+        ("red", Attribute::Red),
+        ("green", Attribute::Green),
+        ("blue", Attribute::Blue),
+        ("white", Attribute::White),
+        ("amber", Attribute::Amber),
+        ("uv", Attribute::Uv),
+        ("dimmer", Attribute::Intensity),
+        ("strobe", Attribute::Strobe),
+        ("shutter", Attribute::Strobe),
+        ("zoom", Attribute::Zoom),
+        ("focus", Attribute::Focus),
+        ("gobo", Attribute::Gobo),
+    ];
+    NAMED.iter().find(|(word, _)| n.contains(word)).map_or(Attribute::Other, |(_, a)| *a)
+}
+
+/// Reads a fixture type from an `.r20` text file: `DEVICE` (its name), `TYPE` (the middle number
+/// is how many DMX channels it uses) and the `DMX` … `END` table, one line per channel: bank,
+/// fader, channel type (`s`/`S` for 16 bits), DMX offset, level, curve, attribute letter, checksum
+/// and the quoted name. A 16-bit channel's next line with bank 0 is its fine channel. Value
+/// ranges are not in the format; they can be added to the type afterwards.
+pub fn read_r20(text: &str) -> Result<FixtureType, CommandError> {
+    let not_r20 = || failed("that file is not an .r20 fixture file");
+    let mut name = String::new();
+    let mut count = 0usize;
+    let mut table = false;
+    // (offset, attribute, 16-bit, bank 0)
+    let mut rows: Vec<(usize, Attribute, bool, bool)> = Vec::new();
+    for line in text.lines().take(4_000) {
+        let l = line.trim();
+        if l.is_empty() || l.starts_with(';') {
+            continue;
+        }
+        let mut words = l.split_whitespace();
+        let first = words.next().unwrap_or_default().to_ascii_uppercase();
+        if table {
+            if first == "END" {
+                table = false;
+                continue;
+            }
+            let (before, quoted) = l.split_once('"').unwrap_or((l, ""));
+            let label = quoted.split('"').next().unwrap_or_default();
+            let cols: Vec<&str> = before.split_whitespace().collect();
+            let (Some(bank), Some(kind), Some(offset), Some(letter)) =
+                (cols.first(), cols.get(2), cols.get(3).and_then(|o| o.parse::<usize>().ok()), cols.get(6))
+            else {
+                continue;
+            };
+            let sixteen = kind.starts_with(['s', 'S']);
+            let fine = *bank == "0";
+            let attribute = match rows.last() {
+                // The fine channel of the 16-bit channel just before it.
+                Some((_, coarse, true, false)) if fine => coarse.fine().unwrap_or(Attribute::Other),
+                _ => r20_attribute(letter, label),
+            };
+            if rows.len() < MAX_FIXTURE_CHANNELS {
+                rows.push((offset, attribute, sixteen, fine));
+            }
+            continue;
+        }
+        match first.as_str() {
+            "DEVICE" => name = words.collect::<Vec<_>>().join(" "),
+            "TYPE" => count = words.nth(1).and_then(|n| n.parse().ok()).unwrap_or(0),
+            "DMX" => table = true,
+            _ => {}
+        }
+    }
+    if name.is_empty() || rows.is_empty() || count == 0 || count > MAX_FIXTURE_CHANNELS {
+        return Err(not_r20());
+    }
+    let mut channels = vec![Attribute::Other; count];
+    for (offset, attribute, _, _) in rows {
+        if let Some(slot) = offset.checked_sub(1).and_then(|i| channels.get_mut(i)) {
+            *slot = attribute;
+        }
+    }
+    let mode = FixtureMode { name: format!("{count} channels"), channels, ..FixtureMode::default() };
+    Ok(FixtureType { name: name.chars().take(64).collect(), modes: vec![mode], ..FixtureType::default() })
 }
 
 /// Puts a fixture type into the show, in place of one with the same name.
@@ -360,5 +461,43 @@ mod tests {
         assert!(e.run("fixture.add", &json!({"type": 0, "mode": 5, "universe": 1})).is_err());
         assert!(e.run("fixture_type.remove", &json!({"type": 0})).is_ok());
         assert_eq!(e.show.fixtures.len(), 2, "patched fixtures stay");
+    }
+
+    #[test]
+    fn an_r20_file_becomes_a_fixture_type() {
+        // Written for this test in the format the files describe in their own comments.
+        let text = "; a comment\r\nDEVICE  Spot_6ch\r\nTYPE 1   6   M\r\nMIRROR  2   540   270\r\n\
+            DMX\r\n\
+            1    1   H   6     100   1N   H   1   \"Dimmer\"   255  0  0\r\n\
+            3    1   s   3     100   1N   F   1   \"Tilt\"     128  0  0\r\n\
+            0    0   L   4     100   1N   F   1   \"\"         128  0  0\r\n\
+            3   61   s   1     100   1N   E   1   \"Pan\"      128  0  0\r\n\
+            0    0   L   2     100   1N   E   1   \"\"         128  0  0\r\n\
+            4    1   L   5     100   1N   T   1   \"Red\"      0    0  0\r\n\
+            END\r\n";
+        let ty = read_r20(text);
+        assert!(ty.is_ok(), "{:?}", ty.err());
+        let Ok(ty) = ty else { return };
+        assert_eq!(ty.name, "Spot_6ch");
+        assert_eq!(
+            ty.modes[0].channels,
+            vec![
+                Attribute::Pan,
+                Attribute::PanFine,
+                Attribute::Tilt,
+                Attribute::TiltFine,
+                Attribute::Red,
+                Attribute::Intensity
+            ]
+        );
+        assert!(read_r20("just some text").is_err());
+        assert!(read_r20("DEVICE X\nTYPE 1 999 M\nDMX\n1 1 L 1 100 1N H 1 \"D\" 0 0 0\nEND").is_err(), "too many");
+        // Through the command, by its extension in either case.
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.services_mut().write_file("/f/Spot.R20", text.as_bytes());
+        assert_eq!(
+            e.run("fixture_type.import", &json!({"path": "/f/Spot.R20"})).ok().map(|v| v["name"].clone()),
+            Some(json!("Spot_6ch"))
+        );
     }
 }

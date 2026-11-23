@@ -186,7 +186,8 @@ details are in the milestone sections further down.
   them, at an address or the first free one, refusing overlaps; each fixture's attributes are set
   with sliders (`fixture.add`, `fixture.move`, `fixture.remove`, `fixture.list`, `fixture.kinds`,
   `fixture.set`)
-- ✅ Open Fixture Library import: "Import fixture type…" reads a fixture file (.json) into the show
+- ✅ Open Fixture Library import: "Import fixture type…" reads a fixture file (.json) into the show (and since #89
+  `.r20` fixture files)
   as a type with its modes; each channel's capability becomes its attribute and fine channels
   follow theirs; patched by type and mode (`fixture_type.import`, `fixture_type.list`,
   `fixture_type.remove`, `fixture.add {type, mode}`)
