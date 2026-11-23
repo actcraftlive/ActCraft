@@ -13,18 +13,20 @@ use crate::i18n::tr;
 /// A patch being put together.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixtureDraft {
-    /// Index into [`KINDS`].
+    /// Index into [`KINDS`], then into the show's fixture types.
     pub kind: usize,
     pub name: String,
     pub universe: u16,
     /// `None`: the first free address.
     pub address: Option<u16>,
     pub count: u16,
+    /// The mode of an imported type.
+    pub mode: usize,
 }
 
 impl Default for FixtureDraft {
     fn default() -> Self {
-        Self { kind: 0, name: String::new(), universe: 1, address: None, count: 1 }
+        Self { kind: 0, name: String::new(), universe: 1, address: None, count: 1, mode: 0 }
     }
 }
 
@@ -90,23 +92,64 @@ impl ActCraftApp {
     fn fixture_patch_form(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
         ui.label(RichText::new(tr("Patch fixtures")).strong());
+        let types = e.show.fixture_types.clone();
+        let mut import = false;
         let d = &mut self.fixture_draft;
+        // Built-in kinds first, then the types brought in from fixture files.
+        if d.kind >= KINDS.len() + types.len() {
+            d.kind = 0;
+        }
+        let imported = d.kind.checked_sub(KINDS.len()).and_then(|t| types.get(t));
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Kind"));
-            let current = KINDS.get(d.kind).map_or("", |k| kind_text(k.key));
+            let current = match (KINDS.get(d.kind), imported) {
+                (Some(k), _) => kind_text(k.key).to_owned(),
+                (None, Some(t)) => t.name.clone(),
+                _ => String::new(),
+            };
             egui::ComboBox::from_id_salt("fixture-kind")
                 .width(280.0)
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for (i, k) in KINDS.iter().enumerate() {
                         let words = format!("{} ({} ch)", kind_text(k.key), k.channels.len());
-                        ui.selectable_value(&mut d.kind, i, words);
+                        if ui.selectable_value(&mut d.kind, i, words).clicked() {
+                            d.mode = 0;
+                        }
+                    }
+                    if !types.is_empty() {
+                        ui.separator();
+                    }
+                    for (i, t) in types.iter().enumerate() {
+                        if ui.selectable_value(&mut d.kind, KINDS.len() + i, &t.name).clicked() {
+                            d.mode = 0;
+                        }
                     }
                 })
                 .response
                 .labelled_by(label.id);
+            if let Some(t) = imported {
+                let label = ui.label(tr("Mode"));
+                let shown =
+                    t.modes.get(d.mode).map_or(String::new(), |m| format!("{} ({} ch)", m.name, m.channels.len()));
+                egui::ComboBox::from_id_salt("fixture-mode")
+                    .selected_text(shown)
+                    .show_ui(ui, |ui| {
+                        for (i, m) in t.modes.iter().enumerate() {
+                            ui.selectable_value(&mut d.mode, i, format!("{} ({} ch)", m.name, m.channels.len()));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            }
+            import = ui
+                .button(tr("Import fixture type\u{2026}"))
+                .on_hover_text(tr("A fixture file from the Open Fixture Library (.json)"))
+                .clicked();
+        });
+        ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Name"));
-            ui.add(egui::TextEdit::singleline(&mut d.name).hint_text(tr("Like the kind")).desired_width(140.0))
+            ui.add(egui::TextEdit::singleline(&mut d.name).hint_text(tr("Like the kind")).desired_width(180.0))
                 .labelled_by(label.id);
         });
         ui.horizontal_wrapped(|ui| {
@@ -123,9 +166,26 @@ impl ActCraftApp {
             let label = ui.label(tr("How many"));
             ui.add(egui::DragValue::new(&mut d.count).range(1..=64)).labelled_by(label.id);
         });
+        if import {
+            self.ask_file(crate::flows::FileRequest {
+                ask: crate::flows::FileAsk::ImportFixtureType,
+                kind: crate::flows::FileKind::Open,
+                title: tr("Import fixture type"),
+                filters: vec![(tr("Open Fixture Library fixture"), actcraft_engine::fixture_library::EXTENSIONS)],
+                file_name: None,
+                directory: crate::flows::show_dir(e),
+            });
+        }
         if ui.button(tr("Patch")).clicked() {
             let d = self.fixture_draft.clone();
-            let mut prm = json!({"kind": KINDS.get(d.kind).map_or("dimmer", |k| k.key), "universe": d.universe, "count": d.count});
+            let mut prm = json!({"universe": d.universe, "count": d.count});
+            match KINDS.get(d.kind) {
+                Some(k) => prm["kind"] = json!(k.key),
+                None => {
+                    prm["type"] = json!(d.kind - KINDS.len());
+                    prm["mode"] = json!(d.mode);
+                }
+            }
             if !d.name.trim().is_empty() {
                 prm["name"] = json!(d.name.trim());
             }

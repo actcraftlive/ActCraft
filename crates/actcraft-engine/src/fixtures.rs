@@ -137,16 +137,24 @@ fn placement(prm: &Value) -> Result<(u16, Option<u16>), CommandError> {
     Ok((universe, address))
 }
 
-/// `fixture.add {kind | channels, name?, universe, address?, count?}`: patches one fixture, or
+/// `fixture.add {kind | type, mode? | channels, name?, universe, address?, count?}`: patches one
+/// fixture (a built-in kind, an imported type in one of its modes, or channel by channel), or
 /// `count` of the same in a row; without `address` each goes to the first free one.
 pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
-    let (kind_name, channels) = match (prm.get("kind"), prm.get("channels")) {
-        (Some(_), None) => {
+    let (kind_name, channels) = match (prm.get("kind"), prm.get("channels"), prm.get("type")) {
+        (None, None, Some(_)) => {
+            let t = p::index(prm, "type", e.show.fixture_types.len())?;
+            let ty = e.show.fixture_types.get(t).ok_or_else(|| invalid("no such fixture type"))?;
+            let m = usize::try_from(p::opt_i64_in(prm, "mode", 0, 31)?.unwrap_or(0)).unwrap_or(0);
+            let mode = ty.modes.get(m).ok_or_else(|| invalid("that fixture type has no such mode"))?;
+            (format!("{} \u{b7} {}", ty.name, mode.name), mode.channels.clone())
+        }
+        (Some(_), None, None) => {
             let key = p::str_max(prm, "kind", 32)?;
             let kind = KINDS.iter().find(|k| k.key == key).ok_or_else(|| invalid("no such kind of fixture"))?;
             (kind.name.to_owned(), kind.channels.to_vec())
         }
-        (None, Some(list)) => {
+        (None, Some(list), None) => {
             let list = list.as_array().ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
             if list.is_empty() || list.len() > MAX_FIXTURE_CHANNELS {
                 return Err(invalid("a fixture has 1 to 64 channels"));
@@ -158,7 +166,7 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
                 .ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
             (String::new(), channels)
         }
-        _ => return Err(invalid("give `kind` or `channels`")),
+        _ => return Err(invalid("give `kind`, `type` or `channels`")),
     };
     let (universe, address) = placement(prm)?;
     let count = usize::try_from(p::opt_i64_in(prm, "count", 1, 512)?.unwrap_or(1)).unwrap_or(1);

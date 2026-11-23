@@ -833,9 +833,24 @@
 	a fixture has 1 to 64 channels	ein Gerät hat 1 bis 64 Kanäle
 	a show holds at most 1024 fixtures	eine Show fasst höchstens 1024 Geräte
 	give `fixture` or `fixtures`	`fixture` oder `fixtures` angeben
-	give `kind` or `channels`	`kind` oder `channels` angeben
 	no such fixture	kein solches Gerät
 	no such kind of fixture	keine solche Geräteart
 	that address is taken by another fixture	diese Adresse belegt schon ein anderes Gerät
 	the fixture does not fit in the universe from that address	das Gerät passt ab dieser Adresse nicht ins Universum
 	there is no room left in that universe	in diesem Universum ist kein Platz mehr
+	A fixture file from the Open Fixture Library (.json)	Eine Gerätedatei aus der Open Fixture Library (.json)
+	ActCraft reads fixture types from Open Fixture Library .json files	ActCraft liest Gerätetypen aus .json-Dateien der Open Fixture Library
+	Import a fixture type	Einen Gerätetyp importieren
+	Import fixture type	Gerätetyp importieren
+	Import fixture type…	Gerätetyp importieren …
+	List fixture types	Gerätetypen auflisten
+	Mode	Modus
+	Open Fixture Library fixture	Gerät aus der Open Fixture Library
+	Remove a fixture type	Einen Gerätetyp entfernen
+	a show holds at most 256 fixture types	eine Show fasst höchstens 256 Gerätetypen
+	give `kind`, `type` or `channels`	`kind`, `type` oder `channels` angeben
+	no such fixture type	kein solcher Gerätetyp
+	that file is not an Open Fixture Library fixture	diese Datei ist kein Gerät der Open Fixture Library
+	that fixture file is too large	diese Gerätedatei ist zu groß
+	that fixture type has no such mode	dieser Gerätetyp hat keinen solchen Modus
+	that fixture has no mode ActCraft can patch	dieses Gerät hat keinen Modus, den ActCraft patchen kann
