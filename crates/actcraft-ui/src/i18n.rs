@@ -101,6 +101,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/midi_file.rs"),
             include_str!("../../actcraft-engine/src/midi_sync.rs"),
             include_str!("../../actcraft-engine/src/remote.rs"),
+            include_str!("../../actcraft-engine/src/macros.rs"),
             include_str!("../../actcraft-engine/src/voice.rs"),
             include_str!("../../actcraft/src/main.rs"),
         ];

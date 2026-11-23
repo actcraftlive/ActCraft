@@ -146,6 +146,8 @@ pub struct ActCraftApp {
     midi_input_request: Option<Option<String>>,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
+    /// The macro being put together in Settings > Macros: its name and commands.
+    macro_draft: (String, Vec<String>),
     /// A language the person picked in Settings; the host remembers it.
     language_request: Option<String>,
     /// Tap-tempo times (seconds of app time).
@@ -214,6 +216,7 @@ impl ActCraftApp {
             midi_refresh: false,
             midi_input_request: None,
             remote_draft: settings::RemoteDraft::default(),
+            macro_draft: (String::new(), Vec::new()),
             language_request: None,
             taps: Vec::new(),
             centre_tab: CentreTab::Mixer,

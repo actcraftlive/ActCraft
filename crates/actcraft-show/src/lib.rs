@@ -55,6 +55,9 @@ pub mod limits {
     pub const MAX_SECONDS: f64 = 86_400.0;
     /// Remote actions (MIDI message to command) in one show.
     pub const MAX_REMOTE_ACTIONS: usize = 256;
+    /// Macros in one show, and commands in one macro.
+    pub const MAX_MACROS: usize = 128;
+    pub const MAX_MACRO_COMMANDS: usize = 32;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -126,6 +129,10 @@ pub struct Show {
     /// What a MIDI controller (a foot switch, a pad) does: a message sets off a command.
     #[serde(default)]
     pub remote: Vec<RemoteAction>,
+    /// Named lists of commands; `$NAME` at a timecoded lyrics line runs one when playback
+    /// gets there.
+    #[serde(default)]
+    pub macros: Vec<Macro>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -151,6 +158,7 @@ impl Default for Show {
             voice: VoiceSettings::default(),
             midi: MidiSettings::default(),
             remote: Vec::new(),
+            macros: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -457,6 +465,27 @@ pub struct VoiceSettings {
 impl Default for VoiceSettings {
     fn default() -> Self {
         Self { enabled: true, bus: 1, volume_db: 0.0, lead_beats: 4, language: String::new() }
+    }
+}
+
+/// A named list of commands, run in order. Lyrics call it with `$NAME` at a timecoded line.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Macro {
+    /// Capitals, digits and `_`, starting with a capital: `INTRO`, `LIGHTS_UP`.
+    pub name: String,
+    /// Command ids, run in order.
+    pub commands: Vec<String>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Macro {
+    /// Whether `name` can be a macro's name (and so be called as `$NAME` in lyrics).
+    pub fn valid_name(name: &str) -> bool {
+        name.len() <= 32
+            && name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+            && name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
     }
 }
 
@@ -975,6 +1004,14 @@ impl Show {
         cut(&mut v.language, 16);
         self.mixer.master_volume_db = clamp_f(self.mixer.master_volume_db, -96.0, 12.0, 0.0);
         self.mixer.midi_latency_offset_ms = clamp_f(self.mixer.midi_latency_offset_ms, -500.0, 500.0, 0.0);
+        self.macros.truncate(MAX_MACROS);
+        self.macros.retain(|m| Macro::valid_name(&m.name));
+        for m in &mut self.macros {
+            m.commands.truncate(MAX_MACRO_COMMANDS);
+            for c in &mut m.commands {
+                cut(c, 64);
+            }
+        }
         self.remote.truncate(MAX_REMOTE_ACTIONS);
         for r in &mut self.remote {
             r.trigger.channel = r.trigger.channel.filter(|c| *c < 16);

@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. M3: commands at lyric timecodes and macros
+2. M3: OSC and on-screen controls for remote actions; assignable on-screen buttons and knobs
 
 ## Quality and open questions
 
@@ -142,7 +142,9 @@ details are in the milestone sections further down.
 
 - ✅ MIDI out and in on the computer's ports (the ports the system lists, hardware and virtual),
   chosen in Settings > MIDI and kept on the computer
-- ⬜ Commands per song and at lyric timecodes; macros (`$CODE`)
+- ✅ Macros: named lists of commands (Settings > Macros; `macro.set`, `macro.remove`, `macro.list`,
+  `macro.run`); `$NAME` at a timecoded lyrics line runs macro NAME when playback reaches the line
+  (and is not shown in the lyrics); a jump over a line does not run it
 - ✅ MIDI Clock (with start, stop, continue and song position) and MIDI Timecode (quarter frames,
   a full frame on a jump; 24, 25 or 30 fps) out to a MIDI output chosen in Settings > MIDI
   (`midi.set`); the output is kept on the computer, what is sent with the show
