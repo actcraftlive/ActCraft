@@ -719,7 +719,13 @@ fn stage_sheet(
         }
         let Some(doc) = stage.notation.as_ref() else { return };
         let look = crate::notation_view::NotationLook { zoom: stage.zoom, ..Default::default() };
-        let view = crate::notation_view::ScoreView { look, follow: true, keyboard: false, salt: "stage-notation" };
+        let view = crate::notation_view::ScoreView {
+            look,
+            follow: true,
+            keyboard: false,
+            salt: "stage-notation",
+            start_line: None,
+        };
         crate::notation_view::score_canvas(ui, t, doc, song, status, view);
     } else {
         if let Err(err) = crate::sheet_view::load_pdf_into(&mut stage.sheet, ui.ctx(), e, Some(path)) {
