@@ -5,11 +5,11 @@
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
-use actcraft_show::limits::MAX_EFFECTS;
+use actcraft_show::limits::{MAX_EFFECT_PARTS, MAX_EFFECTS};
 use chrono::{DateTime, FixedOffset};
 use serde_json::{Value, json};
 
-pub use actcraft_show::{Effect, Shape};
+pub use actcraft_show::{Effect, EffectPart, Shape};
 
 use crate::Engine;
 use crate::fixtures::{attribute_key, attribute_named};
@@ -59,10 +59,15 @@ impl Engine {
             let elapsed = (now - started).num_milliseconds() as f64 / 1000.0;
             let base = elapsed / self.cycle_seconds(&fx);
             let n = ids.len().max(1) as f64;
+            let parts: Vec<(Attribute, f64, f64, f64)> = std::iter::once((fx.attribute, fx.low, fx.high, 0.0))
+                .chain(fx.also.iter().map(|p| (p.attribute, p.low, p.high, p.offset)))
+                .collect();
             for (k, id) in ids.iter().enumerate() {
                 let phase = base - fx.spread * k as f64 / n;
-                let value = fx.low + (fx.high - fx.low) * fx.shape.at(phase);
-                self.put(*id, fx.attribute, value);
+                for (attribute, low, high, offset) in &parts {
+                    let value = low + (high - low) * fx.shape.at(phase - offset);
+                    self.put(*id, *attribute, value);
+                }
             }
         }
     }
@@ -73,8 +78,39 @@ impl Engine {
     }
 }
 
-/// `effect.set {name, group, attribute, shape?, period?, beats?, low?, high?, spread?}`: an effect,
-/// or the one of that name changed.
+/// The `also` param: more attributes, each `{attribute, low?, high?, offset?}`.
+fn parts(prm: &Value) -> Result<Vec<EffectPart>, CommandError> {
+    let Some(list) = prm.get("also") else { return Ok(Vec::new()) };
+    let list = list.as_array().ok_or_else(|| invalid("`also` must be a list of attributes"))?;
+    if list.len() > MAX_EFFECT_PARTS {
+        return Err(invalid("an effect moves at most 8 more attributes"));
+    }
+    list.iter()
+        .map(|part| {
+            let attribute = attribute_named(p::str_max(part, "attribute", 32)?)
+                .filter(|a| !a.is_fine())
+                .ok_or_else(|| invalid("`attribute` must be an attribute like intensity, red or pan"))?;
+            Ok(EffectPart {
+                attribute,
+                low: p::opt_f64_in(part, "low", 0.0, 1.0)?.unwrap_or(0.0),
+                high: p::opt_f64_in(part, "high", 0.0, 1.0)?.unwrap_or(1.0),
+                offset: p::opt_f64_in(part, "offset", 0.0, 1.0)?.unwrap_or(0.0),
+                ..EffectPart::default()
+            })
+        })
+        .collect()
+}
+
+/// The `also` parts as params and in lists.
+fn parts_json(parts: &[EffectPart]) -> Value {
+    parts
+        .iter()
+        .map(|p| json!({"attribute": attribute_key(p.attribute), "low": p.low, "high": p.high, "offset": p.offset}))
+        .collect()
+}
+
+/// `effect.set {name, group, attribute, shape?, period?, beats?, low?, high?, spread?, also?}`: an
+/// effect, or the one of that name changed.
 pub fn effect_set(e: &mut Engine, prm: &Value) -> CommandResult {
     let name = p::str_max(prm, "name", 64)?.trim().to_owned();
     if name.is_empty() {
@@ -99,6 +135,7 @@ pub fn effect_set(e: &mut Engine, prm: &Value) -> CommandResult {
         low: p::opt_f64_in(prm, "low", 0.0, 1.0)?.unwrap_or(0.0),
         high: p::opt_f64_in(prm, "high", 0.0, 1.0)?.unwrap_or(1.0),
         spread: p::opt_f64_in(prm, "spread", 0.0, 1.0)?.unwrap_or(0.0),
+        also: parts(prm)?,
         ..Effect::default()
     };
     let i = match e.show.effects.iter().position(|f| f.name == fx.name) {
@@ -131,6 +168,8 @@ pub struct Template {
     pub low: f64,
     pub high: f64,
     pub spread: f64,
+    /// More attributes and how much later in the cycle each moves (between 0 and 1).
+    pub also: &'static [(Attribute, f64)],
 }
 
 use actcraft_show::Attribute;
@@ -144,7 +183,7 @@ const fn template(
     beats: f64,
     spread: f64,
 ) -> Template {
-    Template { key, name, attribute, shape, period, beats, low: 0.0, high: 1.0, spread }
+    Template { key, name, attribute, shape, period, beats, low: 0.0, high: 1.0, spread, also: &[] }
 }
 
 /// Ready-made effects. None flashes faster than a few times a second (people sensitive to
@@ -164,7 +203,31 @@ pub const TEMPLATES: &[Template] = &[
     template("nod", "Nod", Attribute::Tilt, Shape::Sine, 2.0, 0.0, 0.25),
     template("tilt_wave", "Tilt wave", Attribute::Tilt, Shape::Triangle, 4.0, 0.0, 1.0),
     template("zoom_breathe", "Zoom in and out", Attribute::Zoom, Shape::Sine, 4.0, 0.0, 0.0),
+    Template {
+        also: &[(Attribute::Tilt, 0.25)],
+        ..template("circle", "Circle", Attribute::Pan, Shape::Sine, 4.0, 0.0, 0.0)
+    },
+    Template {
+        also: &[(Attribute::Tilt, 0.25)],
+        ..template("circle_wave", "Circles one after another", Attribute::Pan, Shape::Sine, 4.0, 0.0, 1.0)
+    },
+    Template {
+        also: &[(Attribute::Green, 1.0 / 3.0), (Attribute::Blue, 2.0 / 3.0)],
+        ..template("rainbow", "Rainbow", Attribute::Red, Shape::Sine, 6.0, 0.0, 0.0)
+    },
+    Template {
+        also: &[(Attribute::Green, 1.0 / 3.0), (Attribute::Blue, 2.0 / 3.0)],
+        ..template("rainbow_wave", "Rainbow wave", Attribute::Red, Shape::Sine, 6.0, 0.0, 1.0)
+    },
 ];
+
+/// A template's more attributes as `also` params (each between 0 and 1).
+fn template_parts(t: &Template) -> Value {
+    t.also
+        .iter()
+        .map(|(a, offset)| json!({"attribute": attribute_key(*a), "low": 0.0, "high": 1.0, "offset": offset}))
+        .collect()
+}
 
 /// `effect.templates`: the ready-made effects.
 pub fn effect_templates(_e: &mut Engine, _prm: &Value) -> CommandResult {
@@ -173,7 +236,7 @@ pub fn effect_templates(_e: &mut Engine, _prm: &Value) -> CommandResult {
             .iter()
             .map(|t| {
                 json!({"template": t.key, "name": t.name, "attribute": attribute_key(t.attribute), "shape": shape_key(t.shape),
-                    "period": t.period, "beats": t.beats, "spread": t.spread})
+                    "period": t.period, "beats": t.beats, "spread": t.spread, "also": template_parts(t)})
             })
             .collect(),
     ))
@@ -190,7 +253,7 @@ pub fn effect_from_template(e: &mut Engine, prm: &Value) -> CommandResult {
         .filter(|n| !n.is_empty())
         .map_or_else(|| format!("{} \u{b7} {group}", t.name), str::to_owned);
     let fx = json!({"name": name, "group": g, "attribute": attribute_key(t.attribute), "shape": shape_key(t.shape),
-        "period": t.period, "beats": t.beats, "low": t.low, "high": t.high, "spread": t.spread});
+        "period": t.period, "beats": t.beats, "low": t.low, "high": t.high, "spread": t.spread, "also": template_parts(t)});
     effect_set(e, &fx)
 }
 
@@ -212,7 +275,7 @@ pub fn effect_list(e: &mut Engine, _prm: &Value) -> CommandResult {
             .iter()
             .map(|f| {
                 json!({"name": f.name, "group": f.group, "attribute": attribute_key(f.attribute), "shape": shape_key(f.shape),
-                    "period": f.period, "beats": f.beats, "low": f.low, "high": f.high, "spread": f.spread,
+                    "period": f.period, "beats": f.beats, "low": f.low, "high": f.high, "spread": f.spread, "also": parts_json(&f.also),
                     "running": running.contains(&f.name)})
             })
             .collect(),
@@ -311,6 +374,37 @@ mod tests {
             let shortest = if t.beats > 0.0 { t.beats * 60.0 / 200.0 } else { t.period };
             assert!(t.shape != Shape::Square || shortest >= 1.0 / 3.0, "{} flashes too fast", t.key);
         }
+    }
+
+    #[test]
+    fn an_effect_moves_more_attributes_each_later_by_its_offset() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1}));
+        let _ = e.run("group.set", &json!({"name": "Head", "fixtures": [0]}));
+        assert!(e.run("effect.from_template", &json!({"template": "circle", "group": 0})).is_ok());
+        let fx = e.show.effects.first().cloned().unwrap_or_default();
+        assert_eq!(fx.also.iter().map(|p| (p.attribute, p.offset)).collect::<Vec<_>>(), vec![(Attribute::Tilt, 0.25)]);
+        let start = e.services().now();
+        assert!(e.run("effect.start", &json!({"effect": 0})).is_ok());
+        // Half the 4 s cycle in: pan is at its top, tilt (a quarter of a cycle behind) half way up.
+        e.step_effects(start + TimeDelta::milliseconds(2000));
+        let f = e.show.fixtures[0].clone();
+        let (pan, tilt) = (value_of(&e, &f, Attribute::Pan), value_of(&e, &f, Attribute::Tilt));
+        assert!(pan.is_some_and(|v| v > 0.99), "{pan:?}");
+        assert!(tilt.is_some_and(|v| (v - 0.5).abs() < 0.01), "{tilt:?}");
+        // Saved and loaded with its parts; refused when wrong.
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.effects).unwrap_or_default();
+        assert_eq!(back, e.show.effects);
+        let set = |e: &mut Engine, also: Value| {
+            e.run("effect.set", &json!({"name": "X", "group": 0, "attribute": "red", "also": also}))
+        };
+        assert!(set(&mut e, json!([{"attribute": "green", "offset": 0.5, "low": 0.2}])).is_ok());
+        assert!(set(&mut e, json!([{"attribute": "lasers"}])).is_err());
+        assert!(set(&mut e, json!([{"attribute": "green", "offset": 2.0}])).is_err());
+        assert!(set(&mut e, json!("green")).is_err());
+        assert!(set(&mut e, Value::Array(vec![json!({"attribute": "green"}); 9])).is_err());
+        let listed = e.run("effect.list", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(listed[1]["also"], json!([{"attribute": "green", "low": 0.2, "high": 1.0, "offset": 0.5}]));
     }
 
     #[test]

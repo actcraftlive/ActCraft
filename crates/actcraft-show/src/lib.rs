@@ -85,6 +85,8 @@ pub mod limits {
     pub const MAX_LIGHT_CUES: usize = 1_000;
     /// Effects in a show.
     pub const MAX_EFFECTS: usize = 256;
+    /// More attributes in one effect.
+    pub const MAX_EFFECT_PARTS: usize = 8;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -751,8 +753,30 @@ pub struct Effect {
     pub high: f64,
     /// How far apart in the cycle the group's fixtures are, 0 (together) to 1 (spread over it).
     pub spread: f64,
+    /// More attributes moved by the same wave and timing (a circle: pan and tilt; a rainbow:
+    /// red, green and blue), each later in the cycle by its offset.
+    pub also: Vec<EffectPart>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Another attribute an effect moves, between its own two values, `offset` (0-1) of a cycle
+/// later than the effect.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EffectPart {
+    pub attribute: Attribute,
+    pub low: f64,
+    pub high: f64,
+    pub offset: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for EffectPart {
+    fn default() -> Self {
+        Self { attribute: Attribute::Intensity, low: 0.0, high: 1.0, offset: 0.0, extra: Map::new() }
+    }
 }
 
 impl Default for Effect {
@@ -767,6 +791,7 @@ impl Default for Effect {
             low: 0.0,
             high: 1.0,
             spread: 0.0,
+            also: Vec::new(),
             extra: Map::new(),
         }
     }
@@ -1541,6 +1566,12 @@ impl Show {
             fx.low = clamp_f(fx.low, 0.0, 1.0, 0.0);
             fx.high = clamp_f(fx.high, 0.0, 1.0, 1.0);
             fx.spread = clamp_f(fx.spread, 0.0, 1.0, 0.0);
+            fx.also.truncate(MAX_EFFECT_PARTS);
+            for part in &mut fx.also {
+                part.low = clamp_f(part.low, 0.0, 1.0, 0.0);
+                part.high = clamp_f(part.high, 0.0, 1.0, 1.0);
+                part.offset = clamp_f(part.offset, 0.0, 1.0, 0.0);
+            }
         }
         self.cue_lists.truncate(MAX_CUE_LISTS);
         for l in &mut self.cue_lists {
