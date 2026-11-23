@@ -14,7 +14,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | 🔶 USB to do |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists, fades, blind, freeze and pad pages done; beat sync to do |
-| M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
+| M7 | One show: lighting lane on the song timeline, shared clock | 🔶 lighting lane done |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
@@ -25,7 +25,9 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M7: lighting lane on the song timeline
+2. M5: colour and movement effects across several attributes
+3. M5: beams and moving-head direction in the stage preview
+4. M4: USB DMX interfaces
 
 ## Quality and open questions
 
@@ -225,7 +227,13 @@ monitor; 2D stage preview with virtual beams; programming, presets, sequences an
 engine with 70+ templates; cues, cue lists, control pages, blind and freeze, tap tempo and beat
 sync.
 
-## M7–M9 ⬜
+## M7–M9 🔶
+
+- ✅ Lighting lane: the Light cues tab shows the song as a lane with its bars, where playback is
+  and each lighting cue as a mark; a click on the lane sets where a new cue goes (on the beat with
+  Snap to beat), a click on a mark jumps there, dragging a mark moves its cue, and the list moves
+  a cue a beat earlier or later and says its bar and beat. Cues are placed by time or by bar and
+  beat (`song.light_cue_add {bar, beat}`, `song.light_cue_move`)
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for

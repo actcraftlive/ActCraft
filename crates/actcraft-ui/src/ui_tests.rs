@@ -250,3 +250,32 @@ fn pad_pages_are_gone_through_and_a_pad_is_moved_to_another_page() {
     assert!(h.query_by_role_and_label(Role::Button, "Outro").is_some());
     assert!(h.query_by_role_and_label(Role::Button, "Remove (Outro)").is_some());
 }
+
+#[test]
+fn a_lighting_cue_shows_on_the_lane_with_its_bar_and_moves_by_beats() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("song.add", &serde_json::Value::Null);
+        let _ = e.run("song.set", &json!({"bpm": 120.0, "beats_per_bar": 4, "beat_anchor": 0.0}));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("preset.store", &json!({"name": "Dark"}));
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "name": "Intro"}));
+        let _ = e.run("song.light_cue_add", &json!({"bar": 3, "list": 0, "cue": 0}));
+    });
+    frames(&mut h, 3);
+    h.state_mut().show_light_cues();
+    frames(&mut h, 3);
+    // Bar 3 at 120 BPM in 4/4 is 4 s in.
+    assert!(h.query_by_role_and_label(Role::Canvas, "Lighting lane").is_some());
+    h.get_by_role_and_label(Role::Button, "1. Intro, Bar 3.1, 0:04.0").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Bar 3.1").is_some(), "the list says the bar");
+    h.get_by_role_and_label(Role::Button, "Beat later (1. Intro)").click_accesskit();
+    frames(&mut h, 3);
+    let time = with(&engine, |e| e.current().and_then(|s| s.light_cues.first()).map(|c| c.time));
+    assert_eq!(time, Some(4.5));
+    assert!(h.query_by_label("Bar 3.2").is_some());
+    h.get_by_role_and_label(Role::Button, "Remove (1. Intro)").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.current().map(|s| s.light_cues.len())), Some(0));
+}

@@ -70,6 +70,22 @@ fn at_text(seconds: f64) -> String {
     format!("{}:{:02}.{}", tenths / 600, (tenths / 10) % 60, tenths % 10)
 }
 
+/// Where `seconds` is on the beat grid, as "bar.beat" (both from 1, as the grid numbers them).
+fn bar_text(clock: &actcraft_engine::BeatClock, seconds: f64) -> String {
+    let (bar, beat) = clock.bar_beat(seconds);
+    format!("{}.{}", bar + 1, u16::from(beat) + 1)
+}
+
+/// A song lighting cue's cue, in words: "2. Chorus", or that it is gone.
+fn light_cue_name(e: &Engine, c: &actcraft_show::LightCue) -> String {
+    e.show
+        .cue_lists
+        .iter()
+        .find(|l| l.name == c.list)
+        .and_then(|l| l.cues.get(c.cue))
+        .map_or_else(|| tr("(not there)").to_owned(), |cue| format!("{}. {}", c.cue + 1, cue.name))
+}
+
 impl ActCraftApp {
     /// While blind is on: says so, where fixtures are changed or shown, with a way out.
     pub(crate) fn blind_note(&mut self, ui: &mut Ui, e: &mut Engine) {
@@ -91,6 +107,96 @@ impl ActCraftApp {
         }
     }
 
+    /// The song as a lighting lane: its bars, where playback is, and each lighting cue as a mark.
+    /// A click on the lane sets where a new cue goes (on the beat with Snap to beat); a click on
+    /// a mark jumps there, and dragging a mark moves its cue (the list below moves by beats).
+    fn light_lane(
+        &mut self,
+        ui: &mut Ui,
+        e: &Engine,
+        song: &actcraft_show::Song,
+        clock: &actcraft_engine::BeatClock,
+        run: &mut Option<(&'static str, Value)>,
+    ) {
+        use egui::{Align2, FontId, Rect, Sense, Stroke, pos2, vec2};
+        let t = self.tokens;
+        ui.checkbox(&mut self.snap_to_beat, tr("Snap to beat"));
+        let playing_here = e.current_song == Some(song.id);
+        let now = if playing_here { e.status.time.max(0.0) } else { 0.0 };
+        let last = song.light_cues.last().map_or(0.0, |c| c.time + 4.0);
+        let end = song.duration.max(last).max(now).max(30.0);
+        let width = ui.available_width().max(200.0);
+        let (rect, lane) = ui.allocate_exact_size(vec2(width, 56.0), Sense::click());
+        let lane_name = tr("Lighting lane");
+        lane.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, lane_name));
+        let x_of = |s: f64| rect.left() + (s / end * f64::from(width)) as f32;
+        let time_at = |x: f32| (f64::from((x - rect.left()) / width) * end).clamp(0.0, end);
+        let snap = self.snap_to_beat;
+        let placed = |s: f64| if snap { clock.snap(s, 1).max(0.0) } else { s };
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, t.radius, t.surface);
+        // Bar lines, numbered, thinned out so the numbers don't run into each other.
+        let px_bar = (clock.beat_len() * f64::from(clock.beats_per_bar) / end * f64::from(width)) as f32;
+        if px_bar >= 2.0 {
+            let every = (40.0 / px_bar).ceil().max(1.0) as i64;
+            for line in clock.grid(0.0, end, 20_000).iter().filter(|l| l.bar_start) {
+                if line.bar.rem_euclid(every) == 1 % every {
+                    let x = x_of(line.time);
+                    painter.vline(x, rect.y_range(), Stroke::new(1.0, t.text_dim.gamma_multiply(0.6)));
+                    painter.text(
+                        pos2(x + 3.0, rect.bottom() - 2.0),
+                        Align2::LEFT_BOTTOM,
+                        line.bar.to_string(),
+                        FontId::monospace(11.0),
+                        t.text_dim,
+                    );
+                }
+            }
+        }
+        if playing_here {
+            painter.vline(x_of(now), rect.y_range(), Stroke::new(2.0, t.warning));
+        }
+        for (i, c) in song.light_cues.iter().enumerate() {
+            let x = x_of(c.time);
+            let hit = Rect::from_min_max(pos2(x - 6.0, rect.top()), pos2(x + 6.0, rect.bottom()));
+            let r = ui.interact(hit, egui::Id::unique(("light-mark", song.id, i)), Sense::click_and_drag());
+            let name = light_cue_name(e, c);
+            let label = format!("{name}, {} {}, {}", tr("Bar"), bar_text(clock, c.time), at_text(c.time));
+            r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+            let mut shown = x;
+            if r.dragged()
+                && let Some(p) = r.interact_pointer_pos()
+            {
+                shown = x_of(placed(time_at(p.x)));
+            }
+            if r.drag_stopped()
+                && let Some(p) = r.interact_pointer_pos()
+            {
+                let to = placed(time_at(p.x));
+                *run = Some(("song.light_cue_move", json!({"song": song.id, "light_cue": i, "time": to})));
+            } else if r.clicked() {
+                *run = Some(("transport.seek", json!({"seconds": c.time})));
+            }
+            let colour = if r.hovered() || r.dragged() || r.has_focus() { t.focus } else { t.accent };
+            painter.vline(shown, rect.y_range(), Stroke::new(3.0, colour));
+            // Near the right end the name goes left of the mark, so it stays readable.
+            let (at, align) = if shown > rect.right() - 100.0 {
+                (pos2(shown - 4.0, rect.top() + 2.0), Align2::RIGHT_TOP)
+            } else {
+                (pos2(shown + 4.0, rect.top() + 2.0), Align2::LEFT_TOP)
+            };
+            painter.text(at, align, &name, FontId::proportional(12.0), t.text);
+            r.on_hover_text(tr("Click to jump there; drag to move the cue"));
+        }
+        if run.is_none()
+            && lane.clicked()
+            && let Some(p) = lane.interact_pointer_pos()
+        {
+            self.looks_draft.light_time = placed(time_at(p.x));
+        }
+        lane.on_hover_text(tr("Click to set where a new cue goes"));
+    }
+
     /// The song's Lighting tab: the cues it fires as it plays, and adding one.
     pub(crate) fn song_light_tab(&mut self, ui: &mut Ui, e: &mut Engine, song: &actcraft_show::Song) {
         let t = self.tokens;
@@ -98,27 +204,38 @@ impl ActCraftApp {
             RichText::new(tr("Lighting cues this song fires as it plays (a jump skips the ones in between)."))
                 .color(t.text_dim),
         );
-        let mut remove = None;
-        egui::Grid::new("song-light-cues").num_columns(4).striped(true).show(ui, |ui| {
+        let clock = actcraft_engine::BeatClock::new(song.bpm, song.beats_per_bar, song.beat_anchor);
+        let mut run: Option<(&str, Value)> = None;
+        self.light_lane(ui, e, song, &clock, &mut run);
+        egui::Grid::new("song-light-cues").num_columns(6).striped(true).show(ui, |ui| {
             for (i, c) in song.light_cues.iter().enumerate() {
+                let name = light_cue_name(e, c);
                 ui.label(at_text(c.time));
+                ui.label(format!("{} {}", tr("Bar"), bar_text(&clock, c.time)));
                 ui.label(&c.list);
-                let name = e
-                    .show
-                    .cue_lists
-                    .iter()
-                    .find(|l| l.name == c.list)
-                    .and_then(|l| l.cues.get(c.cue))
-                    .map_or_else(|| tr("(not there)").to_owned(), |cue| format!("{}. {}", c.cue + 1, cue.name));
-                ui.label(name);
-                if ui.small_button(tr("Remove")).clicked() {
-                    remove = Some(i);
+                ui.label(&name);
+                // Moving by a beat, for the keyboard (the lane above also takes a drag).
+                let beat = clock.beat_len();
+                for (words, by) in [(tr("Beat earlier"), -beat), (tr("Beat later"), beat)] {
+                    let r = ui.small_button(words);
+                    let label = format!("{words} ({name})");
+                    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+                    if r.clicked() {
+                        let to = clock.snap(c.time + by, 1).max(0.0);
+                        run = Some(("song.light_cue_move", json!({"song": song.id, "light_cue": i, "time": to})));
+                    }
+                }
+                let r = ui.small_button(tr("Remove"));
+                let label = format!("{} ({name})", tr("Remove"));
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+                if r.clicked() {
+                    run = Some(("song.light_cue_remove", json!({"song": song.id, "light_cue": i})));
                 }
                 ui.end_row();
             }
         });
-        if let Some(i) = remove {
-            self.run(e, "song.light_cue_remove", json!({"song": song.id, "light_cue": i}));
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
         }
         let lists = e.show.cue_lists.clone();
         if lists.iter().all(|l| l.cues.is_empty()) {
@@ -138,6 +255,7 @@ impl ActCraftApp {
             if ui.button(tr("Now")).on_hover_text(tr("Where playback is")).clicked() {
                 d.light_time = (now * 10.0).round() / 10.0;
             }
+            ui.label(format!("{} {}", tr("Bar"), bar_text(&clock, d.light_time)));
             let label = ui.label(tr("Cue list"));
             egui::ComboBox::from_id_salt("light-list")
                 .selected_text(lists.get(d.light_list).map(|l| l.name.clone()).unwrap_or_default())
