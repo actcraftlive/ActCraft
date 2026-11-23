@@ -750,3 +750,13 @@
 	a pad runs a command or a macro, moves a volume or switches something: one of them	ein Pad führt einen Befehl oder ein Makro aus, bewegt eine Lautstärke oder schaltet etwas: eines davon
 	off	aus
 	on	an
+	A tablet or another program can send OSC messages to run commands, macros and pads.	Ein Tablet oder ein anderes Programm kann OSC-Nachrichten senden, um Befehle, Makros und Pads auszuführen.
+	Act on an OSC message	Auf eine OSC-Nachricht reagieren
+	Anyone on the network can then run commands in ActCraft	Dann kann jeder im Netzwerk Befehle in ActCraft ausführen
+	Could not listen for OSC: {error}	OSC-Empfang nicht möglich: {error}
+	From other computers too	Auch von anderen Computern
+	Listen for OSC	Auf OSC hören
+	Listening on {address}: send /actcraft/<command>, /actcraft/macro/<NAME> or /actcraft/pad/<n>	Empfang auf {address}: /actcraft/<command>, /actcraft/macro/<NAME> oder /actcraft/pad/<n> senden
+	OSC: listening on {address}	OSC: Empfang auf {address}
+	Port	Port
+	an ActCraft OSC address starts with /actcraft/	eine ActCraft-OSC-Adresse beginnt mit /actcraft/

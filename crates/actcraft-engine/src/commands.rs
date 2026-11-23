@@ -434,6 +434,14 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::remote::remote_trigger,
         ),
         cmd(
+            "osc.trigger",
+            "Act on an OSC message",
+            "",
+            None,
+            "{address: /actcraft/<command id> | /actcraft/macro/<NAME> | /actcraft/pad/<n>, value?: number (0 or less does nothing)} (as if the OSC message came in) -> {ran}",
+            crate::osc::osc_trigger,
+        ),
+        cmd(
             "macro.set",
             "Set macro",
             "",

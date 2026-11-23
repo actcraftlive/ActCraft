@@ -30,6 +30,7 @@ pub mod macros;
 pub mod midi_file;
 pub mod midi_sync;
 pub mod notation_commands;
+pub mod osc;
 pub mod package_commands;
 pub mod pads;
 pub mod pdf_commands;
