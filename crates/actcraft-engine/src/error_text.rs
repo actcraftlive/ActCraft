@@ -156,6 +156,7 @@ mod tests {
             include_str!("fixtures.rs"),
             include_str!("fixture_library.rs"),
             include_str!("looks.rs"),
+            include_str!("cues.rs"),
             include_str!("voice.rs"),
             include_str!("lib.rs"),
             include_str!("../../actcraft-command/src/params.rs"),

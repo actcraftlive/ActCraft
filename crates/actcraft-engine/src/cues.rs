@@ -1,0 +1,276 @@
+//! Fades and cue lists: a preset can fade in over some seconds instead of at once, and a cue
+//! list goes through presets one by one with Go and Back. The fade moves each attribute from
+//! where it is to the preset's value; the engine's tick moves it on.
+
+use actcraft_command::params as p;
+use actcraft_command::{CommandError, CommandResult};
+use actcraft_show::limits::{MAX_CUE_LISTS, MAX_CUES, MAX_FADE_S};
+use chrono::{DateTime, FixedOffset};
+use serde_json::{Value, json};
+
+pub use actcraft_show::{Cue, CueList};
+
+use crate::Engine;
+use crate::fixtures::{Attribute, levels_for, value_of};
+use crate::looks::Preset;
+
+fn invalid(msg: impl Into<String>) -> CommandError {
+    CommandError::InvalidParams(msg.into())
+}
+
+fn failed(msg: impl Into<String>) -> CommandError {
+    CommandError::Failed(msg.into())
+}
+
+/// A fade under way.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Fade {
+    started: DateTime<FixedOffset>,
+    seconds: f64,
+    parts: Vec<Part>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Part {
+    fixture: u64,
+    attribute: Attribute,
+    from: f64,
+    to: f64,
+}
+
+impl Engine {
+    /// Sets one fixture attribute (by fixture id) to `value`; whether a level changed.
+    fn put(&mut self, fixture: u64, attribute: Attribute, value: f64) -> bool {
+        let Some(f) = self.show.fixtures.iter().find(|f| f.id == fixture).cloned() else { return false };
+        let mut changed = false;
+        for (offset, level) in levels_for(&f, attribute, value) {
+            changed |= self.dmx.set(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
+        }
+        changed
+    }
+
+    /// Brings a preset's values in over `seconds` (at once for 0); whether a level changed at once.
+    pub(crate) fn fade_to(&mut self, preset: &Preset, seconds: f64) -> bool {
+        if seconds <= 0.0 {
+            self.fade = None;
+            let mut changed = false;
+            for v in &preset.values {
+                changed |= self.put(v.fixture, v.attribute, v.value);
+            }
+            return changed;
+        }
+        let parts = preset
+            .values
+            .iter()
+            .filter_map(|v| {
+                let f = self.show.fixtures.iter().find(|f| f.id == v.fixture)?;
+                let from = value_of(self, f, v.attribute)?;
+                Some(Part { fixture: v.fixture, attribute: v.attribute, from, to: v.value })
+            })
+            .collect();
+        self.fade = Some(Fade { started: self.services().now(), seconds, parts });
+        false
+    }
+
+    /// Moves a running fade on to `now`; it ends once its time is up.
+    pub fn step_fade(&mut self, now: DateTime<FixedOffset>) {
+        let Some(fade) = self.fade.clone() else { return };
+        let elapsed = (now - fade.started).num_milliseconds() as f64 / 1000.0;
+        let t = (elapsed / fade.seconds).clamp(0.0, 1.0);
+        for part in &fade.parts {
+            self.put(part.fixture, part.attribute, part.from + (part.to - part.from) * t);
+        }
+        if t >= 1.0 {
+            self.fade = None;
+        }
+    }
+
+    /// Whether a fade is under way (the window keeps drawing while it runs).
+    pub fn fading(&self) -> bool {
+        self.fade.is_some()
+    }
+
+    /// The cue a list stands at, if it has gone to one.
+    pub fn cue_position(&self, list: usize) -> Option<usize> {
+        self.cue_at.get(&list).copied()
+    }
+
+    /// Goes to cue `cue` of list `list`: fades its preset in.
+    fn go_to(&mut self, list: usize, cue: usize) -> CommandResult {
+        let c = self
+            .show
+            .cue_lists
+            .get(list)
+            .and_then(|l| l.cues.get(cue))
+            .cloned()
+            .ok_or_else(|| invalid("no such cue"))?;
+        let preset = self.show.presets.iter().find(|p| p.name == c.preset).cloned();
+        let Some(preset) = preset else { return Err(failed("that cue's preset is not in the show")) };
+        self.fade_to(&preset, c.fade);
+        self.cue_at.insert(list, cue);
+        Ok(json!({"cue": cue, "name": c.name}))
+    }
+}
+
+fn list_index(e: &Engine, prm: &Value) -> Result<usize, CommandError> {
+    if prm.get("list").is_none() {
+        // The first list when none is named, so Go works from a pad, a key or a foot switch.
+        return if e.show.cue_lists.is_empty() { Err(failed("the show has no cue list")) } else { Ok(0) };
+    }
+    p::index(prm, "list", e.show.cue_lists.len())
+}
+
+/// `cue_list.add {name}`.
+pub fn cue_list_add(e: &mut Engine, prm: &Value) -> CommandResult {
+    let name = p::str_max(prm, "name", 64)?.trim().to_owned();
+    if name.is_empty() {
+        return Err(invalid("give it a name"));
+    }
+    if e.show.cue_lists.len() >= MAX_CUE_LISTS {
+        return Err(failed("a show holds at most 64 cue lists"));
+    }
+    e.show.cue_lists.push(CueList { name, ..CueList::default() });
+    e.mark_changed();
+    Ok(json!({"list": e.show.cue_lists.len() - 1}))
+}
+
+/// `cue_list.remove {list}`.
+pub fn cue_list_remove(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "list", e.show.cue_lists.len())?;
+    e.show.cue_lists.remove(i);
+    // Positions belong to list indexes, which have moved.
+    e.cue_at.clear();
+    e.mark_changed();
+    Ok(Value::Null)
+}
+
+/// `cue_list.list`: every list with its cues and where it stands.
+pub fn cue_list_list(e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        e.show
+            .cue_lists
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let cues: Vec<Value> =
+                    l.cues.iter().map(|c| json!({"name": c.name, "preset": c.preset, "fade": c.fade})).collect();
+                json!({"name": l.name, "cues": cues, "at": e.cue_position(i)})
+            })
+            .collect(),
+    ))
+}
+
+/// `cue.add {list, preset, fade?, name?}`: a cue at the end of the list.
+pub fn cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = p::index(prm, "list", e.show.cue_lists.len())?;
+    let preset = p::index(prm, "preset", e.show.presets.len())?;
+    let fade = p::opt_f64_in(prm, "fade", 0.0, MAX_FADE_S)?.unwrap_or(0.0);
+    let preset_name = e.show.presets.get(preset).map(|p| p.name.clone()).unwrap_or_default();
+    let name =
+        p::opt_str_max(prm, "name", 64)?.map(str::trim).filter(|n| !n.is_empty()).unwrap_or(&preset_name).to_owned();
+    let Some(l) = e.show.cue_lists.get_mut(list) else { return Err(invalid("no such cue list")) };
+    if l.cues.len() >= MAX_CUES {
+        return Err(failed("a cue list holds at most 1000 cues"));
+    }
+    l.cues.push(Cue { name, preset: preset_name, fade, ..Cue::default() });
+    let cue = l.cues.len() - 1;
+    e.mark_changed();
+    Ok(json!({"cue": cue}))
+}
+
+/// `cue.remove {list, cue}`.
+pub fn cue_remove(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = p::index(prm, "list", e.show.cue_lists.len())?;
+    let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
+    let cue = p::index(prm, "cue", len)?;
+    if let Some(l) = e.show.cue_lists.get_mut(list) {
+        l.cues.remove(cue);
+    }
+    e.cue_at.remove(&list);
+    e.mark_changed();
+    Ok(Value::Null)
+}
+
+/// `cue.go {list?}`: the next cue (the first one at the start).
+pub fn cue_go(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = list_index(e, prm)?;
+    let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
+    let next = e.cue_position(list).map_or(0, |c| c + 1);
+    if next >= len {
+        return Err(failed("the cue list is at its last cue"));
+    }
+    e.go_to(list, next)
+}
+
+/// `cue.back {list?}`: the cue before.
+pub fn cue_back(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = list_index(e, prm)?;
+    let Some(previous) = e.cue_position(list).and_then(|c| c.checked_sub(1)) else {
+        return Err(failed("the cue list is at its first cue"));
+    };
+    e.go_to(list, previous)
+}
+
+/// `cue.jump {list, cue}`: straight to a cue.
+pub fn cue_jump(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = p::index(prm, "list", e.show.cue_lists.len())?;
+    let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
+    let cue = p::index(prm, "cue", len)?;
+    e.go_to(list, cue)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeDelta;
+
+    fn engine() -> Engine {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Full"}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Dark"}));
+        e
+    }
+
+    fn level(e: &Engine) -> u8 {
+        e.dmx.universe(1).map_or(0, |u| u[0])
+    }
+
+    #[test]
+    fn a_preset_fades_in_over_its_seconds() {
+        let mut e = engine();
+        let start = e.services().now();
+        assert!(e.run("preset.recall", &json!({"preset": 0, "fade": 2.0})).is_ok());
+        assert!(e.fading());
+        e.step_fade(start + TimeDelta::milliseconds(1000));
+        assert!((120..=135).contains(&level(&e)), "half way: {}", level(&e));
+        e.step_fade(start + TimeDelta::milliseconds(2500));
+        assert_eq!(level(&e), 255);
+        assert!(!e.fading(), "the fade is over");
+        assert!(e.run("preset.recall", &json!({"preset": 0, "fade": 601.0})).is_err());
+    }
+
+    #[test]
+    fn a_cue_list_goes_forward_and_back() {
+        let mut e = engine();
+        assert!(e.run("cue.go", &Value::Null).is_err(), "no list yet");
+        assert_eq!(e.run("cue_list.add", &json!({"name": "Main"})).ok(), Some(json!({"list": 0})));
+        assert!(e.run("cue.add", &json!({"list": 0, "preset": 0})).is_ok());
+        assert!(e.run("cue.add", &json!({"list": 0, "preset": 1, "fade": 3.0, "name": "Blackout"})).is_ok());
+        assert_eq!(e.run("cue.go", &Value::Null).ok(), Some(json!({"cue": 0, "name": "Full"})));
+        assert_eq!(level(&e), 255, "no fade: at once");
+        assert_eq!(e.run("cue.go", &Value::Null).ok(), Some(json!({"cue": 1, "name": "Blackout"})));
+        assert!(e.fading());
+        assert!(e.run("cue.go", &Value::Null).is_err(), "at the last cue");
+        assert_eq!(e.run("cue.back", &json!({"list": 0})).ok(), Some(json!({"cue": 0, "name": "Full"})));
+        assert!(e.run("cue.back", &Value::Null).is_err(), "at the first cue");
+        assert_eq!(e.run("cue.jump", &json!({"list": 0, "cue": 1})).ok().map(|v| v["cue"].clone()), Some(json!(1)));
+        // A cue whose preset was removed says so.
+        assert!(e.run("preset.remove", &json!({"preset": 0})).is_ok());
+        assert!(e.run("cue.jump", &json!({"list": 0, "cue": 0})).is_err());
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.cue_lists).unwrap_or_default();
+        assert_eq!(back, e.show.cue_lists);
+    }
+}

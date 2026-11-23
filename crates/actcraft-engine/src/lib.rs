@@ -25,6 +25,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod cues;
 pub mod dmx;
 pub mod error_text;
 pub mod fixture_library;
@@ -151,6 +152,9 @@ pub struct Engine {
     pub status: Status,
     /// DMX levels now (live, not saved).
     pub dmx: dmx::Dmx,
+    /// A fade under way, and where each cue list stands (by list index; not saved).
+    fade: Option<cues::Fade>,
+    cue_at: std::collections::HashMap<usize, usize>,
     /// Messages for the person, newest last.
     pub messages: VecDeque<Message>,
     audio: Option<Controller>,
@@ -228,6 +232,8 @@ impl Engine {
             status: Status::default(),
             messages: VecDeque::new(),
             dmx: dmx::Dmx::default(),
+            fade: None,
+            cue_at: std::collections::HashMap::new(),
             audio: None,
             loaded_song: None,
             last_ended: 0,
@@ -279,6 +285,10 @@ impl Engine {
     pub fn tick(&mut self) {
         self.drain_loads();
         self.drain_voices();
+        if self.fade.is_some() {
+            let now = self.services.now();
+            self.step_fade(now);
+        }
         let Some(audio) = &mut self.audio else { return };
         self.status = audio.poll();
         if self.status.ended_count != self.last_ended {

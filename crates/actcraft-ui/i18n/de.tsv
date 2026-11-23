@@ -905,3 +905,37 @@
 	no such preset	kein solches Preset
 	that preset would hold too many values	dieses Preset hätte zu viele Werte
 	{n} values	{n} Werte
+	Add a cue	Einen Cue hinzufügen
+	Add a cue list	Eine Cue-Liste hinzufügen
+	Add cue	Cue hinzufügen
+	Add cue list	Cue-Liste hinzufügen
+	At cue {n} of {count}: {name}	Bei Cue {n} von {count}: {name}
+	Back	Zurück
+	Back to the cue before	Zurück zum Cue davor
+	Cue Before	Cue davor
+	Cue lists	Cue-Listen
+	Cues fade presets in: store a preset first.	Cues blenden Presets ein: erst ein Preset speichern.
+	Fade	Überblendung
+	Fade in over	Einblenden über
+	Fade to the next cue	Zum nächsten Cue überblenden
+	Go	Go
+	Go to a cue	Zu einem Cue gehen
+	Go to the next cue	Zum nächsten Cue gehen
+	Go to this cue	Zu diesem Cue gehen
+	List cue lists	Cue-Listen auflisten
+	New cue list	Neue Cue-Liste
+	Next Cue	Nächster Cue
+	Not started	Nicht gestartet
+	Preset	Preset
+	Remove a cue	Einen Cue entfernen
+	Remove a cue list	Eine Cue-Liste entfernen
+	Remove cue list	Cue-Liste entfernen
+	a cue list holds at most 1000 cues	eine Cue-Liste fasst höchstens 1000 Cues
+	a show holds at most 64 cue lists	eine Show fasst höchstens 64 Cue-Listen
+	fading…	blendet über …
+	no such cue	kein solcher Cue
+	no such cue list	keine solche Cue-Liste
+	that cue's preset is not in the show	das Preset dieses Cues ist nicht in der Show
+	the cue list is at its first cue	die Cue-Liste ist beim ersten Cue
+	the cue list is at its last cue	die Cue-Liste ist beim letzten Cue
+	the show has no cue list	die Show hat keine Cue-Liste
