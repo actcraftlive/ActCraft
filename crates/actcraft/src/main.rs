@@ -67,6 +67,9 @@ struct Host {
     band_host: Option<actcraft_platform::band::BandHost>,
     /// Musicians' sheets in the browser, while on.
     sheets_web: Option<actcraft_platform::sheet_web::SheetWeb>,
+    /// Scores read for the browser pages, by file, and when their pictures were last drawn.
+    web_scores: std::collections::HashMap<String, actcraft_engine::notation::Score>,
+    web_score_tick: std::time::Instant,
     band_follow: Option<actcraft_platform::band::BandFollow>,
     band_connecting: Option<std::sync::mpsc::Receiver<Result<BandConnected, String>>>,
     band_retry: std::time::Instant,
@@ -331,6 +334,16 @@ impl Host {
                 .map_or_else(|| actcraft_ui::tr("this computer's address").to_owned(), |ip| ip.to_string());
             let address = format!("http://{ip}:{}", web.port());
             self.app.platform.sheets_web = Some((address, web.code(), web.connections()));
+            // Score sheets as pictures of the lines playing now, while pages are open.
+            if web.connections() > 0 && self.web_score_tick.elapsed() >= std::time::Duration::from_millis(700) {
+                self.web_score_tick = std::time::Instant::now();
+                let e = self.app.engine();
+                let count = e.show.musicians.len();
+                for i in 0..count {
+                    let picture = score_picture(&e, &mut self.web_scores, i);
+                    web.publish_score(i, picture);
+                }
+            }
         }
         // A connection being made comes back from its thread.
         if let Some(rx) = &self.band_connecting
@@ -809,6 +822,37 @@ fn chrono_now() -> String {
     NativeServices.now().format("%H:%M:%S").to_string()
 }
 
+/// The score picture musician `index` sees in the browser now: the lines playing of the score
+/// their sheet names, as SVG with a key that changes with the lines; `None` for a PDF sheet, no
+/// sheet or a score that can't be read. Scores are read once and kept (a few).
+fn score_picture(
+    e: &actcraft_engine::Engine,
+    kept: &mut std::collections::HashMap<String, actcraft_engine::notation::Score>,
+    index: usize,
+) -> Option<(String, String)> {
+    use std::hash::{Hash, Hasher};
+    let song = e.current()?;
+    let name = e.show.musicians.get(index)?;
+    let at = actcraft_engine::sheet_commands::sheet_for(song, name)?;
+    let sheet = song.sheets.get(at)?;
+    if sheet.pdf_file.is_some() {
+        return None;
+    }
+    let path = sheet.notation_file.as_ref()?;
+    if !kept.contains_key(path) {
+        let score = actcraft_engine::notation_commands::load_score(e, path).ok()?;
+        if kept.len() >= 8 {
+            kept.clear();
+        }
+        kept.insert(path.clone(), score);
+    }
+    let score = kept.get(path)?;
+    let (line, svg) = actcraft_ui::score_svg(score, sheet.part, &song.with_sheet(Some(at)), e.status.time, 820.0, 3)?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (path, sheet.part, song.id, at, line, sheet.score_first_bar).hash(&mut hasher);
+    Some((format!("{:016x}", hasher.finish()), svg))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).take(16).collect();
     let mut engine = Engine::new(Box::new(NativeServices));
@@ -976,6 +1020,8 @@ fn main() {
                 hue_out: None,
                 band_host: None,
                 sheets_web: None,
+                web_scores: std::collections::HashMap::new(),
+                web_score_tick: std::time::Instant::now(),
                 band_follow: None,
                 band_connecting: None,
                 band_retry: std::time::Instant::now(),

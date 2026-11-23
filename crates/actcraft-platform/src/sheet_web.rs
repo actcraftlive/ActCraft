@@ -63,6 +63,8 @@ struct Shared {
     page_counts: HashMap<String, usize>,
     /// Drawn pages, newest last: (file, page) and the PNG.
     pictures: Vec<(PageOf, Arc<Vec<u8>>)>,
+    /// Per musician, the picture of the score lines playing now (SVG) and its key.
+    scores: Vec<Option<(String, Arc<String>)>>,
 }
 
 /// The page server, while it lives.
@@ -139,6 +141,30 @@ impl SheetWeb {
         {
             s.state = state;
             self.shared.1.notify_all();
+        }
+    }
+
+    /// The score picture musician `index` sees now (`None`: none); waiting pages look again when
+    /// its key changes.
+    pub fn publish_score(&self, index: usize, picture: Option<(String, String)>) {
+        if index >= 256 {
+            return;
+        }
+        if let Ok(mut s) = self.shared.0.lock() {
+            if s.scores.len() <= index {
+                s.scores.resize(index + 1, None);
+            }
+            let same = match (s.scores.get(index).and_then(Option::as_ref), &picture) {
+                (Some((old, _)), Some((new, _))) => old == new,
+                (None, None) => true,
+                _ => false,
+            };
+            if !same {
+                if let Some(slot) = s.scores.get_mut(index) {
+                    *slot = picture.map(|(k, svg)| (k, Arc::new(svg)));
+                }
+                self.shared.1.notify_all();
+            }
         }
     }
 
@@ -290,6 +316,7 @@ fn answer(stream: TcpStream, shared: &(Mutex<Shared>, Condvar), quit: &AtomicBoo
             respond_html(&mut stream, &page);
         }
         ("GET", path) if signed_in && path.starts_with("/p/") => picture(&mut stream, shared, path),
+        ("GET", path) if signed_in && path.starts_with("/s/") => score_picture(&mut stream, shared, path),
         ("GET", _) if !signed_in => {
             respond(&mut stream, "303 See Other", "text/plain", "Location: /\r\n", b"");
         }
@@ -380,14 +407,18 @@ struct View {
     /// The page in view and the page count (0 when the PDF can't be read).
     page: usize,
     pages: usize,
+    /// The key of the score picture shown, for a score sheet.
+    score_key: Option<String>,
 }
 
 impl View {
     /// Changes whenever the page should change.
     fn key(&self) -> String {
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        let text =
-            format!("{:?}|{:?}|{:?}|{}|{}|{}", self.song, self.sheet, self.pdf, self.score, self.page, self.pages);
+        let text = format!(
+            "{:?}|{:?}|{:?}|{}|{}|{}|{:?}",
+            self.song, self.sheet, self.pdf, self.score, self.page, self.pages, self.score_key
+        );
         for b in text.bytes() {
             hash = (hash ^ u64::from(b)).wrapping_mul(0x100_0000_01b3);
         }
@@ -396,9 +427,10 @@ impl View {
 }
 
 fn view_of(shared: &(Mutex<Shared>, Condvar), index: usize) -> Option<View> {
-    let (state, counts) = {
+    let (state, counts, score_key) = {
         let s = shared.0.lock().ok()?;
-        (s.state.clone(), s.page_counts.clone())
+        let key = s.scores.get(index).and_then(Option::as_ref).map(|(k, _)| k.clone());
+        (s.state.clone(), s.page_counts.clone(), key)
     };
     let musician = state.get("musicians")?.as_array()?.get(index)?;
     let sheet = musician.get("sheet").filter(|s| !s.is_null());
@@ -426,6 +458,7 @@ fn view_of(shared: &(Mutex<Shared>, Condvar), index: usize) -> Option<View> {
         song: state.get("song").and_then(Value::as_str).map(str::to_owned),
         sheet: sheet.and_then(|s| s.get("name")).and_then(Value::as_str).map(str::to_owned),
         score: pdf.is_none() && sheet.and_then(|s| s.get("notation_file")).is_some_and(|n| !n.is_null()),
+        score_key: score_key.filter(|_| pdf.is_none()),
         pdf,
         page,
         pages,
@@ -472,9 +505,14 @@ fn musician_page(
             }
         }
         (Some(_), _) => body.push_str(&format!("<p>{}</p>", escape(&tr("The PDF could not be opened.")))),
-        (None, true) => {
-            body.push_str(&format!("<p>{}</p>", escape(&tr("This sheet is a score; it shows in ActCraft for now."))))
-        }
+        (None, true) => match &view.score_key {
+            Some(key) => {
+                let alt =
+                    tr("{sheet}, the lines playing now").replace("{sheet}", view.sheet.as_deref().unwrap_or_default());
+                body.push_str(&format!("<img src=\"/s/{index}/{key}\" alt=\"{}\">", escape(&alt)));
+            }
+            None => body.push_str(&format!("<p>{}</p>", escape(&tr("The score is being drawn.")))),
+        },
         (None, false) if view.song.is_some() => {
             body.push_str(&format!("<p>{}</p>", escape(&tr("No sheet for you in this song."))));
         }
@@ -487,8 +525,39 @@ fn musician_page(
 
 /// A short id for a file, so its pictures are cached apart from another file's.
 fn file_id(file: &str) -> String {
-    View { name: String::new(), song: None, sheet: None, pdf: Some(file.to_owned()), score: false, page: 0, pages: 0 }
-        .key()
+    View {
+        name: String::new(),
+        song: None,
+        sheet: None,
+        pdf: Some(file.to_owned()),
+        score: false,
+        page: 0,
+        pages: 0,
+        score_key: None,
+    }
+    .key()
+}
+
+/// `/s/<musician>/<key>`: the score lines that musician sees now, as SVG.
+fn score_picture(stream: &mut TcpStream, shared: &(Mutex<Shared>, Condvar), path: &str) {
+    let mut parts = path.trim_start_matches("/s/").split('/');
+    let (Some(index), Some(key)) = (parts.next().and_then(|i| i.parse::<usize>().ok()), parts.next()) else {
+        return respond(stream, "404 Not Found", "text/plain", "", b"not found");
+    };
+    let svg = shared.0.lock().ok().and_then(|s| {
+        s.scores.get(index).and_then(Option::as_ref).filter(|(k, _)| k == key).map(|(_, svg)| Arc::clone(svg))
+    });
+    match svg {
+        Some(svg) => respond(
+            stream,
+            "200 OK",
+            "image/svg+xml",
+            "Cache-Control: private, max-age=3600
+",
+            svg.as_bytes(),
+        ),
+        None => respond(stream, "404 Not Found", "text/plain", "", b"not found"),
+    }
 }
 
 /// `/p/<musician>/<file id>/<page>`: a page of that musician's PDF as a PNG.
@@ -607,7 +676,14 @@ mod tests {
         let names = ask(addr, &format!("GET / HTTP/1.1\r\n{cookie}\r\n"));
         assert!(names.contains("Kim &lt;Bass&gt;") && names.contains("href=\"/m/1\""));
         let kim = ask(addr, &format!("GET /m/0 HTTP/1.1\r\n{cookie}\r\n"));
-        assert!(kim.contains("Opener") && kim.contains("is a score"));
+        assert!(kim.contains("Opener") && kim.contains("being drawn"));
+        // Once its picture is there, the score shows as that picture, and only by its key.
+        web.publish_score(0, Some(("k1".into(), "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".into())));
+        let kim = ask(addr, &format!("GET /m/0 HTTP/1.1\r\n{cookie}\r\n"));
+        assert!(kim.contains("src=\"/s/0/k1\"") && kim.contains("Bass, the lines playing now"));
+        let svg = ask(addr, &format!("GET /s/0/k1 HTTP/1.1\r\n{cookie}\r\n"));
+        assert!(svg.contains("image/svg+xml") && svg.ends_with("/>"));
+        assert!(ask(addr, &format!("GET /s/0/k0 HTTP/1.1\r\n{cookie}\r\n")).starts_with("HTTP/1.1 404"));
         let alex = ask(addr, &format!("GET /m/1 HTTP/1.1\r\n{cookie}\r\n"));
         assert!(alex.contains("No sheet for you"));
         // A page that knows the view waits until it changes.
