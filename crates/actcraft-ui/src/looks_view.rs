@@ -23,6 +23,8 @@ pub struct LooksDraft {
     pub list_name: String,
     pub cue_preset: usize,
     pub cue_fade: f64,
+    /// Seconds before a new cue goes on to the next by itself (0: waits for Go).
+    pub cue_follow: f64,
     /// A new song lighting cue: its time, cue list and cue.
     pub light_time: f64,
     pub light_list: usize,
@@ -473,7 +475,7 @@ impl ActCraftApp {
                     run = Some(("cue_list.remove", json!({"list": li})));
                 }
             });
-            egui::Grid::new(("cues", li)).num_columns(4).striped(true).show(ui, |ui| {
+            egui::Grid::new(("cues", li)).num_columns(5).striped(true).show(ui, |ui| {
                 for (ci, cue) in list.cues.iter().enumerate() {
                     let words = format!("{}. {}", ci + 1, cue.name);
                     let text = if at == Some(ci) { RichText::new(words).strong() } else { RichText::new(words) };
@@ -482,6 +484,11 @@ impl ActCraftApp {
                     }
                     ui.label(&cue.preset);
                     ui.label(format!("{:.1} s", cue.fade));
+                    ui.label(if cue.follow > 0.0 {
+                        tr("then on after {s} s").replace("{s}", &format!("{:.1}", cue.follow))
+                    } else {
+                        String::new()
+                    });
                     if ui.small_button(tr("Remove")).clicked() {
                         run = Some(("cue.remove", json!({"list": li, "cue": ci})));
                     }
@@ -505,8 +512,17 @@ impl ActCraftApp {
                     let label = ui.label(tr("Fade"));
                     ui.add(egui::DragValue::new(&mut d.cue_fade).range(0.0..=600.0).speed(0.1).suffix(" s"))
                         .labelled_by(label.id);
+                    let label = ui.label(tr("Then on after"));
+                    ui.add(egui::DragValue::new(&mut d.cue_follow).range(0.0..=600.0).speed(0.1).suffix(" s"))
+                        .labelled_by(label.id)
+                        .on_hover_text(tr(
+                            "The next cue comes by itself after this long (after the last, the first); 0 waits for Go",
+                        ));
                     if ui.button(tr("Add cue")).clicked() {
-                        run = Some(("cue.add", json!({"list": li, "preset": d.cue_preset, "fade": d.cue_fade})));
+                        run = Some((
+                            "cue.add",
+                            json!({"list": li, "preset": d.cue_preset, "fade": d.cue_fade, "follow": d.cue_follow}),
+                        ));
                     }
                 });
             }

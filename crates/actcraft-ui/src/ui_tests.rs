@@ -412,3 +412,21 @@ fn a_dmx_trigger_is_added_and_removed_in_settings() {
     frames(&mut h, 3);
     assert!(with(&engine, |e| e.show.dmx_triggers.is_empty()));
 }
+
+#[test]
+fn a_cue_that_goes_on_by_itself_is_added_from_the_presets_window() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("preset.store", &json!({"name": "Dark"}));
+        let _ = e.run("cue_list.add", &json!({"name": "Chase"}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::SpinButton, "Then on after").set_value_accesskit(0.5);
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add cue").click_accesskit();
+    frames(&mut h, 3);
+    let follow = with(&engine, |e| e.show.cue_lists.first().and_then(|l| l.cues.first()).map(|c| c.follow));
+    assert_eq!(follow, Some(0.5));
+    assert!(h.query_by_label("then on after 0.5 s").is_some(), "the list says so");
+}

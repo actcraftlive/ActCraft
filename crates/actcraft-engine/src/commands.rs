@@ -623,7 +623,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add a cue",
             "",
             None,
-            "{list: index, preset: index, fade?: seconds 0-600, name?} -> {cue: index}",
+            "{list: index, preset: index, fade?: seconds 0-600, follow?: seconds 0-600 (then the next cue by itself; 0 waits for Go), name?} -> {cue: index}",
             crate::cues::cue_add,
         ),
         cmd("cue.remove", "Remove a cue", "", None, "{list: index, cue: index}", crate::cues::cue_remove),
