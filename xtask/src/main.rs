@@ -49,6 +49,7 @@ fn main() {
     let skip_missing = args.iter().any(|a| a == "--skip-missing-targets");
     let result = match runner::root(Path::new(env!("CARGO_MANIFEST_DIR"))) {
         Ok(root) if task == "icon" => icon(&root, args.get(1).map(String::as_str)),
+        Ok(root) if task == "package" => package(&root),
         Ok(root) => run(task, &root, skip_missing),
         Err(e) => Err(e.to_string()),
     };
@@ -73,6 +74,61 @@ fn icon(root: &Path, source: Option<&str>) -> Result<(), String> {
         println!("wrote {}", path.display());
     }
     Ok(())
+}
+
+/// `cargo xtask package`: a portable, unsigned archive of the app for this computer's system, in
+/// `target/package/`: the release binaries with the licences, the attribution and the readme.
+/// A zip on Windows, a .tar.gz elsewhere (made with the system's `tar`). Nothing is signed or
+/// published.
+fn package(root: &Path) -> Result<(), String> {
+    let mut build = runner::cargo(root);
+    build.args(["build", "--release", "-p", "actcraft", "--bins"]);
+    runner::run(build, "cargo build --release -p actcraft --bins").map_err(|e| e.to_string())?;
+    let version = workspace_version(root)?;
+    let name = format!("actcraft-{version}-{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+    let out = root.join("target").join("package");
+    let dir = out.join(&name);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let exe = std::env::consts::EXE_SUFFIX;
+    let release = root.join("target").join("release");
+    for bin in ["actcraft", "actcraft-cli"] {
+        let file = format!("{bin}{exe}");
+        copy(&release.join(&file), &dir.join(&file))?;
+    }
+    for doc in ["LICENSE-MIT", "LICENSE-APACHE", "ATTRIBUTION.md", "README.md"] {
+        copy(&root.join(doc), &dir.join(doc))?;
+    }
+    copy(&root.join("docs").join("licences.md"), &dir.join("THIRD-PARTY-LICENCES.md"))?;
+    let archive = if cfg!(windows) { format!("{name}.zip") } else { format!("{name}.tar.gz") };
+    let path = out.join(&archive);
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    let mut tar = std::process::Command::new("tar");
+    tar.current_dir(&out);
+    // `-a` picks the format from the name: zip on Windows (its tar is bsdtar), gzip elsewhere.
+    tar.args(["-a", "-c", "-f", &archive, &name]);
+    runner::run(tar, &format!("tar -a -c -f {archive} {name}")).map_err(|e| e.to_string())?;
+    println!("wrote {}", path.display());
+    Ok(())
+}
+
+/// The workspace's version from the root `Cargo.toml`.
+fn workspace_version(root: &Path) -> Result<String, String> {
+    let manifest = std::fs::read_to_string(root.join("Cargo.toml")).map_err(|e| e.to_string())?;
+    manifest
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("version = \"").and_then(|v| v.strip_suffix('"')))
+        .filter(|v| v.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .map(str::to_owned)
+        .ok_or_else(|| "no version in Cargo.toml".to_owned())
+}
+
+fn copy(from: &Path, to: &Path) -> Result<(), String> {
+    std::fs::copy(from, to).map(|_| ()).map_err(|e| format!("{}: {e}", from.display()))
 }
 
 fn run(task: &str, root: &Path, skip_missing: bool) -> Result<(), String> {
