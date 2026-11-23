@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: ready-made effect templates; M6: control pages and blind
+2. M6: control pages and blind
 
 ## Quality and open questions
 
@@ -199,6 +199,10 @@ details are in the milestone sections further down.
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
   Ready-made effect templates, colour and movement effects across several attributes, control
   pages and blind to do
+- ✅ Ready-made effects: fourteen to start from (breathe, pulse on the beat, chase, wave, build
+  over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom); none flashes
+  more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the
+  effect form)
 - ✅ Blackout, master and freeze: blackout takes every fixture dark at the output and a master
   scales how bright they are, by their intensity (or colour) channels only, so positions and the
   stored levels stay (`dmx.blackout`, `dmx.master`); freeze holds fades and effects and lets them

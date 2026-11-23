@@ -120,6 +120,80 @@ pub fn effect_set(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(json!({"effect": i}))
 }
 
+/// A ready-made effect: its key, its name and how it moves (no group yet).
+pub struct Template {
+    pub key: &'static str,
+    pub name: &'static str,
+    pub attribute: Attribute,
+    pub shape: Shape,
+    pub period: f64,
+    pub beats: f64,
+    pub low: f64,
+    pub high: f64,
+    pub spread: f64,
+}
+
+use actcraft_show::Attribute;
+
+const fn template(
+    key: &'static str,
+    name: &'static str,
+    attribute: Attribute,
+    shape: Shape,
+    period: f64,
+    beats: f64,
+    spread: f64,
+) -> Template {
+    Template { key, name, attribute, shape, period, beats, low: 0.0, high: 1.0, spread }
+}
+
+/// Ready-made effects. None flashes faster than a few times a second (people sensitive to
+/// flashing light are in audiences too).
+pub const TEMPLATES: &[Template] = &[
+    template("breathe", "Breathe", Attribute::Intensity, Shape::Sine, 4.0, 0.0, 0.0),
+    template("beat_pulse", "Pulse on the beat", Attribute::Intensity, Shape::Sine, 1.0, 1.0, 0.0),
+    template("chase", "Chase", Attribute::Intensity, Shape::Square, 1.0, 2.0, 1.0),
+    template("wave", "Wave", Attribute::Intensity, Shape::Sine, 2.0, 0.0, 1.0),
+    template("build", "Build over a bar", Attribute::Intensity, Shape::Saw, 4.0, 4.0, 0.0),
+    template("bounce", "Bounce", Attribute::Intensity, Shape::Triangle, 2.0, 2.0, 0.5),
+    template("red_pulse", "Red pulse", Attribute::Red, Shape::Sine, 2.0, 0.0, 0.0),
+    template("blue_wave", "Blue wave", Attribute::Blue, Shape::Sine, 3.0, 0.0, 1.0),
+    template("warm_drift", "Warm drift", Attribute::Amber, Shape::Sine, 6.0, 0.0, 0.5),
+    template("sweep", "Sweep", Attribute::Pan, Shape::Triangle, 4.0, 0.0, 0.0),
+    template("fan", "Fan out", Attribute::Pan, Shape::Sine, 4.0, 0.0, 1.0),
+    template("nod", "Nod", Attribute::Tilt, Shape::Sine, 2.0, 0.0, 0.25),
+    template("tilt_wave", "Tilt wave", Attribute::Tilt, Shape::Triangle, 4.0, 0.0, 1.0),
+    template("zoom_breathe", "Zoom in and out", Attribute::Zoom, Shape::Sine, 4.0, 0.0, 0.0),
+];
+
+/// `effect.templates`: the ready-made effects.
+pub fn effect_templates(_e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        TEMPLATES
+            .iter()
+            .map(|t| {
+                json!({"template": t.key, "name": t.name, "attribute": attribute_key(t.attribute), "shape": shape_key(t.shape),
+                    "period": t.period, "beats": t.beats, "spread": t.spread})
+            })
+            .collect(),
+    ))
+}
+
+/// `effect.from_template {template, group, name?}`: an effect from a ready-made one, on a group.
+pub fn effect_from_template(e: &mut Engine, prm: &Value) -> CommandResult {
+    let key = p::str_max(prm, "template", 32)?;
+    let t = TEMPLATES.iter().find(|t| t.key == key).ok_or_else(|| invalid("no such template"))?;
+    let g = p::index(prm, "group", e.show.groups.len())?;
+    let group = e.show.groups.get(g).map(|g| g.name.clone()).unwrap_or_default();
+    let name = p::opt_str_max(prm, "name", 64)?
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map_or_else(|| format!("{} \u{b7} {group}", t.name), str::to_owned);
+    let fx = json!({"name": name, "group": g, "attribute": attribute_key(t.attribute), "shape": shape_key(t.shape),
+        "period": t.period, "beats": t.beats, "low": t.low, "high": t.high, "spread": t.spread});
+    effect_set(e, &fx)
+}
+
 /// `effect.remove {effect}` (it stops if it runs).
 pub fn effect_remove(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "effect", e.show.effects.len())?;
@@ -212,6 +286,31 @@ mod tests {
         }
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.effects).unwrap_or_default();
         assert_eq!(back, e.show.effects);
+    }
+
+    #[test]
+    fn templates_make_effects_on_a_group() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1, "count": 2}));
+        let _ = e.run("group.set", &json!({"name": "Heads", "fixtures": [0, 1]}));
+        assert_eq!(
+            e.run("effect.from_template", &json!({"template": "fan", "group": 0})).ok(),
+            Some(json!({"effect": 0}))
+        );
+        let fx = e.show.effects.first().cloned().unwrap_or_default();
+        assert_eq!(
+            (fx.name.as_str(), fx.group.as_str(), fx.attribute),
+            ("Fan out \u{b7} Heads", "Heads", Attribute::Pan)
+        );
+        assert!(e.run("effect.from_template", &json!({"template": "lasers", "group": 0})).is_err());
+        let list = e.run("effect.templates", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(list.as_array().map(Vec::len), Some(TEMPLATES.len()));
+        // Every template is a valid effect on the group, and none flashes faster than 3 times a second.
+        for t in TEMPLATES {
+            assert!(e.run("effect.from_template", &json!({"template": t.key, "group": 0})).is_ok(), "{}", t.key);
+            let shortest = if t.beats > 0.0 { t.beats * 60.0 / 200.0 } else { t.period };
+            assert!(t.shape != Shape::Square || shortest >= 1.0 / 3.0, "{} flashes too fast", t.key);
+        }
     }
 
     #[test]

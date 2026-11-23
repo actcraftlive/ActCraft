@@ -636,6 +636,22 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("effect.remove", "Remove an effect", "", None, "{effect: index}", crate::effects::effect_remove),
         cmd("effect.list", "List effects", "", None, "none", crate::effects::effect_list),
+        cmd(
+            "effect.templates",
+            "Ready-made effects",
+            "",
+            None,
+            "none -> [{template, name, attribute, shape, period, beats, spread}]",
+            crate::effects::effect_templates,
+        ),
+        cmd(
+            "effect.from_template",
+            "Effect from a ready-made one",
+            "",
+            None,
+            "{template, group: index, name?} -> {effect: index}",
+            crate::effects::effect_from_template,
+        ),
         cmd("effect.start", "Start an effect", "", None, "{effect: index}", crate::effects::effect_start),
         cmd(
             "effect.stop",

@@ -32,6 +32,27 @@ pub struct LooksDraft {
     pub effect_group: usize,
 }
 
+/// A ready-made effect's name in the window's language.
+fn template_text(key: &str) -> &'static str {
+    match key {
+        "breathe" => tr("Breathe"),
+        "beat_pulse" => tr("Pulse on the beat"),
+        "chase" => tr("Chase"),
+        "wave" => tr("Wave"),
+        "build" => tr("Build over a bar"),
+        "bounce" => tr("Bounce"),
+        "red_pulse" => tr("Red pulse"),
+        "blue_wave" => tr("Blue wave"),
+        "warm_drift" => tr("Warm drift"),
+        "sweep" => tr("Sweep"),
+        "fan" => tr("Fan out"),
+        "nod" => tr("Nod"),
+        "tilt_wave" => tr("Tilt wave"),
+        "zoom_breathe" => tr("Zoom in and out"),
+        _ => tr("Effect"),
+    }
+}
+
 /// An effect's shape in words.
 fn shape_text(s: actcraft_engine::effects::Shape) -> &'static str {
     use actcraft_engine::effects::Shape;
@@ -396,6 +417,28 @@ impl ActCraftApp {
             let d = &mut self.looks_draft;
             d.effect_group = d.effect_group.min(groups.len() - 1);
             let fx = &mut d.effect;
+            ui.horizontal_wrapped(|ui| {
+                // A ready-made effect fills the fields below; they can still be changed.
+                let label = ui.label(tr("Start from"));
+                egui::ComboBox::from_id_salt("effect-template")
+                    .selected_text(tr("A ready-made effect"))
+                    .show_ui(ui, |ui| {
+                        for t in actcraft_engine::effects::TEMPLATES {
+                            if ui.selectable_label(false, template_text(t.key)).clicked() {
+                                fx.name = template_text(t.key).to_owned();
+                                fx.attribute = t.attribute;
+                                fx.shape = t.shape;
+                                fx.period = t.period;
+                                fx.beats = t.beats;
+                                fx.low = t.low;
+                                fx.high = t.high;
+                                fx.spread = t.spread;
+                            }
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            });
             ui.horizontal_wrapped(|ui| {
                 let label = ui.label(tr("Effect name"));
                 ui.add(egui::TextEdit::singleline(&mut fx.name).desired_width(120.0)).labelled_by(label.id);
