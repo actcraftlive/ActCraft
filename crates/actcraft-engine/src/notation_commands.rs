@@ -18,7 +18,7 @@ fn failed(msg: impl Into<String>) -> CommandError {
 }
 
 /// The `song` param, or the current song.
-fn song_id(e: &Engine, prm: &Value) -> Result<u64, CommandError> {
+pub(crate) fn song_id(e: &Engine, prm: &Value) -> Result<u64, CommandError> {
     if p::has(prm, "song") {
         let id = u64::try_from(p::i64_in(prm, "song", 1, i64::MAX)?).map_err(|_| invalid("bad song id"))?;
         if e.show.song(id).is_some() { Ok(id) } else { Err(invalid(format!("no song with id {id}"))) }
@@ -70,10 +70,11 @@ fn summary(score: &Score) -> Value {
     json!({"title": score.title, "composer": score.composer, "tempo": tempo, "parts": parts})
 }
 
-/// `notation.attach {song?, path}`: reads the score (refusing a file that isn't one) and shows it
+/// `notation.attach {song?, sheet?, path}`: reads the score (refusing a file that isn't one) and shows it
 /// in the song's Sheet music tab. An empty or default title is taken from the score.
 pub fn notation_attach(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
+    let sheet = crate::sheet_commands::sheet_param(e, id, prm)?;
     let path = p::str_max(prm, "path", MAX_TEXT)?.to_owned();
     let score = load_score(e, &path)?;
     let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
@@ -81,7 +82,9 @@ pub fn notation_attach(e: &mut Engine, prm: &Value) -> CommandResult {
     if !title.is_empty() && (song.title.trim().is_empty() || song.title.starts_with("Song ")) {
         song.title = title.chars().take(MAX_TEXT).collect();
     }
-    song.notation_file = Some(path);
+    if let Some(f) = song.sheet_mut(sheet) {
+        *f.notation_file = Some(path);
+    }
     let bars = score.parts.iter().map(|p| p.bars.len()).max().unwrap_or(0);
     e.mark_changed();
     e.say_with(
@@ -91,11 +94,15 @@ pub fn notation_attach(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(summary(&score))
 }
 
-/// `notation.read {song?}`: the song's score, described part by part.
+/// `notation.read {song?, sheet?}`: the song's score, described part by part.
 pub fn notation_read(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
-    let path =
-        e.show.song(id).and_then(|s| s.notation_file.clone()).ok_or_else(|| invalid("the song has no notation"))?;
+    let sheet = crate::sheet_commands::sheet_param(e, id, prm)?;
+    let path = e
+        .show
+        .song(id)
+        .and_then(|s| s.with_sheet(sheet).notation_file)
+        .ok_or_else(|| invalid("the song has no notation"))?;
     let score = load_score(e, &path)?;
     Ok(summary(&score))
 }

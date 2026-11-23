@@ -1251,3 +1251,29 @@
 	Fixture file (.json, .r20)	Gerätedatei (.json, .r20)
 	ActCraft reads fixture types from Open Fixture Library .json and .r20 files	ActCraft liest Gerätetypen aus Open-Fixture-Library-.json- und .r20-Dateien
 	that file is not an .r20 fixture file	diese Datei ist keine .r20-Gerätedatei
+	Add musician	Musiker hinzufügen
+	Add sheet	Notenblatt hinzufügen
+	Anyone	Alle
+	Change sheet	Notenblatt ändern
+	Each musician can have a sheet of their own for this song	Jeder Musiker kann für diesen Song ein eigenes Notenblatt haben
+	For	Für
+	List musicians	Musiker auflisten
+	List sheets	Notenblätter auflisten
+	Musicians	Musiker
+	Name, such as Bass	Name, z. B. Bass
+	New musician	Neuer Musiker
+	New sheet	Neues Notenblatt
+	Remove musician	Musiker entfernen
+	Remove sheet	Notenblatt entfernen
+	Remove {name}	{name} entfernen
+	Sheet	Notenblatt
+	Sheet for a musician	Notenblatt eines Musikers
+	Sheet name	Name des Notenblatts
+	Main sheet	Hauptblatt
+	`name` must not be empty	`name` darf nicht leer sein
+	a show holds at most {max} musicians	eine Show hat höchstens {max} Musiker
+	a song holds at most {max} further sheets	ein Song hat höchstens {max} weitere Notenblätter
+	no musician called `{name}`; add them first (musician.add)	kein Musiker namens `{name}`; zuerst hinzufügen (musician.add)
+	no such sheet	kein solches Notenblatt
+	the song's own sheet has no name, musician or part; give `sheet`	das Notenblatt des Songs selbst hat keinen Namen, Musiker oder Stimme; `sheet` angeben
+	there is already a musician called `{name}`	es gibt schon einen Musiker namens `{name}`

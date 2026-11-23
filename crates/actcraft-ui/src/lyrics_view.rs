@@ -583,7 +583,8 @@ impl ActCraftApp {
         let t = self.tokens;
         // With both a PDF and a score, the window shows the one the Sheet music tab shows.
         let source = self.sheet_source;
-        let song = e.current().cloned();
+        // The sheet picked in the Sheet music tab.
+        let song = e.current().map(|s| s.with_sheet(self.picked_sheet(s)));
         let mut open = true;
         let title = match &song {
             Some(s) if !s.title.is_empty() => format!("ActCraft \u{2014} {}", s.title),

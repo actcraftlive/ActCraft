@@ -316,9 +316,17 @@ fn render_width(shown: f32, ppp: f32) -> u32 {
     px.div_ceil(WIDTH_STEP).saturating_mul(WIDTH_STEP).clamp(WIDTH_STEP, MAX_WIDTH)
 }
 
+/// A note being written for a spot on a PDF: song, sheet (`None`: the song's own), page, spot,
+/// words.
+pub(crate) type NotePrompt = (u64, Option<usize>, u32, [f32; 2], String);
+
 impl ActCraftApp {
     pub(crate) fn sheet_tab(&mut self, ui: &mut Ui, e: &mut Engine, song: &Song) {
         let t = self.tokens;
+        self.sheet_picker(ui, e, song);
+        // From here on the song as the picked sheet shows it.
+        let pick = self.picked_sheet(song);
+        let song = &song.with_sheet(pick);
         // The open document follows the song's PDF.
         let wanted = song.pdf_file.clone();
         if let Err(err) = load_pdf_into(&mut self.sheet, ui.ctx(), e, wanted.as_deref()) {
@@ -340,7 +348,7 @@ impl ActCraftApp {
             let attach = if wanted.is_some() { tr("Choose another PDF\u{2026}") } else { tr("Attach PDF\u{2026}") };
             if ui.button(attach).on_hover_text(tr("Sheet music, lyrics or notes as a PDF file")).clicked() {
                 self.ask_file(FileRequest {
-                    ask: FileAsk::AttachPdf { song: song.id },
+                    ask: FileAsk::AttachPdf { song: song.id, sheet: pick },
                     kind: FileKind::Open,
                     title: tr("Attach PDF"),
                     filters: vec![(tr("PDF file"), PDF_EXTENSIONS)],
@@ -349,7 +357,7 @@ impl ActCraftApp {
                 });
             }
             if wanted.is_some() && ui.button(tr("Remove PDF")).clicked() {
-                self.run(e, "song.set", json!({"song": song.id, "pdf_file": null}));
+                self.run(e, "sheet.set", json!({"song": song.id, "sheet": pick, "pdf_file": null}));
             }
             let attach =
                 if score { tr("Choose another score\u{2026}") } else { tr("Attach notation\u{2026}") };
@@ -359,7 +367,7 @@ impl ActCraftApp {
                 .clicked()
             {
                 self.ask_file(FileRequest {
-                    ask: FileAsk::AttachNotation { song: song.id },
+                    ask: FileAsk::AttachNotation { song: song.id, sheet: pick },
                     kind: FileKind::Open,
                     title: tr("Attach notation"),
                     filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
@@ -368,7 +376,7 @@ impl ActCraftApp {
                 });
             }
             if score && ui.button(tr("Remove notation")).clicked() {
-                self.run(e, "song.set", json!({"song": song.id, "notation_file": null}));
+                self.run(e, "sheet.set", json!({"song": song.id, "sheet": pick, "notation_file": null}));
             }
             if wanted.is_some() || score {
                 ui.separator();
@@ -407,12 +415,125 @@ impl ActCraftApp {
         match out.request {
             Some(MarkRequest::Mark(mut prm)) => {
                 prm["song"] = json!(song.id);
+                prm["sheet"] = json!(pick);
                 self.run(e, "pdf.mark", prm);
             }
-            Some(MarkRequest::NoteAt { page, at }) => self.note_prompt = Some((song.id, page, at, String::new())),
+            Some(MarkRequest::NoteAt { page, at }) => self.note_prompt = Some((song.id, pick, page, at, String::new())),
             None => {}
         }
         self.note_window(ui.ctx(), e);
+    }
+
+    /// The further sheet of `song` picked in the Sheet music tab; `None` for the song's own.
+    pub(crate) fn picked_sheet(&self, song: &Song) -> Option<usize> {
+        self.sheet_pick.filter(|&(id, i)| id == song.id && i < song.sheets.len()).map(|(_, i)| i)
+    }
+
+    /// The sheet rows: which sheet shows (the song's own or one for a musician), adding and
+    /// removing sheets, the picked sheet's name and musician, and the band's musicians.
+    fn sheet_picker(&mut self, ui: &mut Ui, e: &mut Engine, song: &Song) {
+        let pick = self.picked_sheet(song);
+        let name_of = |i: Option<usize>| match i.and_then(|i| song.sheets.get(i)) {
+            None => tr("Main sheet").to_owned(),
+            Some(s) if s.musician.is_empty() => s.name.clone(),
+            Some(s) => format!("{} ({})", s.name, s.musician),
+        };
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Sheet"));
+            let mut chosen = pick;
+            egui::ComboBox::from_id_salt("sheet-pick")
+                .selected_text(name_of(pick))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut chosen, None, name_of(None));
+                    for i in 0..song.sheets.len() {
+                        ui.selectable_value(&mut chosen, Some(i), name_of(Some(i)));
+                    }
+                })
+                .response
+                .labelled_by(label.id)
+                .on_hover_text(tr("Each musician can have a sheet of their own for this song"));
+            if chosen != pick {
+                self.sheet_pick = chosen.map(|i| (song.id, i));
+            }
+            if let Some(i) = pick
+                && ui.button(tr("Remove sheet")).clicked()
+            {
+                self.run(e, "sheet.remove", json!({"song": song.id, "sheet": i}));
+                self.sheet_pick = None;
+            }
+            ui.separator();
+            let label = ui.label(tr("New sheet"));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.sheet_draft.0)
+                    .desired_width(120.0)
+                    .hint_text(tr("Name, such as Bass")),
+            )
+            .labelled_by(label.id);
+            let ok = !self.sheet_draft.0.trim().is_empty();
+            if ui.add_enabled(ok, egui::Button::new(tr("Add sheet"))).clicked() {
+                let name = std::mem::take(&mut self.sheet_draft.0);
+                if let Ok(v) = e.run("sheet.add", &json!({"song": song.id, "name": name})) {
+                    self.sheet_pick = v["sheet"].as_u64().and_then(|i| usize::try_from(i).ok()).map(|i| (song.id, i));
+                }
+            }
+        });
+        if let Some((i, sheet)) = pick.and_then(|i| song.sheets.get(i).map(|s| (i, s))) {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr("Sheet name"));
+                let id = egui::Id::unique(("sheet-name", song.id, i));
+                if let Some(v) = crate::edit_text(ui, tr("Sheet name"), id, &sheet.name, 140.0)
+                    && !v.trim().is_empty()
+                {
+                    self.run(e, "sheet.set", json!({"song": song.id, "sheet": i, "name": v}));
+                }
+                let label = ui.label(tr("For"));
+                let mut musician = sheet.musician.clone();
+                let anyone = tr("Anyone");
+                egui::ComboBox::from_id_salt("sheet-musician")
+                    .selected_text(if musician.is_empty() { anyone } else { musician.as_str() }.to_owned())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut musician, String::new(), anyone);
+                        for m in &e.show.musicians {
+                            ui.selectable_value(&mut musician, m.clone(), m);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                if musician != sheet.musician {
+                    self.run(e, "sheet.set", json!({"song": song.id, "sheet": i, "musician": musician}));
+                }
+            });
+        }
+        egui::CollapsingHeader::new(format!("{} ({})", tr("Musicians"), e.show.musicians.len()))
+            .id_salt("sheet-musicians")
+            .show(ui, |ui| {
+                let mut remove = None;
+                for (i, m) in e.show.musicians.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(m);
+                        let name = actcraft_engine::fill(tr("Remove {name}"), &[("name", m)]);
+                        let r = ui.small_button(tr("Remove")).on_hover_text(&name);
+                        r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                        if r.clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    self.run(e, "musician.remove", json!({"musician": i}));
+                }
+                ui.horizontal(|ui| {
+                    let label = ui.label(tr("New musician"));
+                    ui.add(egui::TextEdit::singleline(&mut self.sheet_draft.1).desired_width(120.0))
+                        .labelled_by(label.id);
+                    let ok = !self.sheet_draft.1.trim().is_empty();
+                    if ui.add_enabled(ok, egui::Button::new(tr("Add musician"))).clicked() {
+                        let name = std::mem::take(&mut self.sheet_draft.1);
+                        self.run(e, "musician.add", json!({"name": name}));
+                    }
+                });
+            });
+        ui.separator();
     }
 
     /// The marking tools over the pages: view or pen, highlighter, note; the colour; removing
@@ -448,7 +569,7 @@ impl ActCraftApp {
                 .clicked()
             {
                 let page = u32::try_from(self.sheet_top_page).unwrap_or(0);
-                self.note_prompt = Some((song.id, page, [0.04, 0.04], String::new()));
+                self.note_prompt = Some((song.id, self.picked_sheet(song), page, [0.04, 0.04], String::new()));
             }
             let marks = song.pdf_marks.len();
             if ui
@@ -456,13 +577,21 @@ impl ActCraftApp {
                 .on_hover_text(tr("Take back the mark made last"))
                 .clicked()
             {
-                self.run(e, "pdf.unmark", json!({"song": song.id, "mark": marks - 1}));
+                self.run(
+                    e,
+                    "pdf.unmark",
+                    json!({"song": song.id, "sheet": self.picked_sheet(song), "mark": marks - 1}),
+                );
             }
             if self.confirm_clear_marks && marks > 0 {
                 let text = actcraft_engine::fill(tr("Remove all {count} marks?"), &[("count", &marks.to_string())]);
                 ui.label(text);
                 if ui.button(tr("Remove")).clicked() {
-                    self.run(e, "pdf.clear_marks", json!({"song": song.id, "confirm": true}));
+                    self.run(
+                        e,
+                        "pdf.clear_marks",
+                        json!({"song": song.id, "sheet": self.picked_sheet(song), "confirm": true}),
+                    );
                     self.confirm_clear_marks = false;
                 }
                 if ui.button(tr("Cancel")).clicked() {
@@ -476,7 +605,7 @@ impl ActCraftApp {
 
     /// The small window that takes a note's words; Enter adds it, Esc or Cancel drops it.
     fn note_window(&mut self, ctx: &egui::Context, e: &mut Engine) {
-        let Some((song, page, at, mut text)) = self.note_prompt.take() else { return };
+        let Some((song, sheet, page, at, mut text)) = self.note_prompt.take() else { return };
         let mut keep = true;
         let mut add = false;
         egui::Modal::new(egui::Id::unique("pdf-note")).show(ctx, |ui| {
@@ -504,12 +633,12 @@ impl ActCraftApp {
             keep = false;
         }
         if add && !text.trim().is_empty() {
-            let prm = json!({"song": song, "page": page, "kind": "note", "points": [at], "text": text});
+            let prm = json!({"song": song, "sheet": sheet, "page": page, "kind": "note", "points": [at], "text": text});
             self.run(e, "pdf.mark", prm);
             keep = false;
         }
         if keep {
-            self.note_prompt = Some((song, page, at, text));
+            self.note_prompt = Some((song, sheet, page, at, text));
         }
     }
 }

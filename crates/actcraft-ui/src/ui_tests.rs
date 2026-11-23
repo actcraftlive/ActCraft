@@ -623,3 +623,46 @@ fn a_mixed_channel_is_set_by_picking_its_range() {
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[1])), Some(255), "through the range");
 }
+
+#[test]
+fn a_song_gets_a_sheet_for_a_musician_from_the_sheet_music_tab() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("song.add", &serde_json::Value::Null);
+    });
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Sheet music").click_accesskit();
+    frames(&mut h, 3);
+    // A musician first, from the Musicians list.
+    h.get_by_label("Musicians (0)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::TextInput, "New musician").focus();
+    frames(&mut h, 1);
+    h.get_by_role_and_label(Role::TextInput, "New musician").type_text("Kim");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add musician").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.show.musicians.clone()), vec!["Kim".to_owned()]);
+    assert!(h.query_by_role_and_label(Role::Button, "Remove Kim").is_some(), "the remove button says whom");
+    // Then a sheet, which is picked once added.
+    h.get_by_role_and_label(Role::TextInput, "New sheet").focus();
+    frames(&mut h, 1);
+    h.get_by_role_and_label(Role::TextInput, "New sheet").type_text("Bass");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add sheet").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.current().map(|s| s.sheets.len())), Some(1));
+    assert!(h.query_by_role_and_label(Role::TextInput, "Sheet name").is_some(), "the picked sheet's fields show");
+    // It is for Kim.
+    h.get_by_role_and_label(Role::ComboBox, "For").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Kim").click_accesskit();
+    frames(&mut h, 3);
+    let musician = with(&engine, |e| e.current().and_then(|s| s.sheets.first().map(|s| s.musician.clone())));
+    assert_eq!(musician.as_deref(), Some("Kim"));
+    // Back to the song's own sheet: the sheet's fields go.
+    h.get_by_role_and_label(Role::ComboBox, "Sheet").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Main sheet").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::TextInput, "Sheet name").is_none());
+}

@@ -204,11 +204,8 @@ pub fn show_export_package(e: &mut Engine, prm: &Value) -> CommandResult {
         if let Some(midi) = &mut song.midi_file {
             packer.relink(midi)?;
         }
-        if let Some(pdf) = &mut song.pdf_file {
-            packer.relink(pdf)?;
-        }
-        if let Some(score) = &mut song.notation_file {
-            packer.relink(score)?;
+        for file in song.sheet_files_mut() {
+            packer.relink(file)?;
         }
     }
     let Packer { mut writer, packed, missing, total, .. } = packer;
@@ -291,11 +288,8 @@ pub fn show_open_package(e: &mut Engine, prm: &Value) -> CommandResult {
         if let Some(midi) = &mut song.midi_file {
             relink(midi);
         }
-        if let Some(pdf) = &mut song.pdf_file {
-            relink(pdf);
-        }
-        if let Some(score) = &mut song.notation_file {
-            relink(score);
+        for file in song.sheet_files_mut() {
+            relink(file);
         }
     }
     let songs = show.songs.len();
