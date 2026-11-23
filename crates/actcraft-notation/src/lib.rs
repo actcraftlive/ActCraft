@@ -20,10 +20,12 @@
 )]
 
 pub mod flow;
+pub mod midi;
 mod musicxml;
 pub mod tab;
 
 pub use flow::{Flow, play_order};
+pub use midi::read_midi;
 pub use musicxml::{read, read_mxl, read_xml};
 
 /// Ticks in a quarter note; every onset and length is in ticks.
@@ -425,8 +427,8 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// File extensions read as notation.
-pub const EXTENSIONS: &[&str] = &["musicxml", "xml", "mxl"];
+/// File extensions read as notation: MusicXML and MIDI.
+pub const EXTENSIONS: &[&str] = &["musicxml", "xml", "mxl", "mid", "midi"];
 
 #[cfg(test)]
 mod tests {

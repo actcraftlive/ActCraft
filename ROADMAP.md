@@ -299,11 +299,13 @@ Planned with the owner on 2026-11-23. Each item is its own pull request.
   (egui compiled to WebAssembly, house rule 4: no handwritten JavaScript); signing in reuses the
   band link's pairing code and its local-network-only rule; check what `craft-libs` already
   serves (`web-host`) before writing a server (house rule 16)
-- ⬜ Notes from MIDI files: a song's MIDI file (or one brought in for it) becomes a score; each
-  MIDI track is assigned to a musician and shown as staves, drums by the General MIDI drum map,
-  guitar and bass also as tab (using the fret placement the MusicXML reader has). Needs
-  quantising to note values, key and enharmonic spelling, voices and the piano's two hands; works
-  best with MIDI written in a notation program, roughly with played-in MIDI
+- ✅ Notes from MIDI files: a MIDI file (.mid) is read as a score like MusicXML ("Attach notation…",
+  or "Notes from the MIDI file" for the song's own MIDI file); each track, and each channel of a
+  track, becomes a part a sheet can show for its musician. Onsets and ends go to a sixteenth grid,
+  notes struck together form chords, odd lengths and bar lines are tied, sharps or flats follow
+  the key; drums are written by the General MIDI drum map, a piano on two staves split at middle
+  C, guitars and basses (by program or name) also as tab. Works best with MIDI written in a
+  notation program, roughly with played-in MIDI; voices within one staff are not separated
 - ⬜ Setlist as a PDF for the stage floor: a playlist's sets printed large with the band's logo and
   the concert's name at the top, each song's title and length, the total, and entries of their own
   for breaks and instrument changes. Check `craft-libs` for writing PDF before adding a writer

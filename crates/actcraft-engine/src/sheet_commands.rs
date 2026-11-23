@@ -148,8 +148,12 @@ pub fn sheet_set(e: &mut Engine, prm: &Value) -> CommandResult {
         |v| services::extension(v).as_deref() == Some("pdf"),
         "`pdf_file` must be a .pdf file",
     )?;
-    let notation =
-        file_param(prm, "notation_file", crate::notation_commands::is_notation_path, "a .musicxml, .xml or .mxl file")?;
+    let notation = file_param(
+        prm,
+        "notation_file",
+        crate::notation_commands::is_notation_path,
+        "`notation_file` must be a .musicxml, .xml, .mxl or .mid file",
+    )?;
     let first_bar = p::opt_i64_in(prm, "score_first_bar", MIN_SCORE_FIRST_BAR.into(), MAX_SCORE_FIRST_BAR.into())?
         .and_then(|v| i32::try_from(v).ok());
     let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };

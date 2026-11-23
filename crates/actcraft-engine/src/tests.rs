@@ -798,3 +798,33 @@ fn songs_hold_sheets_for_each_musician() {
     assert!(e.run("sheet.remove", &json!({"song": id, "sheet": 0})).is_ok());
     assert_eq!(e.run("sheet.list", &json!({"song": id})).ok().map(|v| v[0]["name"].clone()), Some(json!("Bass")));
 }
+
+#[test]
+fn a_midi_file_is_read_as_notes() {
+    use craft_midi::{Note, Sequence, Smf, SmfTrack};
+    let note =
+        |pitch: u8, start: i64| Note { pitch, velocity: 90, release_velocity: 64, channel: 0, start, length: 960 };
+    let file = Smf {
+        format: 1,
+        tracks: vec![SmfTrack {
+            name: "Lead Guitar".into(),
+            sequence: Sequence { notes: vec![note(64, 0), note(67, 960)], ..Sequence::default() },
+        }],
+        tempos: vec![(0, 120.0)],
+        meters: vec![(0, 4, 4)],
+        markers: Vec::new(),
+        key_sigs: Vec::new(),
+    };
+    let mut e = Engine::new(Box::new(MemoryServices::default()));
+    let _ = e.services_mut().write_file("/s/riff.mid", &craft_midi::write_smf(&file).unwrap_or_default());
+    let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    let r = e.run("notation.attach", &json!({"song": id, "path": "/s/riff.mid"}));
+    let part = r.ok().map(|v| v["parts"][0].clone()).unwrap_or_default();
+    assert_eq!(
+        (part["name"].clone(), part["notes"].clone(), part["tablature"].clone()),
+        (json!("Lead Guitar"), json!(2), json!(true))
+    );
+    assert_eq!(e.show.songs[0].notation_file.as_deref(), Some("/s/riff.mid"));
+    assert!(e.run("sheet.set", &json!({"song": id, "notation_file": "/s/riff.MIDI"})).is_ok(), "either extension");
+    assert!(e.run("sheet.set", &json!({"song": id, "notation_file": "/s/riff.wav"})).is_err());
+}

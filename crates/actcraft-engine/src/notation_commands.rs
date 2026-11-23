@@ -27,7 +27,7 @@ pub(crate) fn song_id(e: &Engine, prm: &Value) -> Result<u64, CommandError> {
     }
 }
 
-/// Whether a path names a score file (`.musicxml`, `.xml`, `.mxl`).
+/// Whether a path names a score file (`.musicxml`, `.xml`, `.mxl`) or a MIDI file read as one.
 pub fn is_notation_path(path: &str) -> bool {
     services::extension(path).is_some_and(|ext| actcraft_notation::EXTENSIONS.contains(&ext.as_str()))
 }
@@ -36,7 +36,9 @@ pub fn is_notation_path(path: &str) -> bool {
 /// translates.
 pub fn load_score(e: &Engine, path: &str) -> Result<Score, CommandError> {
     if !is_notation_path(path) {
-        return Err(invalid("ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl)"));
+        return Err(invalid(
+            "ActCraft reads notation from MusicXML files (.musicxml, .xml, .mxl) and MIDI files (.mid)",
+        ));
     }
     let bytes = e.services().read_file(path).map_err(failed)?;
     actcraft_notation::read(&bytes).map_err(|err| match err {

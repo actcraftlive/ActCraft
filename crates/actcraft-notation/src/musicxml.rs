@@ -17,9 +17,16 @@ const MAX_DIVISIONS: f64 = 1_000_000.0;
 /// Longest note or move accepted, in quarter notes.
 const MAX_QUARTERS: f64 = 4_096.0;
 
-/// Reads a score, plain or compressed (told apart by the ZIP signature).
+/// Reads a score: MusicXML plain or compressed (told apart by the ZIP signature), or a Standard
+/// MIDI File (by its `MThd` header), whose notes are written out as a score.
 pub fn read(bytes: &[u8]) -> Result<Score, Error> {
-    if bytes.starts_with(b"PK\x03\x04") { read_mxl(bytes) } else { read_xml(bytes) }
+    if bytes.starts_with(b"MThd") {
+        crate::midi::read_midi(bytes)
+    } else if bytes.starts_with(b"PK\x03\x04") {
+        read_mxl(bytes)
+    } else {
+        read_xml(bytes)
+    }
 }
 
 /// Reads a compressed score (`.mxl`): the file `META-INF/container.xml` names, else the first
