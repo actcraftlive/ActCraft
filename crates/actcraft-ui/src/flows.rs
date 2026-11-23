@@ -38,11 +38,14 @@ pub enum FileAsk {
     ImportLyrics {
         song: u64,
     },
+    /// A PDF or a score for one of the song's sheets (`None`: its own).
     AttachPdf {
         song: u64,
+        sheet: Option<usize>,
     },
     AttachNotation {
         song: u64,
+        sheet: Option<usize>,
     },
     AttachMidi {
         song: u64,
@@ -191,8 +194,8 @@ impl ActCraftApp {
                     self.continue_after_discard(e, next);
                 }
             }
-            FileAsk::AttachPdf { song } => {
-                if e.run("song.set", &json!({"song": song, "pdf_file": path_string(&first)})).is_ok() {
+            FileAsk::AttachPdf { song, sheet } => {
+                if e.run("sheet.set", &json!({"song": song, "sheet": sheet, "pdf_file": path_string(&first)})).is_ok() {
                     self.centre_tab = crate::CentreTab::Sheet;
                 }
             }
@@ -239,8 +242,9 @@ impl ActCraftApp {
             FileAsk::AttachMidi { song } => {
                 let _ = e.run("midi.attach", &json!({"song": song, "path": path_string(&first)}));
             }
-            FileAsk::AttachNotation { song } => {
-                if e.run("notation.attach", &json!({"song": song, "path": path_string(&first)})).is_ok() {
+            FileAsk::AttachNotation { song, sheet } => {
+                if e.run("notation.attach", &json!({"song": song, "sheet": sheet, "path": path_string(&first)})).is_ok()
+                {
                     self.centre_tab = crate::CentreTab::Sheet;
                     self.sheet_source = crate::sheet_view::SheetSource::Notation;
                     // Read again, also when the same file was edited and attached once more.
@@ -410,7 +414,10 @@ impl ActCraftApp {
             "notation.attach" => {
                 if let Some(song) = current {
                     self.ask_file(FileRequest {
-                        ask: FileAsk::AttachNotation { song },
+                        ask: FileAsk::AttachNotation {
+                            song,
+                            sheet: e.show.song(song).and_then(|s| self.picked_sheet(s)),
+                        },
                         kind: FileKind::Open,
                         title: tr("Attach notation"),
                         filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],

@@ -959,9 +959,16 @@ impl ActCraftApp {
             ui.label(egui::RichText::new(format!("{} {why}", tr("The notation could not be opened:"))).color(t.danger));
             return;
         }
+        // A further sheet keeps the part it shows.
+        let pick = self.picked_sheet(song);
+        let sheet_part = pick.and_then(|i| song.sheets.get(i)).map(|s| s.part);
         let Some(doc) = self.notation.as_ref() else { return };
         let look = &mut self.notation_look;
+        if let Some(part) = sheet_part {
+            look.part = part;
+        }
         look.part = look.part.min(doc.score.parts.len().saturating_sub(1));
+        let part_before = look.part;
         let mut first_bar: Option<i32> = None;
         ui.horizontal_wrapped(|ui| {
             if !doc.score.title.is_empty() {
@@ -1014,7 +1021,10 @@ impl ActCraftApp {
                 .on_hover_text(tr("Keep the playing bar in view while the song plays"));
         });
         if let Some(v) = first_bar {
-            self.run(e, "song.set", json!({"song": song.id, "score_first_bar": v}));
+            self.run(e, "sheet.set", json!({"song": song.id, "sheet": pick, "score_first_bar": v}));
+        }
+        if pick.is_some() && self.notation_look.part != part_before {
+            self.run(e, "sheet.set", json!({"song": song.id, "sheet": pick, "part": self.notation_look.part}));
         }
         ui.separator();
         let Some(doc) = self.notation.as_ref() else { return };

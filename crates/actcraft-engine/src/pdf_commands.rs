@@ -49,9 +49,10 @@ fn points(prm: &Value) -> Result<Vec<[f32; 2]>, CommandError> {
         .collect()
 }
 
-/// `pdf.mark {song?, page, kind, points, colour?, text?}`: adds a mark to a page of the song's PDF.
+/// `pdf.mark {song?, sheet?, page, kind, points, colour?, text?}`: adds a mark to a page of the song's PDF.
 pub fn pdf_mark(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
+    let sheet = crate::sheet_commands::sheet_param(e, id, prm)?;
     let page = u32::try_from(p::i64_in(prm, "page", 0, i64::from(MAX_PDF_PAGE))?).unwrap_or(0);
     let kind = match p::opt_str_max(prm, "kind", 16)?.unwrap_or("pen") {
         "pen" => PdfMarkKind::Pen,
@@ -80,39 +81,45 @@ pub fn pdf_mark(e: &mut Engine, prm: &Value) -> CommandResult {
     if kind == PdfMarkKind::Note && mark.text.is_empty() {
         return Err(invalid("a note needs `text`"));
     }
-    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
-    if song.pdf_marks.len() >= MAX_PDF_MARKS {
+    let Some(marks) = e.show.song_mut(id).and_then(|s| s.sheet_mut(sheet)).map(|f| f.pdf_marks) else {
+        return Err(invalid("no such song"));
+    };
+    if marks.len() >= MAX_PDF_MARKS {
         return Err(failed(format!("a song's PDF holds at most {MAX_PDF_MARKS} marks")));
     }
-    song.pdf_marks.push(mark);
-    let index = song.pdf_marks.len() - 1;
+    marks.push(mark);
+    let index = marks.len() - 1;
     e.mark_changed();
     Ok(json!({"mark": index}))
 }
 
-/// `pdf.unmark {song?, mark}`: removes one mark.
+/// `pdf.unmark {song?, sheet?, mark}`: removes one mark.
 pub fn pdf_unmark(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
-    let len = e.show.song(id).map_or(0, |s| s.pdf_marks.len());
+    let sheet = crate::sheet_commands::sheet_param(e, id, prm)?;
+    let len = e.show.song_mut(id).and_then(|s| s.sheet_mut(sheet)).map_or(0, |f| f.pdf_marks.len());
     let i = p::index(prm, "mark", len)?;
-    if let Some(s) = e.show.song_mut(id) {
-        s.pdf_marks.remove(i);
+    if let Some(f) = e.show.song_mut(id).and_then(|s| s.sheet_mut(sheet)) {
+        f.pdf_marks.remove(i);
     }
     e.mark_changed();
     Ok(Value::Null)
 }
 
-/// `pdf.clear_marks {song?, page?, confirm: true}`: removes the marks of one page, or all.
+/// `pdf.clear_marks {song?, sheet?, page?, confirm: true}`: removes the marks of one page, or all.
 pub fn pdf_clear_marks(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
+    let sheet = crate::sheet_commands::sheet_param(e, id, prm)?;
     let page = p::opt_i64_in(prm, "page", 0, i64::from(MAX_PDF_PAGE))?.and_then(|v| u32::try_from(v).ok());
     if !p::opt_bool(prm, "confirm")?.unwrap_or(false) {
         return Err(failed("removing marks needs confirm: true"));
     }
-    let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
-    let before = song.pdf_marks.len();
-    song.pdf_marks.retain(|m| page.is_some_and(|p| m.page != p));
-    let removed = before - song.pdf_marks.len();
+    let Some(marks) = e.show.song_mut(id).and_then(|s| s.sheet_mut(sheet)).map(|f| f.pdf_marks) else {
+        return Err(invalid("no such song"));
+    };
+    let before = marks.len();
+    marks.retain(|m| page.is_some_and(|p| m.page != p));
+    let removed = before - marks.len();
     if removed > 0 {
         e.mark_changed();
     }

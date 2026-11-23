@@ -95,6 +95,9 @@ pub mod limits {
     pub const MAX_EFFECT_PARTS: usize = 8;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
+    /// Further sheets on one song, and musicians in a show.
+    pub const MAX_SHEETS: usize = 32;
+    pub const MAX_MUSICIANS: usize = 32;
     /// Points in one pen stroke.
     pub const MAX_MARK_POINTS: usize = 4_096;
     /// Highest PDF page a mark may sit on (0-based).
@@ -177,6 +180,9 @@ pub struct Show {
     /// DMX heard from other gear that sets off commands.
     #[serde(default)]
     pub dmx_triggers: Vec<DmxTrigger>,
+    /// The band's musicians by name, for their sheets.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub musicians: Vec<String>,
     /// Game controller buttons that set off commands.
     #[serde(default)]
     pub gamepad_actions: Vec<GamepadAction>,
@@ -230,6 +236,7 @@ impl Default for Show {
             pads: Vec::new(),
             dmx_outputs: Vec::new(),
             dmx_triggers: Vec::new(),
+            musicians: Vec::new(),
             gamepad_actions: Vec::new(),
             gamepad_faders: Vec::new(),
             fixtures: Vec::new(),
@@ -296,6 +303,10 @@ pub struct Song {
     /// The song bar (beat grid numbering: 1 at the beat anchor, 0 and below before it) where
     /// the score's first bar plays; 0 or less for a score that starts with a pickup bar.
     pub score_first_bar: i32,
+    /// More sheets, each for a musician ("Guitar", "Bass"): the fields above are the song's own
+    /// sheet, these come after it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sheets: Vec<Sheet>,
     /// Lighting cues the song fires as it plays: at a time, a cue of a cue list.
     pub light_cues: Vec<LightCue>,
     /// Start the next song when this one ends.
@@ -341,6 +352,7 @@ impl Default for Song {
             pdf_marks: Vec::new(),
             notation_file: None,
             score_first_bar: 1,
+            sheets: Vec::new(),
             light_cues: Vec::new(),
             autoplay: false,
             loop_song: false,
@@ -432,6 +444,111 @@ pub enum PdfMarkKind {
     Highlight,
     /// A text note at its point.
     Note,
+}
+
+/// A song's sheet fields to change: the song's own sheet or one of its further sheets.
+pub struct SheetFields<'a> {
+    pub pdf_file: &'a mut Option<String>,
+    pub pdf_marks: &'a mut Vec<PdfMark>,
+    pub notation_file: &'a mut Option<String>,
+    pub score_first_bar: &'a mut i32,
+}
+
+/// One more sheet of a song, for a musician: a PDF or a score (MusicXML, one of its parts), with
+/// marks of its own; it scrolls with playback like the song's own sheet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Sheet {
+    /// What it is called ("Guitar", "Bass chords").
+    pub name: String,
+    /// The musician it is for (a name from the show's musicians); empty for anyone.
+    pub musician: String,
+    pub pdf_file: Option<String>,
+    pub pdf_marks: Vec<PdfMark>,
+    pub notation_file: Option<String>,
+    /// The score's part shown (from 0), when the score has several.
+    pub part: usize,
+    /// As [`Song::score_first_bar`].
+    pub score_first_bar: i32,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for Sheet {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            musician: String::new(),
+            pdf_file: None,
+            pdf_marks: Vec::new(),
+            notation_file: None,
+            part: 0,
+            score_first_bar: 1,
+            extra: Map::new(),
+        }
+    }
+}
+
+impl Sheet {
+    /// Keeps a sheet from a file within bounds.
+    fn tidy(&mut self) {
+        use limits::*;
+        cut(&mut self.name, 64);
+        cut(&mut self.musician, 64);
+        for file in [&mut self.pdf_file, &mut self.notation_file].into_iter().flatten() {
+            cut(file, MAX_TEXT);
+        }
+        self.pdf_marks.truncate(MAX_PDF_MARKS);
+        for m in &mut self.pdf_marks {
+            m.normalise();
+        }
+        self.pdf_marks.retain(|m| m.points.len() >= m.min_points());
+        self.part = self.part.min(255);
+        self.score_first_bar = self.score_first_bar.clamp(MIN_SCORE_FIRST_BAR, MAX_SCORE_FIRST_BAR);
+    }
+}
+
+impl Song {
+    /// The song as one of its sheets shows it: `None` is the song's own sheet, `Some(i)` puts
+    /// sheet `i`'s file, marks and first bar in the song's own sheet fields (for views that show
+    /// one sheet). A sheet that isn't there gives the song as it is.
+    pub fn with_sheet(&self, sheet: Option<usize>) -> Song {
+        let mut s = self.clone();
+        if let Some(sh) = sheet.and_then(|i| self.sheets.get(i)) {
+            s.pdf_file.clone_from(&sh.pdf_file);
+            s.pdf_marks.clone_from(&sh.pdf_marks);
+            s.notation_file.clone_from(&sh.notation_file);
+            s.score_first_bar = sh.score_first_bar;
+        }
+        s
+    }
+
+    /// The fields of one of the song's sheets to change: `None` is the song's own sheet;
+    /// `None` back for a sheet that isn't there.
+    pub fn sheet_mut(&mut self, sheet: Option<usize>) -> Option<SheetFields<'_>> {
+        match sheet {
+            None => Some(SheetFields {
+                pdf_file: &mut self.pdf_file,
+                pdf_marks: &mut self.pdf_marks,
+                notation_file: &mut self.notation_file,
+                score_first_bar: &mut self.score_first_bar,
+            }),
+            Some(i) => self.sheets.get_mut(i).map(|s| SheetFields {
+                pdf_file: &mut s.pdf_file,
+                pdf_marks: &mut s.pdf_marks,
+                notation_file: &mut s.notation_file,
+                score_first_bar: &mut s.score_first_bar,
+            }),
+        }
+    }
+
+    /// Every sheet file the song names (PDFs and scores, its own and its further sheets'), to
+    /// relink them when a show is packed or unpacked.
+    pub fn sheet_files_mut(&mut self) -> impl Iterator<Item = &mut String> {
+        let own = [&mut self.pdf_file, &mut self.notation_file];
+        let more = self.sheets.iter_mut().flat_map(|s| [&mut s.pdf_file, &mut s.notation_file]);
+        own.into_iter().chain(more).flatten()
+    }
 }
 
 /// A mark on a page of a song's PDF. Points are fractions of the page (0..1 from the top left),
@@ -1541,6 +1658,10 @@ impl Song {
             cut(m, MAX_TEXT);
         }
         self.score_first_bar = self.score_first_bar.clamp(MIN_SCORE_FIRST_BAR, MAX_SCORE_FIRST_BAR);
+        self.sheets.truncate(MAX_SHEETS);
+        for s in &mut self.sheets {
+            s.tidy();
+        }
         self.light_cues.retain(|c| c.time.is_finite() && c.time >= 0.0);
         self.light_cues.truncate(MAX_LIGHT_CUES);
         for c in &mut self.light_cues {
@@ -1754,6 +1875,11 @@ impl Show {
         for a in &mut self.gamepad_actions {
             cut(&mut a.command, 64);
         }
+        self.musicians.truncate(MAX_MUSICIANS);
+        for m in &mut self.musicians {
+            cut(m, 64);
+        }
+        self.musicians.retain(|m| !m.trim().is_empty());
         self.dmx_triggers.truncate(MAX_DMX_TRIGGERS);
         self.dmx_triggers.retain(|t| (1..=512).contains(&t.channel) && t.universe <= DmxOutput::ARTNET_MAX);
         for t in &mut self.dmx_triggers {

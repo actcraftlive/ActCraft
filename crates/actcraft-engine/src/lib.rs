@@ -45,6 +45,7 @@ pub mod pdf_commands;
 pub mod region_commands;
 pub mod remote;
 pub mod services;
+pub mod sheet_commands;
 pub mod voice;
 
 pub use actcraft_audio::tempo;

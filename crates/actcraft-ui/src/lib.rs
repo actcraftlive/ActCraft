@@ -281,8 +281,13 @@ pub struct ActCraftApp {
     sheet_view: sheet_view::SheetLook,
     /// Marking on the PDF: tool, colour, the mark being drawn.
     mark_edit: sheet_view::MarkEdit,
-    /// The note being written for a spot on the PDF: song, page, spot, words.
-    note_prompt: Option<(u64, u32, [f32; 2], String)>,
+    /// The note being written for a spot on the PDF: song, sheet, page, spot, words.
+    note_prompt: Option<sheet_view::NotePrompt>,
+    /// A further sheet of a song picked in the Sheet music tab (song id, sheet); the song's own
+    /// sheet otherwise.
+    sheet_pick: Option<(u64, usize)>,
+    /// The name typed for a new sheet or a new musician in the Sheet music tab.
+    sheet_draft: (String, String),
     /// "Remove all marks" waits for a second click.
     confirm_clear_marks: bool,
     /// The first PDF page in view (where a note added without a pointer goes).
@@ -371,6 +376,8 @@ impl ActCraftApp {
             sheet_view: sheet_view::SheetLook::default(),
             mark_edit: sheet_view::MarkEdit::default(),
             note_prompt: None,
+            sheet_pick: None,
+            sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,
             sheet_top_page: 0,
             sheet_source: sheet_view::SheetSource::default(),
@@ -1129,7 +1136,7 @@ impl ActCraftApp {
             ui.selectable_value(&mut self.centre_tab, CentreTab::Mixer, big(tr("Mixer")));
             let lyrics_label = if song.lyrics.trim().is_empty() { tr("Lyrics") } else { tr("Lyrics \u{2022}") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Lyrics, big(lyrics_label));
-            let sheet_label = if song.pdf_file.is_some() || song.notation_file.is_some() {
+            let sheet_label = if song.pdf_file.is_some() || song.notation_file.is_some() || !song.sheets.is_empty() {
                 tr("Sheet music \u{2022}")
             } else {
                 tr("Sheet music")

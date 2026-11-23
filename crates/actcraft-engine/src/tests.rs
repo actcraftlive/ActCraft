@@ -751,3 +751,50 @@ fn notation_attaches_reads_and_travels_in_packages() {
         Some(json!("Night Drive"))
     );
 }
+
+#[test]
+fn songs_hold_sheets_for_each_musician() {
+    let mut e = Engine::new(Box::new(MemoryServices::default()));
+    let id = e.run("song.add", &Value::Null).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    assert!(e.run("sheet.add", &json!({"song": id, "name": "Bass", "musician": "Kim"})).is_err(), "no such musician");
+    assert_eq!(e.run("musician.add", &json!({"name": "Kim"})).ok(), Some(json!({"musician": 0})));
+    assert!(e.run("musician.add", &json!({"name": "kim"})).is_err(), "names are unique");
+    assert!(e.run("musician.add", &json!({"name": "Alex"})).is_ok());
+    assert_eq!(e.run("sheet.for", &json!({"song": id, "musician": "Kim"})).ok(), Some(json!({"sheet": null})));
+    assert_eq!(
+        e.run("sheet.add", &json!({"song": id, "name": "Chords"})).ok(),
+        Some(json!({"sheet": 0})),
+        "a sheet for anyone"
+    );
+    assert_eq!(
+        e.run("sheet.add", &json!({"song": id, "name": "Bass", "musician": "KIM"})).ok(),
+        Some(json!({"sheet": 1}))
+    );
+    assert_eq!(e.show.songs[0].sheets[1].musician, "Kim", "the show's spelling");
+    assert_eq!(e.run("sheet.for", &json!({"song": id, "musician": "Kim"})).ok(), Some(json!({"sheet": 1})));
+    assert_eq!(e.run("sheet.for", &json!({"song": id, "musician": "Alex"})).ok(), Some(json!({"sheet": 0})));
+    // Files, marks and scores go to the sheet named, the song's own stays.
+    assert!(e.run("sheet.set", &json!({"song": id, "sheet": 1, "pdf_file": "/b.pdf", "part": 2})).is_ok());
+    assert!(e.run("sheet.set", &json!({"song": id, "sheet": 1, "pdf_file": "/b.txt"})).is_err());
+    assert!(e.run("sheet.set", &json!({"song": id, "name": "Own"})).is_err(), "the own sheet has no name");
+    assert!(e.run("sheet.set", &json!({"song": id, "sheet": 2, "name": "X"})).is_err());
+    let stroke = json!({"song": id, "sheet": 1, "page": 0, "points": [[0.1, 0.2], [0.3, 0.4]]});
+    assert_eq!(e.run("pdf.mark", &stroke).ok(), Some(json!({"mark": 0})));
+    let song = &e.show.songs[0];
+    assert_eq!((song.pdf_file.clone(), song.pdf_marks.len()), (None, 0));
+    assert_eq!(
+        (song.sheets[1].pdf_file.as_deref(), song.sheets[1].pdf_marks.len(), song.sheets[1].part),
+        (Some("/b.pdf"), 1, 2)
+    );
+    assert_eq!(song.with_sheet(Some(1)).pdf_marks.len(), 1);
+    assert_eq!(song.clone().sheet_files_mut().count(), 1, "packing finds the sheet's file");
+    assert!(e.run("pdf.unmark", &json!({"song": id, "sheet": 1, "mark": 0})).is_ok());
+    assert!(e.run("pdf.unmark", &json!({"song": id, "sheet": 1, "mark": 0})).is_err());
+    // Saved and read back; removing a musician leaves their sheet for anyone.
+    let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).ok().map(|s| s.songs[0].sheets.clone());
+    assert_eq!(back.map(|s| s.len()), Some(2));
+    assert!(e.run("musician.remove", &json!({"musician": 0})).is_ok());
+    assert_eq!(e.show.songs[0].sheets[1].musician, "");
+    assert!(e.run("sheet.remove", &json!({"song": id, "sheet": 0})).is_ok());
+    assert_eq!(e.run("sheet.list", &json!({"song": id})).ok().map(|v| v[0]["name"].clone()), Some(json!("Bass")));
+}
