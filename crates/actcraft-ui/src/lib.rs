@@ -189,6 +189,8 @@ pub struct ActCraftApp {
     usb_find_request: bool,
     /// Settings > Lighting asked to listen for DMX (`Some(Some(network))`) or to stop.
     dmx_in_request: Option<Option<bool>>,
+    /// A new DMX trigger: Art-Net universe, channel and command.
+    dmx_trigger_draft: (u16, u16, String),
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -284,6 +286,7 @@ impl ActCraftApp {
             artnet_find_request: false,
             usb_find_request: false,
             dmx_in_request: None,
+            dmx_trigger_draft: (0, 1, String::new()),
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),

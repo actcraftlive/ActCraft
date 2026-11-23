@@ -66,6 +66,8 @@ pub mod limits {
     pub const DMX_UNIVERSES: usize = 64;
     /// DMX outputs in a show.
     pub const MAX_DMX_OUTPUTS: usize = 256;
+    /// DMX triggers in a show.
+    pub const MAX_DMX_TRIGGERS: usize = 256;
     /// Fixtures in a show.
     pub const MAX_FIXTURES: usize = 1_024;
     /// Channels of one fixture.
@@ -168,6 +170,9 @@ pub struct Show {
     /// Where DMX levels go on the network: one Art-Net or sACN output per universe sent.
     #[serde(default)]
     pub dmx_outputs: Vec<DmxOutput>,
+    /// DMX heard from other gear that sets off commands.
+    #[serde(default)]
+    pub dmx_triggers: Vec<DmxTrigger>,
     /// The lights: each fixture with its channels and where it is patched.
     #[serde(default)]
     pub fixtures: Vec<Fixture>,
@@ -214,6 +219,7 @@ impl Default for Show {
             macros: Vec::new(),
             pads: Vec::new(),
             dmx_outputs: Vec::new(),
+            dmx_triggers: Vec::new(),
             fixtures: Vec::new(),
             fixture_types: Vec::new(),
             groups: Vec::new(),
@@ -954,6 +960,21 @@ pub enum DmxProtocol {
     UsbPro,
 }
 
+/// A channel of DMX heard from other gear that sets off a command when it goes up past half
+/// (a fader pushed up, a button on a desk pressed).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DmxTrigger {
+    /// The Art-Net port address it comes in on.
+    pub universe: u16,
+    /// From 1.
+    pub channel: u16,
+    /// A command that needs nothing more.
+    pub command: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
 /// One universe of DMX levels sent over the network.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -1592,6 +1613,11 @@ impl Show {
                 cut(&mut c.preset, 64);
                 c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
             }
+        }
+        self.dmx_triggers.truncate(MAX_DMX_TRIGGERS);
+        self.dmx_triggers.retain(|t| (1..=512).contains(&t.channel) && t.universe <= DmxOutput::ARTNET_MAX);
+        for t in &mut self.dmx_triggers {
+            cut(&mut t.command, 64);
         }
         self.dmx_outputs.truncate(MAX_DMX_OUTPUTS);
         self.dmx_outputs.retain(|o| (1..=DMX_UNIVERSES).contains(&usize::from(o.universe)));
