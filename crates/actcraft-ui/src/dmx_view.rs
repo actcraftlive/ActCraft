@@ -1,7 +1,9 @@
-//! The DMX monitor: every level of one universe at a glance, and one channel set by hand.
+//! The DMX monitor (every level of one universe at a glance, one channel set by hand) and
+//! Settings > Lighting (where the levels go on the network).
 
 use actcraft_engine::Engine;
 use actcraft_engine::dmx::{CHANNELS, UNIVERSES};
+use actcraft_show::{DmxOutput, DmxProtocol};
 use egui::{Rect, RichText, Sense, Ui, vec2};
 use serde_json::json;
 
@@ -26,7 +28,122 @@ impl Default for DmxMonitor {
     }
 }
 
+fn protocol_text(p: DmxProtocol) -> &'static str {
+    match p {
+        DmxProtocol::ArtNet => "Art-Net",
+        DmxProtocol::Sacn => "sACN",
+    }
+}
+
 impl ActCraftApp {
+    /// Settings > Lighting: where the DMX levels go on the network.
+    pub(crate) fn lighting_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        ui.label(RichText::new(tr("DMX outputs")).strong());
+        ui.label(
+            RichText::new(tr("Each output sends one universe to lighting desks, nodes and fixtures on the network."))
+                .color(t.text_dim),
+        );
+        let outputs = e.show.dmx_outputs.clone();
+        let mut remove = None;
+        if outputs.is_empty() {
+            ui.label(RichText::new(tr("No outputs yet: DMX levels stay in ActCraft.")).color(t.text_dim));
+        } else {
+            egui::Grid::new("dmx-outputs").num_columns(6).striped(true).show(ui, |ui| {
+                for head in [tr("Universe"), tr("Protocol"), tr("Network universe"), tr("To"), tr("Priority")] {
+                    ui.label(RichText::new(head).strong());
+                }
+                ui.end_row();
+                for (i, o) in outputs.iter().enumerate() {
+                    ui.label(o.universe.to_string());
+                    ui.label(protocol_text(o.protocol));
+                    ui.label(o.network_universe.to_string());
+                    ui.label(if o.address.is_empty() {
+                        tr("Everyone on the network").to_owned()
+                    } else {
+                        o.address.clone()
+                    });
+                    ui.label(if o.protocol == DmxProtocol::Sacn {
+                        o.priority.to_string()
+                    } else {
+                        "\u{2013}".to_owned()
+                    });
+                    if ui.button(tr("Remove")).clicked() {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        }
+        if let Some(i) = remove {
+            self.run(e, "dmx.output_remove", json!({"output": i}));
+        }
+        ui.add_space(8.0);
+        let d = &mut self.dmx_draft;
+        let mut changed_universe = false;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Universe"));
+            changed_universe |= ui
+                .add(egui::DragValue::new(&mut d.universe).range(1..=UNIVERSES as u16))
+                .labelled_by(label.id)
+                .changed();
+            let label = ui.label(tr("Protocol"));
+            egui::ComboBox::from_id_salt("dmx-protocol")
+                .selected_text(protocol_text(d.protocol))
+                .show_ui(ui, |ui| {
+                    for p in [DmxProtocol::ArtNet, DmxProtocol::Sacn] {
+                        if ui.selectable_label(d.protocol == p, protocol_text(p)).clicked() && d.protocol != p {
+                            d.protocol = p;
+                            changed_universe = true;
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if changed_universe {
+                // Art-Net counts universes from 0, sACN from 1.
+                let n = if d.protocol == DmxProtocol::ArtNet { d.universe.saturating_sub(1) } else { d.universe };
+                d.network_universe = DmxOutput::clamp_network_universe(d.protocol, n);
+            }
+            let label = ui.label(tr("Network universe"));
+            let (low, high) = match d.protocol {
+                DmxProtocol::ArtNet => (0, DmxOutput::ARTNET_MAX),
+                DmxProtocol::Sacn => (DmxOutput::SACN_MIN, DmxOutput::SACN_MAX),
+            };
+            ui.add(egui::DragValue::new(&mut d.network_universe).range(low..=high)).labelled_by(label.id);
+        });
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("To"));
+            ui.add(
+                egui::TextEdit::singleline(&mut d.address)
+                    .hint_text(tr("Everyone on the network"))
+                    .desired_width(160.0),
+            )
+            .labelled_by(label.id)
+            .on_hover_text(tr("The IPv4 address of one node or desk, like 192.168.1.20; empty sends to everyone"));
+            if d.protocol == DmxProtocol::Sacn {
+                let label = ui.label(tr("Priority"));
+                ui.add(egui::DragValue::new(&mut d.priority).range(0..=DmxOutput::PRIORITY_MAX))
+                    .labelled_by(label.id)
+                    .on_hover_text(tr("Receivers take the source with the highest priority (100 normally)"));
+            }
+        });
+        let address_ok = d.address.trim().is_empty() || d.target().is_some();
+        if !address_ok {
+            ui.label(RichText::new(tr("That is not an IPv4 address.")).color(t.danger));
+        }
+        if ui.add_enabled(address_ok, egui::Button::new(tr("Add output"))).clicked() {
+            let d = self.dmx_draft.clone();
+            let protocol = if d.protocol == DmxProtocol::Sacn { "sacn" } else { "artnet" };
+            self.run(
+                e,
+                "dmx.output_add",
+                json!({"universe": d.universe, "protocol": protocol, "network_universe": d.network_universe,
+                    "address": d.address.trim(), "priority": d.priority}),
+            );
+        }
+    }
+
     /// The DMX monitor window, while it is open.
     pub(crate) fn dmx_window(&mut self, ctx: &egui::Context, e: &mut Engine) {
         let Some(mut m) = self.dmx_monitor else { return };

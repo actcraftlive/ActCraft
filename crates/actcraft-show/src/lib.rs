@@ -60,6 +60,10 @@ pub mod limits {
     pub const MAX_MACRO_COMMANDS: usize = 32;
     /// Pads in one show.
     pub const MAX_PADS: usize = 64;
+    /// DMX universes the show drives, numbered from 1.
+    pub const DMX_UNIVERSES: usize = 64;
+    /// DMX outputs in a show.
+    pub const MAX_DMX_OUTPUTS: usize = 256;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -138,6 +142,9 @@ pub struct Show {
     /// Buttons on the screen that run a command or a macro with one press.
     #[serde(default)]
     pub pads: Vec<Pad>,
+    /// Where DMX levels go on the network: one Art-Net or sACN output per universe sent.
+    #[serde(default)]
+    pub dmx_outputs: Vec<DmxOutput>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -165,6 +172,7 @@ impl Default for Show {
             remote: Vec::new(),
             macros: Vec::new(),
             pads: Vec::new(),
+            dmx_outputs: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -586,6 +594,73 @@ pub struct RemoteAction {
     pub command: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// The network protocol a DMX output speaks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DmxProtocol {
+    /// Art-Net (UDP port 6454).
+    #[default]
+    #[serde(rename = "artnet")]
+    ArtNet,
+    /// sACN, ANSI E1.31 (UDP port 5568).
+    Sacn,
+}
+
+/// One universe of DMX levels sent over the network.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DmxOutput {
+    /// The show's universe that is sent, from 1.
+    pub universe: u16,
+    pub protocol: DmxProtocol,
+    /// The universe on the network: an Art-Net port address (0-32767) or an sACN universe
+    /// (1-63999).
+    pub network_universe: u16,
+    /// The IPv4 address it goes to; empty for everyone on the network (Art-Net broadcast, sACN
+    /// multicast).
+    pub address: String,
+    /// sACN priority, 0-200 (100 normally); receivers take the highest.
+    pub priority: u8,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl DmxOutput {
+    /// Highest Art-Net port address.
+    pub const ARTNET_MAX: u16 = 32_767;
+    /// Lowest and highest sACN universe.
+    pub const SACN_MIN: u16 = 1;
+    pub const SACN_MAX: u16 = 63_999;
+    /// Highest sACN priority.
+    pub const PRIORITY_MAX: u8 = 200;
+
+    /// The network universe this output's protocol allows nearest to `n`.
+    pub fn clamp_network_universe(protocol: DmxProtocol, n: u16) -> u16 {
+        match protocol {
+            DmxProtocol::ArtNet => n.min(Self::ARTNET_MAX),
+            DmxProtocol::Sacn => n.clamp(Self::SACN_MIN, Self::SACN_MAX),
+        }
+    }
+
+    /// The address it goes to, `None` for everyone on the network.
+    pub fn target(&self) -> Option<std::net::Ipv4Addr> {
+        self.address.trim().parse().ok()
+    }
+}
+
+impl Default for DmxOutput {
+    fn default() -> Self {
+        Self {
+            universe: 1,
+            protocol: DmxProtocol::ArtNet,
+            network_universe: 0,
+            address: String::new(),
+            priority: 100,
+            extra: Map::new(),
+        }
+    }
 }
 
 /// Time sent to other gear (lights, effects, a second computer) over MIDI while a song plays.
@@ -1078,6 +1153,16 @@ impl Show {
                 && usize::from(b) >= BUSES
             {
                 pad.fader = None;
+            }
+        }
+        self.dmx_outputs.truncate(MAX_DMX_OUTPUTS);
+        self.dmx_outputs.retain(|o| (1..=DMX_UNIVERSES).contains(&usize::from(o.universe)));
+        for o in &mut self.dmx_outputs {
+            o.network_universe = DmxOutput::clamp_network_universe(o.protocol, o.network_universe);
+            o.priority = o.priority.min(DmxOutput::PRIORITY_MAX);
+            cut(&mut o.address, 64);
+            if o.target().is_none() {
+                o.address.clear();
             }
         }
         self.macros.truncate(MAX_MACROS);

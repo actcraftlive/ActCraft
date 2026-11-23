@@ -61,6 +61,8 @@ egui = "0.37"
 cpal = "0.18"
 midir = "0.11"
 rosc = "0.11"
+artnet_protocol = "0.4"
+sacn = "0.11"
 
 [profile.release]
 lto = "thin"
