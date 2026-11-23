@@ -150,18 +150,9 @@ pub fn handled_by_window(id: &str) -> bool {
     )
 }
 
-/// Whether a params doc asks for nothing that's required (`none`, or only `name?:` fields).
-fn runs_without_params(doc: &str) -> bool {
-    if doc == "none" {
-        return true;
-    }
-    let Some(fields) = doc.strip_prefix('{').and_then(|d| d.split('}').next()) else { return false };
-    fields.match_indices(':').all(|(i, _)| fields.get(..i).is_some_and(|before| before.ends_with('?')))
-}
-
 /// Whether a command can be offered in a menu: the window drives it, or it needs no params.
 pub fn offered_in_menu(id: &str) -> bool {
-    handled_by_window(id) || registry().get(id).is_some_and(|c| runs_without_params(c.spec.params))
+    handled_by_window(id) || registry().get(id).is_some_and(|c| c.spec.runs_without_params())
 }
 
 impl ActCraftApp {
@@ -516,7 +507,7 @@ impl ActCraftApp {
                 self.modal = Some(Modal::Info { title: tr("Duplicate songs"), lines });
             }
             _ => {
-                if registry().get(id).is_some_and(|c| runs_without_params(c.spec.params)) {
+                if registry().get(id).is_some_and(|c| c.spec.runs_without_params()) {
                     let _ = e.run(id, &Value::Null);
                 }
             }

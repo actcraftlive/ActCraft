@@ -680,3 +680,29 @@
 	the song has no MIDI file	der Song hat keine MIDI-Datei
 	MIDI file offset	MIDI-Datei-Versatz
 	Plays the songs' MIDI files earlier (minus) or later, to meet the sound of the gear they drive	Spielt die MIDI-Dateien der Songs früher (minus) oder später, passend zum Klang der angesteuerten Geräte
+	0 answers on every channel	0 reagiert auf jedem Kanal
+	A foot switch, a pad or a key on a MIDI controller sets off a command.	Ein Fußschalter, ein Pad oder eine Taste an einem MIDI-Controller löst einen Befehl aus.
+	Add remote action	Fernaktion hinzufügen
+	Channel	Kanal
+	Choose a command	Einen Befehl wählen
+	Controller	Controller
+	Could not open that MIDI input: {error}	Dieser MIDI-Eingang ließ sich nicht öffnen: {error}
+	Learn	Lernen
+	List remote actions	Fernaktionen auflisten
+	Listen to	Hören auf
+	MIDI input: {port}	MIDI-Eingang: {port}
+	Message	Nachricht
+	Number	Nummer
+	Press the switch, pad or key to use; its message fills in the fields	Den gewünschten Schalter, das Pad oder die Taste drücken; seine Nachricht füllt die Felder
+	Program change	Programmwechsel
+	Remote actions	Fernaktionen
+	Remove remote action	Fernaktion entfernen
+	Runs	Führt aus
+	Set off remote actions	Fernaktionen auslösen
+	Waiting for the controller…	Warte auf den Controller …
+	any	alle
+	any channel	jeder Kanal
+	channel {channel}	Kanal {channel}
+	`kind` must be note, cc or program	`kind` muss note, cc oder program sein
+	a remote action runs a command that needs nothing more	eine Fernaktion führt einen Befehl aus, der nichts weiter braucht
+	a show holds at most 256 remote actions	eine Show hat höchstens 256 Fernaktionen

@@ -53,6 +53,8 @@ pub mod limits {
     pub const MAX_LYRICS: usize = 512 * 1024;
     /// Longest song, seconds (24 h).
     pub const MAX_SECONDS: f64 = 86_400.0;
+    /// Remote actions (MIDI message to command) in one show.
+    pub const MAX_REMOTE_ACTIONS: usize = 256;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -121,6 +123,9 @@ pub struct Show {
     /// Time sent to other gear over MIDI while a song plays.
     #[serde(default)]
     pub midi: MidiSettings,
+    /// What a MIDI controller (a foot switch, a pad) does: a message sets off a command.
+    #[serde(default)]
+    pub remote: Vec<RemoteAction>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -145,6 +150,7 @@ impl Default for Show {
             metronome: MetronomeSettings::default(),
             voice: VoiceSettings::default(),
             midi: MidiSettings::default(),
+            remote: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -452,6 +458,41 @@ impl Default for VoiceSettings {
     fn default() -> Self {
         Self { enabled: true, bus: 1, volume_db: 0.0, lead_beats: 4, language: String::new() }
     }
+}
+
+/// The kind of MIDI message that sets off a remote action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteKind {
+    /// A key pressed (Note On with a velocity above zero).
+    #[default]
+    Note,
+    /// A controller going up past half way (a foot switch pressed).
+    Cc,
+    /// A program change.
+    Program,
+}
+
+/// A MIDI message that sets off a remote action: its kind, channel (`None` for any) and note,
+/// controller or program number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RemoteTrigger {
+    pub kind: RemoteKind,
+    /// 0-based; `None` answers on every channel.
+    pub channel: Option<u8>,
+    pub number: u8,
+}
+
+/// A command a MIDI controller sets off.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RemoteAction {
+    pub trigger: RemoteTrigger,
+    /// A command id (`transport.toggle`, `song.next`...).
+    pub command: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 /// Time sent to other gear (lights, effects, a second computer) over MIDI while a song plays.
@@ -934,6 +975,12 @@ impl Show {
         cut(&mut v.language, 16);
         self.mixer.master_volume_db = clamp_f(self.mixer.master_volume_db, -96.0, 12.0, 0.0);
         self.mixer.midi_latency_offset_ms = clamp_f(self.mixer.midi_latency_offset_ms, -500.0, 500.0, 0.0);
+        self.remote.truncate(MAX_REMOTE_ACTIONS);
+        for r in &mut self.remote {
+            r.trigger.channel = r.trigger.channel.filter(|c| *c < 16);
+            r.trigger.number = r.trigger.number.min(127);
+            cut(&mut r.command, 64);
+        }
         if !MidiSettings::RATES.contains(&self.midi.timecode_fps) {
             self.midi.timecode_fps = 25;
         }

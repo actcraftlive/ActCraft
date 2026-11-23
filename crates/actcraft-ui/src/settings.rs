@@ -3,6 +3,7 @@
 
 use actcraft_engine::Engine;
 use actcraft_library::queue::DoubleTap;
+use actcraft_show::{RemoteKind, RemoteTrigger};
 use egui::{RichText, Ui};
 use serde_json::json;
 
@@ -32,6 +33,52 @@ impl Tab {
             _ => return None,
         })
     }
+}
+
+/// A remote action being put together: its trigger (channel 0 for any) and command, and whether
+/// it waits to learn the trigger from the controller.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RemoteDraft {
+    pub kind: RemoteKind,
+    pub channel: u8,
+    pub number: u8,
+    pub command: String,
+    pub learning: bool,
+}
+
+impl RemoteDraft {
+    /// Takes a learnt trigger (with its channel) and stops waiting.
+    pub fn learn(&mut self, t: RemoteTrigger) {
+        self.kind = t.kind;
+        self.number = t.number;
+        self.channel = t.channel.map_or(0, |c| c + 1);
+        self.learning = false;
+    }
+}
+
+fn kind_id(k: RemoteKind) -> &'static str {
+    match k {
+        RemoteKind::Note => "note",
+        RemoteKind::Cc => "cc",
+        RemoteKind::Program => "program",
+    }
+}
+
+fn kind_text(k: RemoteKind) -> &'static str {
+    match k {
+        RemoteKind::Note => tr("Note"),
+        RemoteKind::Cc => tr("Controller"),
+        RemoteKind::Program => tr("Program change"),
+    }
+}
+
+/// A trigger in words: "Note 36, channel 10", "Controller 64, any channel".
+fn trigger_text(t: &RemoteTrigger) -> String {
+    let channel = match t.channel {
+        Some(c) => actcraft_engine::fill(tr("channel {channel}"), &[("channel", &(c + 1).to_string())]),
+        None => tr("any channel").to_owned(),
+    };
+    format!("{} {}, {channel}", kind_text(t.kind), t.number)
 }
 
 /// Speech languages offered for spoken cues: (code, name in that language); empty is the
@@ -392,6 +439,122 @@ impl ActCraftApp {
                 self.run(e, "midi.set", serde_json::json!({"latency_offset_ms": ms}));
             }
         });
+        ui.add_space(12.0);
+        self.remote_settings(ui, e);
+    }
+
+    /// Remote actions: the MIDI input a controller is on, and what its messages set off.
+    fn remote_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        ui.label(RichText::new(tr("Remote actions")).strong());
+        ui.label(
+            RichText::new(tr("A foot switch, a pad or a key on a MIDI controller sets off a command."))
+                .color(t.text_dim),
+        );
+        ui.horizontal(|ui| {
+            let none = tr("None");
+            let current = self.platform.midi_input.clone().unwrap_or_else(|| none.to_owned());
+            let label = ui.label(tr("Listen to"));
+            egui::ComboBox::from_id_salt("midi-input")
+                .width(300.0)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(self.platform.midi_input.is_none(), none).clicked() {
+                        self.midi_input_request = Some(None);
+                    }
+                    for name in self.platform.midi_inputs.clone() {
+                        let selected = self.platform.midi_input.as_deref() == Some(name.as_str());
+                        if ui.selectable_label(selected, &name).clicked() {
+                            self.midi_input_request = Some(Some(name));
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+        });
+        // The actions there are.
+        let actions = e.show.remote.clone();
+        let mut remove = None;
+        egui::Grid::new("remote-actions").num_columns(3).striped(true).show(ui, |ui| {
+            for (i, a) in actions.iter().enumerate() {
+                ui.label(trigger_text(&a.trigger));
+                let label = actcraft_engine::registry().get(&a.command).map_or(a.command.as_str(), |c| c.spec.label);
+                ui.label(tr(label));
+                if ui.button(tr("Remove")).clicked() {
+                    remove = Some(i);
+                }
+                ui.end_row();
+            }
+        });
+        if let Some(i) = remove {
+            self.run(e, "remote.remove", json!({"action": i}));
+        }
+        // A new one: its trigger, learnt from the controller or set by hand, and its command.
+        ui.add_space(6.0);
+        let d = &mut self.remote_draft;
+        ui.horizontal_wrapped(|ui| {
+            let learn = if d.learning { tr("Waiting for the controller\u{2026}") } else { tr("Learn") };
+            if ui
+                .selectable_label(d.learning, learn)
+                .on_hover_text(tr("Press the switch, pad or key to use; its message fills in the fields"))
+                .clicked()
+            {
+                d.learning = !d.learning;
+            }
+            let label = ui.label(tr("Message"));
+            egui::ComboBox::from_id_salt("remote-kind")
+                .selected_text(kind_text(d.kind))
+                .show_ui(ui, |ui| {
+                    for k in [RemoteKind::Note, RemoteKind::Cc, RemoteKind::Program] {
+                        ui.selectable_value(&mut d.kind, k, kind_text(k));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            let label = ui.label(tr("Number"));
+            ui.add(egui::DragValue::new(&mut d.number).range(0..=127)).labelled_by(label.id);
+            let label = ui.label(tr("Channel"));
+            let any = tr("any");
+            ui.add(
+                egui::DragValue::new(&mut d.channel)
+                    .range(0..=16)
+                    .custom_formatter(move |v, _| if v < 0.5 { any.to_owned() } else { format!("{v:.0}") }),
+            )
+            .labelled_by(label.id)
+            .on_hover_text(tr("0 answers on every channel"));
+        });
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Runs"));
+            let mut commands: Vec<(&'static str, &'static str)> = actcraft_engine::registry()
+                .iter()
+                .filter(|c| actcraft_engine::remote::runnable(c.spec.id))
+                .map(|c| (c.spec.id, tr(c.spec.label)))
+                .collect();
+            commands.sort_by(|a, b| a.1.cmp(b.1));
+            let current = commands.iter().find(|c| c.0 == d.command).map_or(tr("Choose a command"), |c| c.1);
+            egui::ComboBox::from_id_salt("remote-command")
+                .width(260.0)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    for (id, name) in &commands {
+                        if ui.selectable_label(d.command == *id, *name).clicked() {
+                            d.command = (*id).to_owned();
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+        });
+        let ready = !self.remote_draft.command.is_empty();
+        if ui.add_enabled(ready, egui::Button::new(tr("Add remote action"))).clicked() {
+            let d = &self.remote_draft;
+            let mut prm = json!({"kind": kind_id(d.kind), "number": d.number, "command": d.command});
+            if d.channel > 0 {
+                prm["channel"] = json!(d.channel);
+            }
+            self.remote_draft.learning = false;
+            self.run(e, "remote.add", prm);
+        }
     }
 
     fn playback_settings(&mut self, ui: &mut Ui, e: &mut Engine) {

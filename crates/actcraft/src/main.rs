@@ -16,7 +16,7 @@ use actcraft_control::channel;
 use actcraft_engine::{Engine, MessageArg};
 
 use actcraft_engine::midi_sync::SyncConfig;
-use actcraft_platform::{AudioOutput, MidiTimeOut, NativeServices, StatusReader};
+use actcraft_platform::{AudioOutput, MidiIn, MidiQueue, MidiTimeOut, NativeServices, StatusReader};
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
 use serde_json::json;
@@ -45,6 +45,11 @@ struct Host {
     /// The song, MIDI file and latency offset the MIDI output plays now (loaded again when one
     /// changes).
     midi_part: Option<(u64, Option<String>, u64)>,
+    /// The MIDI input remote actions listen to, and what came in from it.
+    midi_in: Option<MidiIn>,
+    midi_queue: MidiQueue,
+    /// Wakes the window when a MIDI message comes in.
+    wake: Arc<dyn Fn() + Send + Sync>,
 }
 
 /// Turns the window's request into a native file picker.
@@ -85,8 +90,20 @@ impl eframe::App for Host {
         if let Some(port) = self.app.take_midi_request() {
             self.switch_midi(port);
         }
+        if let Some(port) = self.app.take_midi_input_request() {
+            self.switch_midi_input(port);
+        }
         if self.app.take_midi_refresh() {
             self.app.platform.midi_ports = actcraft_platform::midi_output_ports();
+            self.app.platform.midi_inputs = actcraft_platform::midi_input_ports();
+        }
+        // What a controller sent: a trigger to learn, or remote actions to set off.
+        for msg in actcraft_platform::midi_in::drain(&self.midi_queue) {
+            if self.app.wants_midi_learn() {
+                self.app.midi_learned(&msg);
+            } else {
+                self.app.engine().midi_in(&msg);
+            }
         }
         // What the show sends over MIDI can change any moment (Settings, a remote command).
         if let Some(midi) = &self.midi {
@@ -130,6 +147,28 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Stops listening to the MIDI input and listens to `port` (none for `None`). Remembered on
+    /// this computer.
+    fn switch_midi_input(&mut self, port: Option<String>) {
+        self.midi_in = None;
+        self.app.platform.midi_input = None;
+        let name = port.clone().unwrap_or_default();
+        self.prefs.update(|pr| pr.audio.midi_input = name);
+        let Some(port) = port else { return };
+        match MidiIn::open(&port, Arc::clone(&self.midi_queue), Arc::clone(&self.wake)) {
+            Ok(input) => {
+                self.app.platform.midi_input = Some(input.port().to_owned());
+                self.app.engine().say_with("MIDI input: {port}", vec![MessageArg::plain("port", &port)]);
+                self.midi_in = Some(input);
+            }
+            Err(e) => {
+                self.app
+                    .engine()
+                    .say_error_with("Could not open that MIDI input: {error}", vec![MessageArg::plain("error", e)]);
+            }
+        }
+    }
+
     /// Hands the current song's MIDI file to the MIDI output when the song, its file or the
     /// MIDI latency offset changed since the last look.
     fn follow_midi_file(&mut self) {
@@ -235,6 +274,8 @@ struct AudioPrefs {
     device: String,
     /// MIDI output that MIDI time goes to; empty for none.
     midi_output: String,
+    /// MIDI input remote actions listen to; empty for none.
+    midi_input: String,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -368,12 +409,31 @@ fn main() {
             if about {
                 app.show_about();
             }
-            let mut host = Host { app, _audio: audio, screenshot, dialogs, prefs, midi: None, status, midi_part: None };
-            // The MIDI output chosen last time, if it is still there.
+            let repaint = cc.egui_ctx.clone();
+            let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || repaint.request_repaint());
+            let mut host = Host {
+                app,
+                _audio: audio,
+                screenshot,
+                dialogs,
+                prefs,
+                midi: None,
+                status,
+                midi_part: None,
+                midi_in: None,
+                midi_queue: MidiQueue::default(),
+                wake,
+            };
+            // The MIDI output and input chosen last time, if they are still there.
             host.app.platform.midi_ports = actcraft_platform::midi_output_ports();
+            host.app.platform.midi_inputs = actcraft_platform::midi_input_ports();
             let saved = host.prefs.get().audio.midi_output.clone();
             if !saved.is_empty() && host.app.platform.midi_ports.contains(&saved) {
                 host.switch_midi(Some(saved));
+            }
+            let saved = host.prefs.get().audio.midi_input.clone();
+            if !saved.is_empty() && host.app.platform.midi_inputs.contains(&saved) {
+                host.switch_midi_input(Some(saved));
             }
             Ok(Box::new(host))
         }),
