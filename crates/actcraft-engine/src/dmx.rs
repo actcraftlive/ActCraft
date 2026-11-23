@@ -3,12 +3,13 @@
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
+pub use actcraft_show::{DmxOutput, DmxProtocol};
 use serde_json::{Value, json};
 
 use crate::Engine;
 
 /// Universes ActCraft drives, numbered from 1.
-pub const UNIVERSES: usize = 64;
+pub const UNIVERSES: usize = actcraft_show::limits::DMX_UNIVERSES;
 /// Channels in a universe, numbered from 1.
 pub const CHANNELS: usize = 512;
 
@@ -62,6 +63,10 @@ fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
 }
 
+fn failed(msg: impl Into<String>) -> CommandError {
+    CommandError::Failed(msg.into())
+}
+
 fn universe(prm: &Value) -> Result<usize, CommandError> {
     let n = p::i64_in(prm, "universe", 1, UNIVERSES as i64)?;
     usize::try_from(n).map_err(|_| invalid("no such universe"))
@@ -105,9 +110,104 @@ pub fn dmx_get(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(json!({"universe": n, "levels": levels}))
 }
 
+/// `dmx.output_add {universe, protocol: artnet|sacn, network_universe?, address?, priority?}`:
+/// sends a universe over the network. Without `network_universe`, Art-Net counts from 0 (show
+/// universe 1 is port address 0) and sACN from 1; without `address` it goes to everyone on the
+/// network.
+pub fn dmx_output_add(e: &mut Engine, prm: &Value) -> CommandResult {
+    let universe = u16::try_from(universe(prm)?).map_err(|_| invalid("no such universe"))?;
+    let protocol = match p::str_max(prm, "protocol", 16)? {
+        "artnet" => DmxProtocol::ArtNet,
+        "sacn" => DmxProtocol::Sacn,
+        _ => return Err(invalid("`protocol` must be artnet or sacn")),
+    };
+    let (low, high) = match protocol {
+        DmxProtocol::ArtNet => (0, DmxOutput::ARTNET_MAX),
+        DmxProtocol::Sacn => (DmxOutput::SACN_MIN, DmxOutput::SACN_MAX),
+    };
+    let network_universe = match p::opt_i64_in(prm, "network_universe", i64::from(low), i64::from(high))? {
+        Some(n) => u16::try_from(n).unwrap_or(low),
+        None if protocol == DmxProtocol::ArtNet => universe - 1,
+        None => universe,
+    };
+    let address = p::opt_str_max(prm, "address", 64)?.unwrap_or_default().trim().to_owned();
+    if !address.is_empty() && address.parse::<std::net::Ipv4Addr>().is_err() {
+        return Err(invalid("`address` must be an IPv4 address like 192.168.1.20, or empty"));
+    }
+    let priority = p::opt_i64_in(prm, "priority", 0, i64::from(DmxOutput::PRIORITY_MAX))?.unwrap_or(100);
+    if e.show.dmx_outputs.len() >= actcraft_show::limits::MAX_DMX_OUTPUTS {
+        return Err(failed("a show holds at most 256 DMX outputs"));
+    }
+    e.show.dmx_outputs.push(DmxOutput {
+        universe,
+        protocol,
+        network_universe,
+        address,
+        priority: u8::try_from(priority).unwrap_or(100),
+        ..DmxOutput::default()
+    });
+    e.mark_changed();
+    Ok(json!({"output": e.show.dmx_outputs.len() - 1}))
+}
+
+/// `dmx.output_remove {output}`.
+pub fn dmx_output_remove(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "output", e.show.dmx_outputs.len())?;
+    e.show.dmx_outputs.remove(i);
+    e.mark_changed();
+    Ok(Value::Null)
+}
+
+/// `dmx.output_list`: every output.
+pub fn dmx_output_list(e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        e.show
+            .dmx_outputs
+            .iter()
+            .map(|o| {
+                let protocol = match o.protocol {
+                    DmxProtocol::ArtNet => "artnet",
+                    DmxProtocol::Sacn => "sacn",
+                };
+                json!({"universe": o.universe, "protocol": protocol, "network_universe": o.network_universe, "address": o.address, "priority": o.priority})
+            })
+            .collect(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outputs_are_added_listed_and_removed() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        assert_eq!(
+            e.run("dmx.output_add", &json!({"universe": 1, "protocol": "artnet"})).ok(),
+            Some(json!({"output": 0}))
+        );
+        let r = e
+            .run("dmx.output_add", &json!({"universe": 2, "protocol": "sacn", "address": "10.0.0.9", "priority": 150}));
+        assert!(r.is_ok());
+        let list = e.run("dmx.output_list", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(list[0]["network_universe"], json!(0), "Art-Net counts from 0");
+        assert_eq!(list[1]["network_universe"], json!(2), "sACN from 1");
+        assert_eq!(e.show.dmx_outputs[1].target(), Some(std::net::Ipv4Addr::new(10, 0, 0, 9)));
+        for bad in [
+            json!({"universe": 1, "protocol": "dmx"}),
+            json!({"universe": 0, "protocol": "artnet"}),
+            json!({"universe": 1, "protocol": "sacn", "network_universe": 0}),
+            json!({"universe": 1, "protocol": "artnet", "network_universe": 40000}),
+            json!({"universe": 1, "protocol": "sacn", "address": "lights.local"}),
+            json!({"universe": 1, "protocol": "sacn", "priority": 201}),
+        ] {
+            assert!(e.run("dmx.output_add", &bad).is_err(), "{bad}");
+        }
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.dmx_outputs).unwrap_or_default();
+        assert_eq!(back, e.show.dmx_outputs);
+        assert!(e.run("dmx.output_remove", &json!({"output": 0})).is_ok());
+        assert_eq!(e.show.dmx_outputs.len(), 1);
+    }
 
     #[test]
     fn levels_are_set_read_and_cleared() {

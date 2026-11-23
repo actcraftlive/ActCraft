@@ -775,3 +775,22 @@
 	give `value` or `values`	`value` oder `values` angeben
 	no such channel	kein solcher Kanal
 	no such universe	kein solches Universum
+	Add a DMX output	Einen DMX-Ausgang hinzufügen
+	Add output	Ausgang hinzufügen
+	Could not send DMX: {error}	DMX konnte nicht gesendet werden: {error}
+	DMX outputs	DMX-Ausgänge
+	Each output sends one universe to lighting desks, nodes and fixtures on the network.	Jeder Ausgang sendet ein Universum an Lichtpulte, Nodes und Geräte im Netzwerk.
+	Everyone on the network	Alle im Netzwerk
+	List DMX outputs	DMX-Ausgänge auflisten
+	Network universe	Netzwerk-Universum
+	No outputs yet: DMX levels stay in ActCraft.	Noch keine Ausgänge: DMX-Werte bleiben in ActCraft.
+	Priority	Priorität
+	Protocol	Protokoll
+	Receivers take the source with the highest priority (100 normally)	Empfänger nehmen die Quelle mit der höchsten Priorität (normal 100)
+	Remove a DMX output	Einen DMX-Ausgang entfernen
+	That is not an IPv4 address.	Das ist keine IPv4-Adresse.
+	The IPv4 address of one node or desk, like 192.168.1.20; empty sends to everyone	Die IPv4-Adresse eines Nodes oder Pults, etwa 192.168.1.20; leer sendet an alle
+	To	An
+	`address` must be an IPv4 address like 192.168.1.20, or empty	`address` muss eine IPv4-Adresse wie 192.168.1.20 sein oder leer
+	`protocol` must be artnet or sacn	`protocol` muss artnet oder sacn sein
+	a show holds at most 256 DMX outputs	eine Show fasst höchstens 256 DMX-Ausgänge

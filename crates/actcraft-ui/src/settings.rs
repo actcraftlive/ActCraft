@@ -19,6 +19,7 @@ pub(crate) enum Tab {
     Midi,
     Macros,
     Library,
+    Lighting,
 }
 
 impl Tab {
@@ -32,6 +33,7 @@ impl Tab {
             "midi" => Tab::Midi,
             "macros" => Tab::Macros,
             "library" => Tab::Library,
+            "lighting" => Tab::Lighting,
             _ => return None,
         })
     }
@@ -122,6 +124,7 @@ impl ActCraftApp {
                         (Tab::Midi, tr("MIDI")),
                         (Tab::Macros, tr("Macros")),
                         (Tab::Library, tr("Library")),
+                        (Tab::Lighting, tr("Lighting")),
                     ] {
                         ui.selectable_value(&mut self.settings_tab, tab, label);
                     }
@@ -135,6 +138,7 @@ impl ActCraftApp {
                     Tab::Midi => self.midi_settings(ui, e),
                     Tab::Macros => self.macro_settings(ui, e),
                     Tab::Library => self.library_settings(ui, e),
+                    Tab::Lighting => self.lighting_settings(ui, e),
                 }
             });
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {

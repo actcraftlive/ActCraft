@@ -467,6 +467,16 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::dmx::dmx_clear,
         ),
         cmd(
+            "dmx.output_add",
+            "Add a DMX output",
+            "",
+            None,
+            "{universe: 1-64, protocol: artnet | sacn, network_universe?: Art-Net 0-32767 | sACN 1-63999, address?: IPv4 (empty: everyone on the network), priority?: sACN 0-200} -> {output: index}",
+            crate::dmx::dmx_output_add,
+        ),
+        cmd("dmx.output_remove", "Remove a DMX output", "", None, "{output: index}", crate::dmx::dmx_output_remove),
+        cmd("dmx.output_list", "List DMX outputs", "", None, "none", crate::dmx::dmx_output_list),
+        cmd(
             "macro.set",
             "Set macro",
             "",

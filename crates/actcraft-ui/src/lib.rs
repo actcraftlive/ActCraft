@@ -164,6 +164,8 @@ pub struct ActCraftApp {
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
     macro_draft: (String, Vec<String>),
+    /// A DMX output being put together in Settings > Lighting.
+    dmx_draft: actcraft_show::DmxOutput,
     /// The pads' editor is open, and the pad being put together.
     pads_editing: bool,
     pad_draft: pads_view::PadDraft,
@@ -241,6 +243,7 @@ impl ActCraftApp {
             osc_request: None,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
+            dmx_draft: actcraft_show::DmxOutput::default(),
             pads_editing: false,
             pad_draft: pads_view::PadDraft::default(),
             language_request: None,

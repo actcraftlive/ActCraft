@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M4: DMX output over Art-Net and sACN (the levels and the DMX monitor are done)
+2. M4: fixture types and the patch (DMX levels, the monitor and Art-Net/sACN output are done)
 
 ## Quality and open questions
 
@@ -167,7 +167,10 @@ details are in the milestone sections further down.
 - ✅ DMX levels: 64 universes of 512 channels, live (not saved), set by command (`dmx.set`,
   `dmx.clear`, `dmx.get`); Lighting > DMX monitor shows a universe, a channel is set by number
   or by clicking it
-- ⬜ DMX output over Art-Net and sACN
+- ✅ DMX output: Settings > Lighting sends a universe over Art-Net (a port address, broadcast or
+  to one address) or sACN (a universe and priority, multicast or to one address), when it
+  changes and again every 0.8 s (`dmx.output_add`, `dmx.output_remove`, `dmx.output_list`).
+  Art-Net node discovery and USB interfaces to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX

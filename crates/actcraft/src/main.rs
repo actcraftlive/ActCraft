@@ -16,7 +16,9 @@ use actcraft_control::channel;
 use actcraft_engine::{Engine, MessageArg};
 
 use actcraft_engine::midi_sync::SyncConfig;
-use actcraft_platform::{AudioOutput, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue, StatusReader};
+use actcraft_platform::{
+    AudioOutput, DmxFrame, DmxOut, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue, StatusReader,
+};
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
 use serde_json::json;
@@ -51,6 +53,11 @@ struct Host {
     /// Where OSC messages come in, and what came.
     osc_in: Option<OscIn>,
     osc_queue: OscQueue,
+    /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
+    /// version and the outputs) and the problems already reported.
+    dmx_out: Option<DmxOut>,
+    dmx_sent: Option<(u64, Vec<actcraft_engine::dmx::DmxOutput>)>,
+    dmx_reported: Vec<String>,
     /// Wakes the window when a MIDI message comes in.
     wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -119,6 +126,7 @@ impl eframe::App for Host {
             midi.set(SyncConfig::from(&self.app.engine().show.midi));
         }
         self.follow_midi_file();
+        self.follow_dmx();
         if let Some(language) = self.app.take_language_request() {
             self.prefs.update(|pr| pr.window.language = language);
         }
@@ -204,6 +212,61 @@ impl Host {
                     .say_error_with("Could not open that MIDI input: {error}", vec![MessageArg::plain("error", e)]);
             }
         }
+    }
+
+    /// Hands the DMX levels and outputs to the sender when they changed; starts it when the show
+    /// has outputs and stops it when it has none. Sending problems become messages, each once
+    /// until the outputs change.
+    fn follow_dmx(&mut self) {
+        let frame = {
+            let e = self.app.engine();
+            let outputs = &e.show.dmx_outputs;
+            let same = self.dmx_sent.as_ref().is_some_and(|(v, o)| *v == e.dmx.version && o == outputs);
+            if outputs.is_empty() || same {
+                None
+            } else {
+                let mut levels = std::collections::HashMap::new();
+                for o in outputs {
+                    if let Some(u) = e.dmx.universe(usize::from(o.universe)) {
+                        levels.insert(o.universe, *u);
+                    }
+                }
+                Some(DmxFrame { outputs: outputs.clone(), levels, version: e.dmx.version })
+            }
+        };
+        if self.app.engine().show.dmx_outputs.is_empty() {
+            self.dmx_out = None;
+            self.dmx_sent = None;
+            self.dmx_reported.clear();
+            return;
+        }
+        if let Some(frame) = frame {
+            if self.dmx_sent.as_ref().is_none_or(|(_, o)| *o != frame.outputs) {
+                self.dmx_reported.clear();
+            }
+            if self.dmx_out.is_none() {
+                match DmxOut::open() {
+                    Ok(out) => self.dmx_out = Some(out),
+                    Err(e) => self.report_dmx(e),
+                }
+            }
+            if let Some(out) = &self.dmx_out {
+                self.dmx_sent = Some((frame.version, frame.outputs.clone()));
+                out.set(frame);
+            }
+        }
+        let errors = self.dmx_out.as_ref().map(DmxOut::take_errors).unwrap_or_default();
+        for e in errors {
+            self.report_dmx(e);
+        }
+    }
+
+    fn report_dmx(&mut self, error: String) {
+        if self.dmx_reported.contains(&error) || self.dmx_reported.len() >= 16 {
+            return;
+        }
+        self.app.engine().say_error_with("Could not send DMX: {error}", vec![MessageArg::plain("error", &error)]);
+        self.dmx_reported.push(error);
     }
 
     /// Hands the current song's MIDI file to the MIDI output when the song, its file or the
@@ -473,6 +536,9 @@ fn main() {
                 midi_queue: MidiQueue::default(),
                 osc_in: None,
                 osc_queue: OscQueue::default(),
+                dmx_out: None,
+                dmx_sent: None,
+                dmx_reported: Vec::new(),
                 wake,
             };
             // The MIDI output and input chosen last time, if they are still there.
