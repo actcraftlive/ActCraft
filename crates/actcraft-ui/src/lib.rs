@@ -28,6 +28,7 @@ mod lyrics_view;
 mod notation_view;
 mod pads_view;
 mod regions_view;
+mod sequences_view;
 mod settings;
 mod sheet_view;
 pub mod shortcuts;
@@ -358,6 +359,8 @@ pub struct ActCraftApp {
     pub(crate) updater: craft_update::updater::Updater,
     /// The setlist note being written in a playlist's set (playlist, set, song).
     set_note_edit: Option<(usize, usize, u64)>,
+    /// The name typed for a new sequence.
+    sequence_draft: String,
     /// The name typed for a new sheet or a new musician in the Sheet music tab.
     sheet_draft: (String, String),
     /// "Remove all marks" waits for a second click.
@@ -453,6 +456,7 @@ impl ActCraftApp {
                 .with_translator(update_tr)
                 .with_source(update_source()),
             set_note_edit: None,
+            sequence_draft: String::new(),
             sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,
             sheet_top_page: 0,

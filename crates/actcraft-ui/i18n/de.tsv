@@ -1378,3 +1378,42 @@
 	Fixture library	Gerätebibliothek
 	Fixture type from the library	Gerätetyp aus der Bibliothek
 	that file is not an Open Fixture Library fixture	diese Datei ist kein Gerät der Open Fixture Library
+	 beats	 Schläge
+	Add a sequence step	Schritt zum Ablauf hinzufügen
+	Add sequence	Ablauf hinzufügen
+	Also	Außerdem
+	Animations from looks: each step is a look the lights move to and hold. Set the lights, then Record step; a cue can start a sequence.	Animationen aus Stimmungen: Jeder Schritt ist eine Stimmung, in die die Lampen fahren und die sie halten. Lampen einstellen, dann „Schritt aufnehmen“; ein Cue kann einen Ablauf starten.
+	Back and forth	Hin und zurück
+	Change a cue	Cue ändern
+	Change a sequence step	Ablaufschritt ändern
+	In beats	In Schlägen
+	Length	Länge
+	List sequences	Abläufe auflisten
+	Make a sequence	Ablauf anlegen
+	Move	Übergang
+	Move a sequence step	Ablaufschritt verschieben
+	New sequence	Neuer Ablauf
+	Nothing more	Nichts weiter
+	Once	Einmal
+	Over and over	Immer wieder
+	Record step	Schritt aufnehmen
+	Remove a sequence	Ablauf entfernen
+	Remove a sequence step	Ablaufschritt entfernen
+	Sequences	Abläufe
+	Start a sequence	Ablauf starten
+	Start or stop a sequence	Ablauf starten oder stoppen
+	Start {name}	{name} starten
+	Step lengths count beats of the song's click instead of seconds	Schrittlängen zählen Schläge des Song-Klicks statt Sekunden
+	Step {n}	Schritt {n}
+	Stop all sequences and effects	Alle Abläufe und Effekte stoppen
+	Stop sequences	Abläufe stoppen
+	Store the look on stage now (positions, colours, everything) as this sequence's next step	Die Stimmung, die gerade auf der Bühne ist (Positionen, Farben, alles), als nächsten Schritt dieses Ablaufs speichern
+	The part of the step spent moving there; the rest holds	Der Teil des Schritts, in dem die Lampen dorthin fahren; den Rest halten sie
+	`mode` must be loop, once or bounce, not `{value}`	`mode` muss loop, once oder bounce sein, nicht `{value}`
+	`{key}` must be a list of names	`{key}` muss eine Liste von Namen sein
+	a sequence holds at most 256 steps	ein Ablauf hat höchstens 256 Schritte
+	a sequence needs a name	ein Ablauf braucht einen Namen
+	a show holds at most 256 sequences	eine Show hat höchstens 256 Abläufe
+	no sequence or effect called `{name}`	kein Ablauf oder Effekt namens `{name}`
+	no such sequence	kein solcher Ablauf
+	no such step	kein solcher Schritt

@@ -91,6 +91,9 @@ pub mod limits {
     pub const MAX_LIGHT_CUES: usize = 1_000;
     /// Effects in a show.
     pub const MAX_EFFECTS: usize = 256;
+    /// Sequences in a show and steps in one.
+    pub const MAX_SEQUENCES: usize = 256;
+    pub const MAX_SEQUENCE_STEPS: usize = 256;
     /// More attributes in one effect.
     pub const MAX_EFFECT_PARTS: usize = 8;
     /// Marks on one song's PDF.
@@ -210,6 +213,9 @@ pub struct Show {
     /// Effects that move fixture attributes on their own (a pulse, a chase, a sweep).
     #[serde(default)]
     pub effects: Vec<Effect>,
+    /// Sequences: steps of looks over time (animations for moving heads, chases).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sequences: Vec<Sequence>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -249,6 +255,7 @@ impl Default for Show {
             presets: Vec::new(),
             cue_lists: Vec::new(),
             effects: Vec::new(),
+            sequences: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -991,8 +998,61 @@ pub struct Cue {
     /// Seconds after this cue before the list goes on to the next by itself (after the last, back
     /// to the first); 0 waits for Go.
     pub follow: f64,
+    /// Sequences and effects (by name) this cue starts, and ones it stops ("*": all running).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub starts: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub stops: Vec<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// A run of looks over time, an animation (a moving head's figure, a colour chase): steps, each a
+/// preset reached over part of the step and held for the rest.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Sequence {
+    pub name: String,
+    pub steps: Vec<SequenceStep>,
+    pub mode: SequenceMode,
+    /// Step lengths are beats (following the playing song's tempo and bar, or the tapped tempo)
+    /// instead of seconds.
+    pub in_beats: bool,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// One step of a sequence.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SequenceStep {
+    /// The preset's name.
+    pub preset: String,
+    /// Seconds, or beats for a sequence in beats.
+    pub length: f64,
+    /// The part of the step (0-1) spent moving from the step before to this one; the rest holds.
+    pub fade: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for SequenceStep {
+    fn default() -> Self {
+        Self { preset: String::new(), length: 1.0, fade: 0.0, extra: Map::new() }
+    }
+}
+
+/// How a sequence goes on after its last step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceMode {
+    /// From the first step again.
+    #[default]
+    Loop,
+    /// Stops on the last step.
+    Once,
+    /// Back through the steps to the first, and so on.
+    Bounce,
 }
 
 /// One fixture's attribute in a preset.
@@ -1852,6 +1912,16 @@ impl Show {
                 v.value = v.value.clamp(0.0, 1.0);
             }
         }
+        self.sequences.truncate(MAX_SEQUENCES);
+        for s in &mut self.sequences {
+            cut(&mut s.name, 64);
+            s.steps.truncate(MAX_SEQUENCE_STEPS);
+            for step in &mut s.steps {
+                cut(&mut step.preset, 64);
+                step.length = clamp_f(step.length, 0.01, 3600.0, 1.0);
+                step.fade = clamp_f(step.fade, 0.0, 1.0, 0.0);
+            }
+        }
         self.effects.truncate(MAX_EFFECTS);
         for fx in &mut self.effects {
             cut(&mut fx.name, 64);
@@ -1877,6 +1947,12 @@ impl Show {
                 cut(&mut c.preset, 64);
                 c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
                 c.follow = clamp_f(c.follow, 0.0, MAX_FADE_S, 0.0);
+                for list in [&mut c.starts, &mut c.stops] {
+                    list.truncate(64);
+                    for n in list.iter_mut() {
+                        cut(n, 64);
+                    }
+                }
             }
         }
         self.gamepad_faders.truncate(MAX_GAMEPAD_ACTIONS);

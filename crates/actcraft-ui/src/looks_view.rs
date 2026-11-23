@@ -369,6 +369,8 @@ impl ActCraftApp {
                     ui.separator();
                     self.effects_ui(ui, e);
                     ui.separator();
+                    self.sequences_ui(ui, e);
+                    ui.separator();
                     self.groups_ui(ui, e);
                 });
             });
@@ -527,7 +529,7 @@ impl ActCraftApp {
                     run = Some(("cue_list.remove", json!({"list": li})));
                 }
             });
-            egui::Grid::new(("cues", li)).num_columns(5).striped(true).show(ui, |ui| {
+            egui::Grid::new(("cues", li)).num_columns(6).striped(true).show(ui, |ui| {
                 for (ci, cue) in list.cues.iter().enumerate() {
                     let words = format!("{}. {}", ci + 1, cue.name);
                     let text = if at == Some(ci) { RichText::new(words).strong() } else { RichText::new(words) };
@@ -541,6 +543,42 @@ impl ActCraftApp {
                     } else {
                         String::new()
                     });
+                    // What else the cue does: start a sequence or an effect, or stop them all.
+                    const STOP_ALL: &str = "\u{0}stop";
+                    let now = if cue.stops.iter().any(|s| s == "*") {
+                        STOP_ALL.to_owned()
+                    } else {
+                        cue.starts.first().cloned().unwrap_or_default()
+                    };
+                    let shown = |v: &str| match v {
+                        "" => tr("Nothing more").to_owned(),
+                        STOP_ALL => tr("Stop all sequences and effects").to_owned(),
+                        name => tr("Start {name}").replace("{name}", name),
+                    };
+                    let mut pick = now.clone();
+                    let r = egui::ComboBox::from_id_salt(("cue-starts", li, ci))
+                        .width(170.0)
+                        .selected_text(shown(&now))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut pick, String::new(), shown(""));
+                            for name in
+                                e.show.sequences.iter().map(|s| &s.name).chain(e.show.effects.iter().map(|f| &f.name))
+                            {
+                                ui.selectable_value(&mut pick, name.clone(), shown(name));
+                            }
+                            ui.selectable_value(&mut pick, STOP_ALL.to_owned(), shown(STOP_ALL));
+                        })
+                        .response;
+                    let name = format!("{}, {}", tr("Also"), cue.name);
+                    ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name));
+                    if pick != now {
+                        let (starts, stops): (Vec<String>, Vec<&str>) = match pick.as_str() {
+                            "" => (Vec::new(), Vec::new()),
+                            STOP_ALL => (Vec::new(), vec!["*"]),
+                            name => (vec![name.to_owned()], Vec::new()),
+                        };
+                        run = Some(("cue.set", json!({"list": li, "cue": ci, "starts": starts, "stops": stops})));
+                    }
                     if ui.small_button(tr("Remove")).clicked() {
                         run = Some(("cue.remove", json!({"list": li, "cue": ci})));
                     }
