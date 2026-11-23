@@ -17,7 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
-| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF and MIDI to notes done; the browser view to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF, MIDI to notes and PDF sheets in the browser done; scores in the browser to do |
 
 ## Next up
 
@@ -30,7 +30,7 @@ details are in the milestone sections further down.
 
 Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
 
-3. M10: musicians follow their sheets in a browser on the local network
+3. M10: scores (MusicXML, MIDI) in the browser view, as they are for PDF sheets
 
 ## Quality and open questions
 
@@ -290,13 +290,14 @@ Planned with the owner on 2026-11-23. Each item is its own pull request.
   keeps the band's musicians. Older shows load unchanged: their PDF and score are the main
   sheet. A musician sees their own sheet, else one for anyone (`musician.add`, `sheet.add`,
   `sheet.set`, `sheet.for`, …; `pdf.mark` and `notation.attach` take `sheet`)
-- ⬜ Musicians follow their sheets in a browser: ActCraft serves a page on the local network
-  (off until switched on); a musician opens it on a tablet or laptop, signs in and picks their
-  name, and sees the sheet made for them for the song that plays, scrolling along; when there is
-  none for the song, it says so. Questions for that pull request: the page is built in Rust
-  (egui compiled to WebAssembly, house rule 4: no handwritten JavaScript); signing in reuses the
-  band link's pairing code and its local-network-only rule; check what `craft-libs` already
-  serves (`web-host`) before writing a server (house rule 16)
+- 🔶 Musicians follow their sheets in a browser (Settings > Band > Sheets in the browser, off until
+  switched on): ActCraft serves pages on the local network only; a musician opens the address
+  shown on a tablet or laptop, signs in once with a six-digit code, picks their name and sees
+  the sheet made for them (else one for anyone) for the song that plays: a PDF sheet as pictures
+  of the page in view and the next, turning as the song goes on; it says so when there is none.
+  Plain HTML without scripts (house rule 4): a page asks for itself again and the answer waits
+  until there is something new. To do: scores (MusicXML, MIDI) in the browser; for now they say
+  they show in ActCraft
 - ✅ Notes from MIDI files: a MIDI file (.mid) is read as a score like MusicXML ("Attach notation…",
   or "Notes from the MIDI file" for the song's own MIDI file); each track, and each channel of a
   track, becomes a part a sheet can show for its musician. Onsets and ends go to a sixteenth grid,

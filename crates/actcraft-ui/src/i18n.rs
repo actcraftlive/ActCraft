@@ -45,6 +45,12 @@ pub fn current_code() -> String {
     I18N.code(CURRENT.with(Cell::get)).to_owned()
 }
 
+/// A lookup in the language in use now, for other threads (the language is set per thread).
+pub fn translator() -> impl Fn(&str) -> String + Send + Sync + 'static {
+    let lang = CURRENT.with(Cell::get);
+    move |s: &str| I18N.t(lang, s).to_owned()
+}
+
 /// Looks English text up in the current language.
 pub fn tr(s: &str) -> &str {
     let lang = CURRENT.with(Cell::get);
@@ -95,6 +101,7 @@ mod tests {
             include_str!("fixtures_view.rs"),
             include_str!("looks_view.rs"),
             include_str!("stage_view.rs"),
+            include_str!("../../actcraft-platform/src/sheet_web.rs"),
         ];
         let engine = [
             include_str!("../../actcraft-engine/src/lib.rs"),

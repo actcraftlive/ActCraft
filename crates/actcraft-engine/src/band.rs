@@ -20,6 +20,35 @@ impl Engine {
         })
     }
 
+    /// What musicians see in the browser: the current song, how far it has played (0 to 1),
+    /// whether it plays, and each musician with the sheet they see (their own, else one for
+    /// anyone, else none).
+    pub fn sheets_state(&self) -> Value {
+        let song = self.current();
+        let time = if self.status.time.is_finite() { self.status.time.max(0.0) } else { 0.0 };
+        let progress = song.filter(|s| s.duration > 0.0).map_or(0.0, |s| (time / s.duration).clamp(0.0, 1.0));
+        let musicians: Vec<Value> = self
+            .show
+            .musicians
+            .iter()
+            .map(|name| {
+                let sheet = song.and_then(|s| {
+                    let i = crate::sheet_commands::sheet_for(s, name)?;
+                    let sheet = s.sheets.get(i)?;
+                    Some(json!({"song": s.id, "index": i, "name": sheet.name, "pdf_file": sheet.pdf_file,
+                        "notation_file": sheet.notation_file}))
+                });
+                json!({"name": name, "sheet": sheet})
+            })
+            .collect();
+        json!({
+            "song": song.map(|s| s.title.clone()),
+            "progress": progress,
+            "playing": self.status.playing,
+            "musicians": musicians,
+        })
+    }
+
     /// Goes along with a host's state: the song of the same title, then playing or paused like
     /// the host, then the host's place when more than half a second off. Returns the title it
     /// could not find, if any.

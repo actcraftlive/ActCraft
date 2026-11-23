@@ -828,3 +828,26 @@ fn a_midi_file_is_read_as_notes() {
     assert!(e.run("sheet.set", &json!({"song": id, "notation_file": "/s/riff.MIDI"})).is_ok(), "either extension");
     assert!(e.run("sheet.set", &json!({"song": id, "notation_file": "/s/riff.wav"})).is_err());
 }
+
+#[test]
+fn the_browser_state_names_each_musicians_sheet() {
+    let mut e = Engine::new(Box::new(MemoryServices::default()));
+    let id = e.run("song.add", &json!({"title": "Opener"})).ok().and_then(|v| v["song"].as_u64()).unwrap_or(0);
+    for name in ["Kim", "Alex", "Sam"] {
+        let _ = e.run("musician.add", &json!({"name": name}));
+    }
+    let _ = e.run("sheet.add", &json!({"song": id, "name": "Bass", "musician": "Kim"}));
+    let _ = e.run("sheet.set", &json!({"song": id, "sheet": 0, "pdf_file": "/bass.pdf"}));
+    let _ = e.run("sheet.add", &json!({"song": id, "name": "Chords"}));
+    if let Some(s) = e.show.song_mut(id) {
+        s.duration = 200.0;
+    }
+    e.status.time = 50.0;
+    let state = e.sheets_state();
+    assert_eq!(state["song"], json!("Opener"));
+    assert_eq!(state["progress"], json!(0.25));
+    let sheets: Vec<Value> =
+        state["musicians"].as_array().cloned().unwrap_or_default().iter().map(|m| m["sheet"]["name"].clone()).collect();
+    assert_eq!(sheets, vec![json!("Bass"), json!("Chords"), json!("Chords")], "Kim's own, anyone's for the others");
+    assert_eq!(state["musicians"][0]["sheet"]["pdf_file"], json!("/bass.pdf"));
+}

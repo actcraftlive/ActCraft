@@ -65,6 +65,8 @@ struct Host {
     hue_out: Option<actcraft_platform::hue::HueOut>,
     /// Band link: hosting, following, a connection being made, and when to try again.
     band_host: Option<actcraft_platform::band::BandHost>,
+    /// Musicians' sheets in the browser, while on.
+    sheets_web: Option<actcraft_platform::sheet_web::SheetWeb>,
     band_follow: Option<actcraft_platform::band::BandFollow>,
     band_connecting: Option<std::sync::mpsc::Receiver<Result<BandConnected, String>>>,
     band_retry: std::time::Instant,
@@ -279,6 +281,7 @@ impl Host {
         use actcraft_ui::BandRequest;
         match self.app.take_band_request() {
             Some(BandRequest::Host(on)) => self.switch_band_host(on),
+            Some(BandRequest::Sheets(on)) => self.switch_sheets_web(on),
             Some(BandRequest::Follow(addr, code)) => {
                 let token = self.prefs.get().audio.band_token.clone();
                 let same_host = self.prefs.get().audio.band_follow == addr;
@@ -313,6 +316,21 @@ impl Host {
                 });
             }
             self.app.platform.band_hosting = Some((host.addr().to_string(), host.code(), host.followers()));
+        }
+        if let Some(web) = &self.sheets_web {
+            web.publish(self.app.engine().sheets_state());
+            let new = web.take_new_tokens();
+            if !new.is_empty() {
+                self.prefs.update(|pr| {
+                    pr.audio.sheets_tokens.extend(new);
+                    let extra = pr.audio.sheets_tokens.len().saturating_sub(64);
+                    pr.audio.sheets_tokens.drain(..extra);
+                });
+            }
+            let ip = actcraft_platform::sheet_web::local_address()
+                .map_or_else(|| actcraft_ui::tr("this computer's address").to_owned(), |ip| ip.to_string());
+            let address = format!("http://{ip}:{}", web.port());
+            self.app.platform.sheets_web = Some((address, web.code(), web.connections()));
         }
         // A connection being made comes back from its thread.
         if let Some(rx) = &self.band_connecting
@@ -388,6 +406,23 @@ impl Host {
     }
 
     /// Lets band members follow this computer, or stops. Remembered on this computer.
+    fn switch_sheets_web(&mut self, on: bool) {
+        use actcraft_platform::sheet_web::{SHEETS_PORT, SheetWeb};
+        self.sheets_web = None;
+        self.app.platform.sheets_web = None;
+        self.prefs.update(|pr| pr.audio.sheets_web = on);
+        if !on {
+            return;
+        }
+        let tokens = self.prefs.get().audio.sheets_tokens.clone();
+        let lang = actcraft_ui::i18n::current_code();
+        let tr: actcraft_platform::sheet_web::Translate = std::sync::Arc::new(actcraft_ui::i18n::translator());
+        match SheetWeb::open(SHEETS_PORT, tokens, &lang, tr) {
+            Ok(web) => self.sheets_web = Some(web),
+            Err(e) => self.app.platform.band_note = Some(e),
+        }
+    }
+
     fn switch_band_host(&mut self, on: bool) {
         self.band_host = None;
         self.app.platform.band_hosting = None;
@@ -757,6 +792,9 @@ struct AudioPrefs {
     /// paired with, and the host it follows with the token that host gave (empty: none).
     band_host: bool,
     band_tokens: Vec<String>,
+    /// Sheets in the browser: on or off, and the tokens of browsers signed in.
+    sheets_web: bool,
+    sheets_tokens: Vec<String>,
     band_follow: String,
     band_token: String,
 }
@@ -937,6 +975,7 @@ fn main() {
                 hue_job: None,
                 hue_out: None,
                 band_host: None,
+                sheets_web: None,
                 band_follow: None,
                 band_connecting: None,
                 band_retry: std::time::Instant::now(),
@@ -972,6 +1011,9 @@ fn main() {
             // Band link as it was: hosting again, or following the same host again.
             if pr.band_host {
                 host.switch_band_host(true);
+            }
+            if pr.sheets_web {
+                host.switch_sheets_web(true);
             }
             if !pr.band_follow.is_empty() && !pr.band_token.is_empty() {
                 host.app.platform.band_following = Some((pr.band_follow.clone(), false));
