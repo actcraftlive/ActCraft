@@ -17,7 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
-| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician done; browser view, MIDI to notes and setlist PDF to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF and MIDI to notes done; the browser view to do |
 
 ## Next up
 
@@ -30,9 +30,7 @@ details are in the milestone sections further down.
 
 Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
 
-3. M10: setlist as a PDF for the stage floor
-4. M10: notes from MIDI files
-5. M10: musicians follow their sheets in a browser on the local network
+3. M10: musicians follow their sheets in a browser on the local network
 
 ## Quality and open questions
 
@@ -307,10 +305,13 @@ Planned with the owner on 2026-11-23. Each item is its own pull request.
   the key; drums are written by the General MIDI drum map, a piano on two staves split at middle
   C, guitars and basses (by program or name) also as tab. Works best with MIDI written in a
   notation program, roughly with played-in MIDI; voices within one staff are not separated
-- ⬜ Setlist as a PDF for the stage floor: a playlist's sets printed large with the band's logo and
-  the concert's name at the top, each song's title and length, the total, and entries of their own
-  for breaks and instrument changes. Check `craft-libs` for writing PDF before adding a writer
-  (house rule 16)
+- ✅ Setlist as a PDF for the stage floor (Playlist > Print Setlist as PDF…): the open playlist on
+  A4 with the band's logo (Playlist > Band Logo…) and the concert's name (the playlist's) at the
+  top, then each set with its time, each song's number, title and length, and the time of all;
+  as large as fits one page, smaller and onto more pages only for long lists. A line can be set
+  before any song of a set, such as a break or an instrument change (Note beside the song;
+  `set.note`). Written with the shared `craft-pdf` writer in the window's own font; desktop only
+  (`playlist.export_setlist`, `setlist.logo`)
 - ✅ Looping a part (asked for with this plan; already there): a region in loop mode repeats, and
   Leave Loop (L, or a MIDI foot switch through a remote action) lets the current pass play to its
   end and goes on
