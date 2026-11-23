@@ -20,3 +20,12 @@ sacn = { workspace = true }
 
 [lints]
 workspace = true
+
+# Serial ports for USB DMX interfaces: raw mode on Unix, the port list on Windows. Both are
+# already in the build through other crates (nix through zip, windows-registry through
+# craft-i18n).
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.32", default-features = false, features = ["term", "fs"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6"

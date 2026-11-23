@@ -269,19 +269,29 @@ pub fn dmx_output_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let protocol = match p::str_max(prm, "protocol", 16)? {
         "artnet" => DmxProtocol::ArtNet,
         "sacn" => DmxProtocol::Sacn,
-        _ => return Err(invalid("`protocol` must be artnet or sacn")),
+        "usb_pro" => DmxProtocol::UsbPro,
+        _ => return Err(invalid("`protocol` must be artnet, sacn or usb_pro")),
     };
     let (low, high) = match protocol {
         DmxProtocol::ArtNet => (0, DmxOutput::ARTNET_MAX),
         DmxProtocol::Sacn => (DmxOutput::SACN_MIN, DmxOutput::SACN_MAX),
+        DmxProtocol::UsbPro => (0, 0),
     };
     let network_universe = match p::opt_i64_in(prm, "network_universe", i64::from(low), i64::from(high))? {
         Some(n) => u16::try_from(n).unwrap_or(low),
-        None if protocol == DmxProtocol::ArtNet => universe - 1,
-        None => universe,
+        None => match protocol {
+            DmxProtocol::ArtNet => universe - 1,
+            DmxProtocol::Sacn => universe,
+            // A USB interface sends the one universe it is given.
+            DmxProtocol::UsbPro => 0,
+        },
     };
     let address = p::opt_str_max(prm, "address", 64)?.unwrap_or_default().trim().to_owned();
-    if !address.is_empty() && address.parse::<std::net::Ipv4Addr>().is_err() {
+    if protocol == DmxProtocol::UsbPro {
+        if !DmxOutput::valid_port_name(&address) {
+            return Err(invalid("`address` must name the serial port, like COM3 or /dev/ttyUSB0"));
+        }
+    } else if !address.is_empty() && address.parse::<std::net::Ipv4Addr>().is_err() {
         return Err(invalid("`address` must be an IPv4 address like 192.168.1.20, or empty"));
     }
     let priority = p::opt_i64_in(prm, "priority", 0, i64::from(DmxOutput::PRIORITY_MAX))?.unwrap_or(100);
@@ -318,6 +328,7 @@ pub fn dmx_output_list(e: &mut Engine, _prm: &Value) -> CommandResult {
                 let protocol = match o.protocol {
                     DmxProtocol::ArtNet => "artnet",
                     DmxProtocol::Sacn => "sacn",
+                    DmxProtocol::UsbPro => "usb_pro",
                 };
                 json!({"universe": o.universe, "protocol": protocol, "network_universe": o.network_universe, "address": o.address, "priority": o.priority})
             })
@@ -358,6 +369,30 @@ mod tests {
         assert_eq!(back, e.show.dmx_outputs);
         assert!(e.run("dmx.output_remove", &json!({"output": 0})).is_ok());
         assert_eq!(e.show.dmx_outputs.len(), 1);
+    }
+
+    #[test]
+    fn a_usb_output_names_its_serial_port() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let add = |e: &mut Engine, address: &str| {
+            e.run("dmx.output_add", &json!({"universe": 2, "protocol": "usb_pro", "address": address}))
+        };
+        assert_eq!(add(&mut e, "COM3").ok(), Some(json!({"output": 0})));
+        assert!(add(&mut e, "/dev/ttyUSB0").is_ok());
+        assert!(add(&mut e, "").is_err(), "a USB output needs its port");
+        assert!(add(&mut e, "COM3; rm").is_err());
+        assert!(add(&mut e, &"A".repeat(65)).is_err());
+        let list = e.run("dmx.output_list", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(list[0]["protocol"], json!("usb_pro"));
+        assert_eq!(list[1]["address"], json!("/dev/ttyUSB0"));
+        assert_eq!(list[0]["network_universe"], json!(0));
+        // Saved and loaded; a file with a bad port name loses it.
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.dmx_outputs).unwrap_or_default();
+        assert_eq!(back, e.show.dmx_outputs);
+        let file = br#"{"format":"actcraft-show","version":1,"name":"U",
+            "dmx_outputs":[{"universe":1,"protocol":"usb_pro","address":"COM1\n"}]}"#;
+        let loaded = actcraft_show::Show::from_bytes(file).map(|s| s.dmx_outputs).unwrap_or_default();
+        assert_eq!(loaded.first().map(|o| o.address.as_str()), Some(""));
     }
 
     #[test]

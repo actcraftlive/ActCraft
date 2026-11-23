@@ -1062,3 +1062,10 @@
 	`also` must be a list of attributes	`also` muss eine Liste von Attributen sein
 	an effect moves at most 8 more attributes	ein Effekt bewegt höchstens 8 weitere Attribute
 	, aimed {angle}° from the audience, {reach} % out	, {angle}° vom Publikum weg gerichtet, {reach} % weit hinaus
+	USB interface	USB-Interface
+	Choose a port	Port wählen
+	Find USB interfaces	USB-Interfaces suchen
+	For USB interfaces that speak the DMX USB Pro serial protocol	Für USB-Interfaces, die das serielle DMX-USB-Pro-Protokoll sprechen
+	No serial ports found: is the interface plugged in?	Keine seriellen Ports gefunden: Ist das Interface angesteckt?
+	`protocol` must be artnet, sacn or usb_pro	`protocol` muss artnet, sacn oder usb_pro sein
+	`address` must name the serial port, like COM3 or /dev/ttyUSB0	`address` muss den seriellen Port nennen, etwa COM3 oder /dev/ttyUSB0

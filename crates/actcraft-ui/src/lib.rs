@@ -137,6 +137,8 @@ pub struct PlatformInfo {
     /// Art-Net nodes from the last search (or why it failed), and whether a search runs.
     pub artnet_nodes: Option<Result<Vec<ArtNetNode>, String>>,
     pub artnet_searching: bool,
+    /// Serial ports from the last look (USB DMX interfaces show up as one); `None` before it.
+    pub serial_ports: Option<Vec<String>>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -179,6 +181,8 @@ pub struct ActCraftApp {
     osc_request: Option<Option<(u16, bool)>>,
     /// Whether the person asked to look for Art-Net nodes.
     artnet_find_request: bool,
+    /// Settings > Lighting asked for the serial ports.
+    usb_find_request: bool,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -272,6 +276,7 @@ impl ActCraftApp {
             midi_input_request: None,
             osc_request: None,
             artnet_find_request: false,
+            usb_find_request: false,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -417,6 +422,12 @@ impl ActCraftApp {
     /// Whether the person asked to look for Art-Net nodes; the host calls this every frame.
     pub fn take_artnet_find_request(&mut self) -> bool {
         std::mem::take(&mut self.artnet_find_request)
+    }
+
+    /// Whether Settings > Lighting asked for the serial ports (the host fills
+    /// [`PlatformInfo::serial_ports`]).
+    pub fn take_usb_find_request(&mut self) -> bool {
+        std::mem::take(&mut self.usb_find_request)
     }
 
     /// Whether Settings waits for a MIDI message to learn a remote action's trigger from; the

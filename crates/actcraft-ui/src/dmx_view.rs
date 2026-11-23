@@ -32,6 +32,7 @@ fn protocol_text(p: DmxProtocol) -> &'static str {
     match p {
         DmxProtocol::ArtNet => "Art-Net",
         DmxProtocol::Sacn => "sACN",
+        DmxProtocol::UsbPro => tr("USB interface"),
     }
 }
 
@@ -57,8 +58,12 @@ impl ActCraftApp {
                 for (i, o) in outputs.iter().enumerate() {
                     ui.label(o.universe.to_string());
                     ui.label(protocol_text(o.protocol));
-                    ui.label(o.network_universe.to_string());
-                    ui.label(if o.address.is_empty() {
+                    ui.label(if o.protocol == DmxProtocol::UsbPro {
+                        "\u{2013}".to_owned()
+                    } else {
+                        o.network_universe.to_string()
+                    });
+                    ui.label(if o.address.is_empty() && o.protocol != DmxProtocol::UsbPro {
                         tr("Everyone on the network").to_owned()
                     } else {
                         o.address.clone()
@@ -81,6 +86,7 @@ impl ActCraftApp {
         ui.add_space(8.0);
         self.artnet_nodes_ui(ui);
         ui.add_space(8.0);
+        let ports = self.platform.serial_ports.clone();
         let d = &mut self.dmx_draft;
         let mut changed_universe = false;
         ui.horizontal_wrapped(|ui| {
@@ -93,7 +99,7 @@ impl ActCraftApp {
             egui::ComboBox::from_id_salt("dmx-protocol")
                 .selected_text(protocol_text(d.protocol))
                 .show_ui(ui, |ui| {
-                    for p in [DmxProtocol::ArtNet, DmxProtocol::Sacn] {
+                    for p in [DmxProtocol::ArtNet, DmxProtocol::Sacn, DmxProtocol::UsbPro] {
                         if ui.selectable_label(d.protocol == p, protocol_text(p)).clicked() && d.protocol != p {
                             d.protocol = p;
                             changed_universe = true;
@@ -107,14 +113,43 @@ impl ActCraftApp {
                 let n = if d.protocol == DmxProtocol::ArtNet { d.universe.saturating_sub(1) } else { d.universe };
                 d.network_universe = DmxOutput::clamp_network_universe(d.protocol, n);
             }
-            let label = ui.label(tr("Network universe"));
-            let (low, high) = match d.protocol {
-                DmxProtocol::ArtNet => (0, DmxOutput::ARTNET_MAX),
-                DmxProtocol::Sacn => (DmxOutput::SACN_MIN, DmxOutput::SACN_MAX),
+            // A USB interface sends the one universe it is given: no network universe.
+            let range = match d.protocol {
+                DmxProtocol::ArtNet => Some((0, DmxOutput::ARTNET_MAX)),
+                DmxProtocol::Sacn => Some((DmxOutput::SACN_MIN, DmxOutput::SACN_MAX)),
+                DmxProtocol::UsbPro => None,
             };
-            ui.add(egui::DragValue::new(&mut d.network_universe).range(low..=high)).labelled_by(label.id);
+            if let Some((low, high)) = range {
+                let label = ui.label(tr("Network universe"));
+                ui.add(egui::DragValue::new(&mut d.network_universe).range(low..=high)).labelled_by(label.id);
+            }
         });
+        let mut find_ports = false;
         ui.horizontal_wrapped(|ui| {
+            if d.protocol == DmxProtocol::UsbPro {
+                // A USB interface is a serial port: picked from those this computer has.
+                let label = ui.label(tr("Port"));
+                let found = ports.clone().unwrap_or_default();
+                let shown =
+                    if d.address.trim().is_empty() { tr("Choose a port").to_owned() } else { d.address.clone() };
+                egui::ComboBox::from_id_salt("dmx-usb-port")
+                    .selected_text(shown)
+                    .show_ui(ui, |ui| {
+                        for name in &found {
+                            ui.selectable_value(&mut d.address, name.clone(), name);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id)
+                    .on_hover_text(tr("For USB interfaces that speak the DMX USB Pro serial protocol"));
+                find_ports = ui.button(tr("Find USB interfaces")).clicked();
+                if ports.as_ref().is_some_and(Vec::is_empty) {
+                    ui.label(
+                        RichText::new(tr("No serial ports found: is the interface plugged in?")).color(t.text_dim),
+                    );
+                }
+                return;
+            }
             let label = ui.label(tr("To"));
             ui.add(
                 egui::TextEdit::singleline(&mut d.address)
@@ -130,13 +165,25 @@ impl ActCraftApp {
                     .on_hover_text(tr("Receivers take the source with the highest priority (100 normally)"));
             }
         });
-        let address_ok = d.address.trim().is_empty() || d.target().is_some();
-        if !address_ok {
+        let usb = d.protocol == DmxProtocol::UsbPro;
+        let address_ok = if usb {
+            DmxOutput::valid_port_name(d.address.trim())
+        } else {
+            d.address.trim().is_empty() || d.target().is_some()
+        };
+        if !address_ok && !usb {
             ui.label(RichText::new(tr("That is not an IPv4 address.")).color(t.danger));
+        }
+        if find_ports {
+            self.usb_find_request = true;
         }
         if ui.add_enabled(address_ok, egui::Button::new(tr("Add output"))).clicked() {
             let d = self.dmx_draft.clone();
-            let protocol = if d.protocol == DmxProtocol::Sacn { "sacn" } else { "artnet" };
+            let protocol = match d.protocol {
+                DmxProtocol::ArtNet => "artnet",
+                DmxProtocol::Sacn => "sacn",
+                DmxProtocol::UsbPro => "usb_pro",
+            };
             self.run(
                 e,
                 "dmx.output_add",

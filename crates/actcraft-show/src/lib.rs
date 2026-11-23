@@ -949,6 +949,9 @@ pub enum DmxProtocol {
     ArtNet,
     /// sACN, ANSI E1.31 (UDP port 5568).
     Sacn,
+    /// A USB interface speaking the DMX USB Pro serial protocol (its published API), on a serial
+    /// port; `address` names the port.
+    UsbPro,
 }
 
 /// One universe of DMX levels sent over the network.
@@ -984,12 +987,19 @@ impl DmxOutput {
         match protocol {
             DmxProtocol::ArtNet => n.min(Self::ARTNET_MAX),
             DmxProtocol::Sacn => n.clamp(Self::SACN_MIN, Self::SACN_MAX),
+            DmxProtocol::UsbPro => 0,
         }
     }
 
     /// The address it goes to, `None` for everyone on the network.
     pub fn target(&self) -> Option<std::net::Ipv4Addr> {
         self.address.trim().parse().ok()
+    }
+
+    /// Whether `name` can be a serial port name (`COM3`, `/dev/ttyUSB0`): short, and only
+    /// letters, digits and `/ . _ - \ :`.
+    pub fn valid_port_name(name: &str) -> bool {
+        !name.is_empty() && name.len() <= 64 && name.chars().all(|c| c.is_ascii_alphanumeric() || "/._-\\:".contains(c))
     }
 }
 
@@ -1589,7 +1599,12 @@ impl Show {
             o.network_universe = DmxOutput::clamp_network_universe(o.protocol, o.network_universe);
             o.priority = o.priority.min(DmxOutput::PRIORITY_MAX);
             cut(&mut o.address, 64);
-            if o.target().is_none() {
+            let fits = if o.protocol == DmxProtocol::UsbPro {
+                DmxOutput::valid_port_name(&o.address)
+            } else {
+                o.target().is_some()
+            };
+            if !fits {
                 o.address.clear();
             }
         }

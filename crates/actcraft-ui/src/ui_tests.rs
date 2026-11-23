@@ -343,3 +343,31 @@ fn a_long_message_in_the_status_line_stays_clear_of_the_notes_beside_it() {
     let message = h.get_by_label(long).rect();
     assert!(message.left() >= note.right(), "message {message:?} runs over the note {note:?}");
 }
+
+#[test]
+fn a_usb_output_is_added_by_picking_its_port() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().open_settings_at("lighting");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Protocol").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("USB interface").click_accesskit();
+    frames(&mut h, 2);
+    // Asking for the ports goes to the host, which fills them in.
+    h.get_by_role_and_label(Role::Button, "Find USB interfaces").click_accesskit();
+    frames(&mut h, 2);
+    assert!(h.state_mut().take_usb_find_request());
+    h.state_mut().platform.serial_ports = Some(vec!["COM7".to_owned()]);
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "Port").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("COM7").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add output").click_accesskit();
+    frames(&mut h, 3);
+    let out = with(&engine, |e| e.show.dmx_outputs.first().cloned());
+    assert_eq!(
+        out.map(|o| (o.protocol, o.address)),
+        Some((actcraft_engine::dmx::DmxProtocol::UsbPro, "COM7".to_owned()))
+    );
+}
