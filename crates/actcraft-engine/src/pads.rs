@@ -44,7 +44,8 @@ pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
         Some("autoplay") => Some(ToggleTarget::Autoplay),
         Some("blackout") => Some(ToggleTarget::Blackout),
         Some("freeze") => Some(ToggleTarget::Freeze),
-        Some(_) => return Err(invalid("`toggle` must be metronome, loop_song, autoplay, blackout or freeze")),
+        Some("blind") => Some(ToggleTarget::Blind),
+        Some(_) => return Err(invalid("`toggle` must be metronome, loop_song, autoplay, blackout, freeze or blind")),
     };
     let kinds = [!command.is_empty(), !macro_name.is_empty(), fader.is_some(), toggle.is_some()];
     if kinds.iter().filter(|k| **k).count() != 1 {
@@ -78,6 +79,7 @@ pub fn toggle_state(e: &Engine, t: ToggleTarget) -> bool {
         ToggleTarget::Autoplay => e.current().is_some_and(|s| s.autoplay),
         ToggleTarget::Blackout => e.dmx.blackout,
         ToggleTarget::Freeze => e.frozen(),
+        ToggleTarget::Blind => e.dmx.blind(),
     }
 }
 
@@ -120,6 +122,9 @@ pub fn pad_press(e: &mut Engine, prm: &Value) -> CommandResult {
             }
             ToggleTarget::Freeze => {
                 e.run("lighting.freeze", &Value::Null)?;
+            }
+            ToggleTarget::Blind => {
+                e.run("lighting.blind", &Value::Null)?;
             }
             ToggleTarget::LoopSong | ToggleTarget::Autoplay => {
                 let id = e.current_song.ok_or_else(|| invalid("no song chosen"))?;

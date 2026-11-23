@@ -225,6 +225,7 @@ impl ActCraftApp {
             .default_height(560.0)
             .collapsible(false)
             .show(ctx, |ui| {
+                self.blind_note(ui, e);
                 self.fixture_patch_form(ui, e);
                 self.type_editor_ui(ui, e);
                 ui.separator();

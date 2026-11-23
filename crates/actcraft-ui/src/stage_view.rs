@@ -50,6 +50,7 @@ impl ActCraftApp {
             ))
             .color(t.text_dim),
         );
+        self.blind_note(ui, e);
         let width = ui.available_width().max(200.0);
         let (stage, _) = ui.allocate_exact_size(vec2(width, (width * 0.5).min(420.0)), Sense::hover());
         let painter = ui.painter_at(stage);

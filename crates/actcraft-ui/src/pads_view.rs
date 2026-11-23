@@ -48,6 +48,7 @@ fn toggle_text(target: ToggleTarget) -> String {
         ToggleTarget::Autoplay => tr("Switch playing the next song").to_owned(),
         ToggleTarget::Blackout => tr("Switch the blackout").to_owned(),
         ToggleTarget::Freeze => tr("Switch holding fades and effects").to_owned(),
+        ToggleTarget::Blind => tr("Switch blind").to_owned(),
     }
 }
 
@@ -214,6 +215,7 @@ impl ActCraftApp {
                 ToggleTarget::Autoplay,
                 ToggleTarget::Blackout,
                 ToggleTarget::Freeze,
+                ToggleTarget::Blind,
             ];
             egui::ComboBox::from_id_salt("pad-runs")
                 .width(240.0)
@@ -274,6 +276,7 @@ impl ActCraftApp {
                         ToggleTarget::Autoplay => "autoplay",
                         ToggleTarget::Blackout => "blackout",
                         ToggleTarget::Freeze => "freeze",
+                        ToggleTarget::Blind => "blind",
                     });
                 }
                 (None, None, Some(name)) => prm["macro"] = json!(name),

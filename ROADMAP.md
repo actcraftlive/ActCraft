@@ -13,7 +13,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | 🔶 USB to do |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
-| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists and fades done |
+| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists, fades, blind and freeze done |
 | M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M6: control pages and blind
+2. M6: control pages (blind is done)
 
 ## Quality and open questions
 
@@ -198,7 +198,7 @@ details are in the milestone sections further down.
   values, seconds or beats per cycle at the song tempo, spread over the group; started and
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
   Ready-made effect templates, colour and movement effects across several attributes, control
-  pages and blind to do
+  pages to do
 - ✅ Ready-made effects: fourteen to start from (breathe, pulse on the beat, chase, wave, build
   over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom); none flashes
   more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the
@@ -208,6 +208,10 @@ details are in the milestone sections further down.
   stored levels stay (`dmx.blackout`, `dmx.master`); freeze holds fades and effects and lets them
   go on from there (`lighting.freeze`). In the Presets window, the Lighting menu and as toggle
   pads
+- ✅ Blind: fixture changes and recalled presets go to a copy of the levels, not to the lights, so
+  looks are built and stored as presets while the show goes on; cues, fades and effects keep
+  playing live, and the Fixtures and Stage windows say blind is on (`lighting.blind`; Presets
+  window, Lighting menu, toggle pads)
 - ✅ 2D stage preview: Lighting > Stage shows the fixtures from above in the colour they show now;
   placed by dragging or by numbers (`fixture.place`; `fixture.stage` lists places and colours).
   Beams and moving-head direction to do

@@ -542,6 +542,8 @@ pub enum ToggleTarget {
     Blackout,
     /// Fades and effects held.
     Freeze,
+    /// Fixture changes and recalled presets kept off the lights.
+    Blind,
 }
 
 /// The volume a fader pad moves.

@@ -484,6 +484,14 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::dmx::lighting_freeze,
         ),
         cmd(
+            "lighting.blind",
+            "Blind",
+            "Lighting/Blind",
+            None,
+            "{on?: bool} (fixture changes and recalled presets stay off the lights; switches without) -> {on}",
+            crate::dmx::lighting_blind,
+        ),
+        cmd(
             "dmx.output_add",
             "Add a DMX output",
             "",

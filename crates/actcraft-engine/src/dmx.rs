@@ -24,11 +24,14 @@ pub struct Dmx {
     pub blackout: bool,
     /// How bright fixtures are at the output, 0-1 (1 as set).
     pub master: f64,
+    /// Blind: while on, fixture and preset edits go to this copy of the levels and not to the
+    /// output; the copy goes when blind goes off.
+    blind: Option<Vec<[u8; CHANNELS]>>,
 }
 
 impl Default for Dmx {
     fn default() -> Self {
-        Self { universes: vec![[0; CHANNELS]; UNIVERSES], version: 0, blackout: false, master: 1.0 }
+        Self { universes: vec![[0; CHANNELS]; UNIVERSES], version: 0, blackout: false, master: 1.0, blind: None }
     }
 }
 
@@ -40,17 +43,42 @@ impl Dmx {
 
     /// Sets channels from `channel` (from 1) on; true when a level changed.
     pub(crate) fn set(&mut self, universe: usize, channel: usize, values: &[u8]) -> bool {
-        let Some(u) = universe.checked_sub(1).and_then(|i| self.universes.get_mut(i)) else { return false };
-        let Some(from) = channel.checked_sub(1) else { return false };
-        let Some(slots) = u.get_mut(from..from.saturating_add(values.len()).min(CHANNELS)) else { return false };
-        let changed = slots.iter().zip(values).any(|(a, b)| a != b);
-        for (slot, v) in slots.iter_mut().zip(values) {
-            *slot = *v;
-        }
+        let changed = write(&mut self.universes, universe, channel, values);
         if changed {
             self.version += 1;
         }
         changed
+    }
+
+    /// Whether blind is on.
+    pub fn blind(&self) -> bool {
+        self.blind.is_some()
+    }
+
+    /// Blind on (edits start from the levels sent now) or off (its edits go).
+    pub(crate) fn set_blind(&mut self, on: bool) {
+        match (on, self.blind.is_some()) {
+            (true, false) => self.blind = Some(self.universes.clone()),
+            (false, true) => self.blind = None,
+            _ => {}
+        }
+    }
+
+    /// The levels edits see: blind's copy while blind is on, else the levels sent.
+    pub fn edited(&self, universe: usize) -> Option<&[u8; CHANNELS]> {
+        let i = universe.checked_sub(1)?;
+        match &self.blind {
+            Some(copy) => copy.get(i),
+            None => self.universes.get(i),
+        }
+    }
+
+    /// Sets channels like [`Dmx::set`], in blind's copy while blind is on.
+    pub(crate) fn set_edited(&mut self, universe: usize, channel: usize, values: &[u8]) -> bool {
+        match &mut self.blind {
+            Some(copy) => write(copy, universe, channel, values),
+            None => self.set(universe, channel, values),
+        }
     }
 
     /// Every channel of `universe`, or of every universe for `None`, to 0.
@@ -62,6 +90,16 @@ impl Dmx {
         }
         self.version += 1;
     }
+}
+
+/// Sets channels of `universe` from `channel` (both from 1) on; true when a level changed.
+fn write(universes: &mut [[u8; CHANNELS]], universe: usize, channel: usize, values: &[u8]) -> bool {
+    let Some(u) = universe.checked_sub(1).and_then(|i| universes.get_mut(i)) else { return false };
+    let Some(from) = channel.checked_sub(1) else { return false };
+    let Some(slots) = u.get_mut(from..from.saturating_add(values.len()).min(CHANNELS)) else { return false };
+    let changed = slots.iter().zip(values).any(|(a, b)| a != b);
+    slots.iter_mut().zip(values).for_each(|(slot, v)| *slot = *v);
+    changed
 }
 
 fn invalid(msg: impl Into<String>) -> CommandError {
@@ -206,6 +244,15 @@ pub fn lighting_freeze(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(json!({"on": on}))
 }
 
+/// `lighting.blind {on?}`: fixture changes and recalled presets go to a copy of the levels, not
+/// to the lights, so presets can be stored without the audience seeing them; off drops the copy
+/// (switches without `on`). Cues, fades and effects keep playing live.
+pub fn lighting_blind(e: &mut Engine, prm: &Value) -> CommandResult {
+    let on = opt_on(prm, e.dmx.blind())?;
+    e.dmx.set_blind(on);
+    Ok(json!({"on": on}))
+}
+
 /// `dmx.get {universe}`: the levels of one universe, channel 1 first.
 pub fn dmx_get(e: &mut Engine, prm: &Value) -> CommandResult {
     let n = universe(prm)?;
@@ -281,6 +328,7 @@ pub fn dmx_output_list(e: &mut Engine, _prm: &Value) -> CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixtures::{Attribute, value_of};
 
     #[test]
     fn outputs_are_added_listed_and_removed() {
@@ -310,6 +358,41 @@ mod tests {
         assert_eq!(back, e.show.dmx_outputs);
         assert!(e.run("dmx.output_remove", &json!({"output": 0})).is_ok());
         assert_eq!(e.show.dmx_outputs.len(), 1);
+    }
+
+    #[test]
+    fn blind_keeps_fixture_changes_and_recalls_off_the_lights() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1, "count": 2}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.2}}));
+        let _ = e.run("preset.store", &json!({"name": "Low"}));
+        let live = |e: &Engine| e.dmx.universe(1).map(|u| [u[0], u[1]]);
+        assert_eq!(live(&e), Some([51, 0]));
+        assert_eq!(e.run("lighting.blind", &Value::Null).ok(), Some(json!({"on": true})));
+        let version = e.dmx.version;
+        // A new look is built and stored without the lights moving.
+        let _ = e.run("fixture.set", &json!({"fixtures": [0, 1], "values": {"intensity": 1.0}}));
+        assert_eq!(live(&e), Some([51, 0]), "the lights stay");
+        assert_eq!(e.dmx.version, version, "nothing new to send");
+        let f = e.show.fixtures[1].clone();
+        assert_eq!(value_of(&e, &f, Attribute::Intensity), Some(1.0), "edits see the blind levels");
+        assert!(e.run("preset.store", &json!({"name": "Full"})).is_ok());
+        assert_eq!(e.show.presets[1].values.iter().map(|v| v.value).collect::<Vec<_>>(), vec![1.0, 1.0]);
+        // A recall in blind goes to the copy at once, even with a fade.
+        assert!(e.run("preset.recall", &json!({"preset": 0, "fade": 3.0})).is_ok());
+        assert!(!e.fading());
+        assert_eq!(e.dmx.edited(1).map(|u| [u[0], u[1]]), Some([51, 0]), "the copy holds the recalled look");
+        assert_eq!(live(&e), Some([51, 0]));
+        // Cues play live in blind.
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1}));
+        assert!(e.run("cue.go", &Value::Null).is_ok());
+        assert_eq!(live(&e), Some([255, 255]), "the cue reached the lights");
+        // Off: blind's copy goes; edits see the lights again.
+        assert_eq!(e.run("lighting.blind", &json!({"on": false})).ok(), Some(json!({"on": false})));
+        assert!(!e.dmx.blind());
+        assert_eq!(e.dmx.edited(1).map(|u| [u[0], u[1]]), Some([255, 255]));
+        assert_eq!(e.run("lighting.blind", &json!({"on": false})).ok(), Some(json!({"on": false})), "stays off");
     }
 
     #[test]

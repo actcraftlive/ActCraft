@@ -71,6 +71,26 @@ fn at_text(seconds: f64) -> String {
 }
 
 impl ActCraftApp {
+    /// While blind is on: says so, where fixtures are changed or shown, with a way out.
+    pub(crate) fn blind_note(&mut self, ui: &mut Ui, e: &mut Engine) {
+        if !e.dmx.blind() {
+            return;
+        }
+        let t = self.tokens;
+        let mut leave = false;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(tr("Blind is on: changes here stay off the lights; store them as presets."))
+                    .color(t.warning)
+                    .strong(),
+            );
+            leave = ui.button(tr("Leave blind")).clicked();
+        });
+        if leave {
+            self.run(e, "lighting.blind", json!({"on": false}));
+        }
+    }
+
     /// The song's Lighting tab: the cues it fires as it plays, and adding one.
     pub(crate) fn song_light_tab(&mut self, ui: &mut Ui, e: &mut Engine, song: &actcraft_show::Song) {
         let t = self.tokens;
@@ -274,6 +294,16 @@ impl ActCraftApp {
             let words = format!("{} \u{b7} {}", tr("Freeze"), if frozen { tr("on") } else { tr("off") });
             if ui.selectable_label(frozen, words).on_hover_text(tr("Hold fades and effects where they are")).clicked() {
                 run = Some(("lighting.freeze", Value::Null));
+            }
+            let blind = e.dmx.blind();
+            let words = format!("{} \u{b7} {}", tr("Blind"), if blind { tr("on") } else { tr("off") });
+            let fill = if blind { RichText::new(words).color(t.warning).strong() } else { RichText::new(words) };
+            if ui
+                .selectable_label(blind, fill)
+                .on_hover_text(tr("Fixture changes and recalled presets stay off the lights"))
+                .clicked()
+            {
+                run = Some(("lighting.blind", Value::Null));
             }
             let label = ui.label(tr("Master"));
             let mut master = e.dmx.master;

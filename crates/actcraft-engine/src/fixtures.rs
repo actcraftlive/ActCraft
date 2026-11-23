@@ -295,9 +295,18 @@ pub fn levels_for(f: &Fixture, attribute: Attribute, value: f64) -> Vec<(usize, 
     }
 }
 
-/// An attribute's value now (0-1), from the DMX levels; `None` when the fixture lacks it.
+/// An attribute's value now (0-1), from the levels being edited (blind's copy while blind is on);
+/// `None` when the fixture lacks it.
 pub fn value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
-    let levels = e.dmx.universe(usize::from(f.universe))?;
+    value_in(e.dmx.edited(usize::from(f.universe))?, f, attribute)
+}
+
+/// An attribute's value at the lights now (0-1, before blackout and master).
+pub(crate) fn live_value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
+    value_in(e.dmx.universe(usize::from(f.universe))?, f, attribute)
+}
+
+fn value_in(levels: &[u8; CHANNELS], f: &Fixture, attribute: Attribute) -> Option<f64> {
     let at = |offset: usize| levels.get(usize::from(f.address).saturating_sub(1) + offset).copied();
     let coarse = at(f.channels.iter().position(|a| *a == attribute)?)?;
     match attribute.fine().and_then(|fine| f.channels.iter().position(|a| *a == fine)) {
@@ -388,7 +397,7 @@ pub fn fixture_set(e: &mut Engine, prm: &Value) -> CommandResult {
         let Some(f) = e.show.fixtures.get(i).cloned() else { continue };
         for (a, v) in &wanted {
             for (offset, level) in levels_for(&f, *a, *v) {
-                changed |= e.dmx.set(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
+                changed |= e.dmx.set_edited(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
             }
         }
     }
