@@ -666,3 +666,20 @@ fn a_song_gets_a_sheet_for_a_musician_from_the_sheet_music_tab() {
     frames(&mut h, 3);
     assert!(h.query_by_role_and_label(Role::TextInput, "Sheet name").is_none());
 }
+
+#[test]
+fn sheets_in_the_browser_are_switched_on_from_the_band_tab() {
+    let (mut h, _engine) = window(|_| {});
+    h.state_mut().open_settings_at("band");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::CheckBox, "Let musicians see their sheets in a browser").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_band_request(), Some(crate::BandRequest::Sheets(true)));
+    // Once on, the tab says where musicians go and the code they type.
+    h.state_mut().platform.sheets_web = Some(("http://192.168.1.20:47392".into(), "123456".into(), 2));
+    frames(&mut h, 2);
+    assert!(h.query_by_label("Open http://192.168.1.20:47392 \u{b7} code: 123456 \u{b7} pages open: 2").is_some());
+    use egui_kittest::kittest::NodeT;
+    let on = h.get_by_role_and_label(Role::CheckBox, "Let musicians see their sheets in a browser");
+    assert_eq!(on.accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
+}

@@ -37,14 +37,14 @@ pub fn is_local(ip: IpAddr) -> bool {
 }
 
 /// `n` random bytes as hex, from the system's random source.
-fn random_hex(n: usize) -> Result<String, String> {
+pub(crate) fn random_hex(n: usize) -> Result<String, String> {
     let mut bytes = vec![0u8; n];
     getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// A new six-digit pairing code.
-fn new_code() -> Result<String, String> {
+pub(crate) fn new_code() -> Result<String, String> {
     let mut bytes = [0u8; 4];
     getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
     Ok(format!("{:06}", u32::from_le_bytes(bytes) % 1_000_000))

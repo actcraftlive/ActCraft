@@ -1279,3 +1279,21 @@
 	Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl), which notation and tab editors export, or notes written out from a MIDI file (.mid)	Noten und Tabulatur als MusicXML-Datei (.musicxml, .xml oder .mxl), wie Noten- und Tab-Programme sie exportieren, oder aus einer MIDI-Datei (.mid) ausgeschriebene Noten
 	Notes from the MIDI file	Noten aus der MIDI-Datei
 	Write the song's MIDI file out as notes; each MIDI track becomes a part	Die MIDI-Datei des Songs als Noten ausschreiben; jede MIDI-Spur wird eine Stimme
+	Enter the code ActCraft shows under Settings > Band.	Gib den Code ein, den ActCraft unter Einstellungen > Band zeigt.
+	Let musicians see their sheets in a browser	Musiker sehen ihre Notenblätter im Browser
+	Musicians open a page on a tablet or laptop on this network, sign in with the code, pick their name and see the sheet made for them for the song that plays, turning pages as it goes.	Musiker öffnen auf einem Tablet oder Laptop in diesem Netz eine Seite, melden sich mit dem Code an, wählen ihren Namen und sehen das Notenblatt für sie zum laufenden Song; die Seiten blättern mit.
+	No musicians yet: add them in ActCraft's Sheet music tab.	Noch keine Musiker: in ActCraft im Reiter Noten hinzufügen.
+	No sheet for you in this song.	Für dich gibt es in diesem Song kein Notenblatt.
+	Not you?	Nicht du?
+	Nothing is playing.	Gerade läuft nichts.
+	Open {address} · code: {code} · pages open: {n}	{address} öffnen · Code: {code} · offene Seiten: {n}
+	Pick your name	Wähle deinen Namen
+	Sheets	Notenblätter
+	Sheets in the browser	Notenblätter im Browser
+	Sign in	Anmelden
+	That code is not right. Look again in ActCraft.	Der Code stimmt nicht. Schau noch einmal in ActCraft nach.
+	The PDF could not be opened.	Die PDF konnte nicht geöffnet werden.
+	This sheet is a score; it shows in ActCraft for now.	Dieses Notenblatt ist eine Partitur; sie wird vorerst nur in ActCraft angezeigt.
+	Who are you?	Wer bist du?
+	{sheet}, page {page} of {pages}	{sheet}, Seite {page} von {pages}
+	this computer's address	die Adresse dieses Computers

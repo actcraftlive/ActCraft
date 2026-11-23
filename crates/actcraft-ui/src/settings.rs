@@ -990,6 +990,29 @@ impl ActCraftApp {
                 }
             });
         }
+        ui.add_space(8.0);
+        ui.label(RichText::new(tr("Sheets in the browser")).strong());
+        ui.label(
+            RichText::new(tr(
+                "Musicians open a page on a tablet or laptop on this network, sign in with the code, pick their name and see the sheet made for them for the song that plays, turning pages as it goes.",
+            ))
+            .color(t.text_dim),
+        );
+        let mut sheets = self.platform.sheets_web.is_some();
+        if ui.checkbox(&mut sheets, tr("Let musicians see their sheets in a browser")).changed() {
+            ask = Some(BandRequest::Sheets(sheets));
+        }
+        if let Some((address, code, open)) = &self.platform.sheets_web {
+            ui.label(
+                RichText::new(
+                    tr("Open {address} \u{b7} code: {code} \u{b7} pages open: {n}")
+                        .replace("{address}", address)
+                        .replace("{code}", code)
+                        .replace("{n}", &open.to_string()),
+                )
+                .strong(),
+            );
+        }
         if let Some(note) = &self.platform.band_note {
             ui.label(RichText::new(note).color(t.warning));
         }

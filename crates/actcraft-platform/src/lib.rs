@@ -21,6 +21,7 @@ pub mod midi_in;
 pub mod midi_out;
 pub mod osc_in;
 pub mod serial;
+pub mod sheet_web;
 pub mod speech;
 
 pub use actcraft_audio::StatusReader;

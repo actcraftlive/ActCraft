@@ -109,6 +109,8 @@ pub enum BandRequest {
     Follow(String, String),
     /// Stop following.
     Unfollow,
+    /// Let musicians see their sheets in a browser on this network (on) or not.
+    Sheets(bool),
 }
 
 /// Something Settings asks of the Hue bridge; the host does it off the window's thread.
@@ -182,6 +184,9 @@ pub struct PlatformInfo {
     pub band_hosting: Option<(String, String, usize)>,
     pub band_following: Option<(String, bool)>,
     pub band_note: Option<String>,
+    /// Sheets in the browser: while on, the address musicians open, the sign-in code and how many
+    /// pages are open.
+    pub sheets_web: Option<(String, String, usize)>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
