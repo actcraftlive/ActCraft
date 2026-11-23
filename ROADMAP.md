@@ -145,7 +145,7 @@ M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section
   inverted colours), full screen, follows playback; it keeps its own files, so it can show
   another song than the main window
 
-## M3 MIDI and remote 🔶 in progress
+## M3 MIDI and remote ✅
 
 - ✅ MIDI out and in on the computer's ports (the ports the system lists, hardware and virtual),
   chosen in Settings > MIDI and kept on the computer
@@ -172,7 +172,7 @@ M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section
 - ✅ Clock modes (click the big clock): elapsed, remaining, until the queue ends, time of day and
   show time (from the first Play, pauses included; its menu starts it again)
 
-## M4–M6 Lighting 🔶
+## M4–M6 Lighting ✅
 
 - ✅ DMX levels: 64 universes of 512 channels, live (not saved), set by command (`dmx.set`,
   `dmx.clear`, `dmx.get`); Lighting > DMX monitor shows a universe, a channel is set by number
@@ -244,7 +244,7 @@ monitor; 2D stage preview with virtual beams; programming, presets, sequences an
 engine with 70+ templates; cues, cue lists, control pages, blind and freeze, tap tempo and beat
 sync.
 
-## M7–M9 🔶
+## M7–M9 🔶 (M9 installers to do)
 
 - ✅ Lighting lane: the Light cues tab shows the song as a lane with its bars, where playback is
   and each lighting cue as a mark; a click on the lane sets where a new cue goes (on the beat with
