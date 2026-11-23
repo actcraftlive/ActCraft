@@ -46,6 +46,38 @@ use theme::Tokens;
 pub use i18n::{set_language, tr};
 pub use notation_view::score_svg;
 
+/// ActCraft as the shared updater knows it: releases come only from this repository.
+pub static ACTCRAFT: craft_update::App = craft_update::App {
+    developer: "ActCraft",
+    bundle_id_override: Some("io.github.actcraftlive.ActCraft"),
+    ..craft_update::App::new("actcraft", "ActCraft", "Show control for live musicians", "actcraftlive/ActCraft")
+};
+
+/// The updater's words in the window's language, their placeholders filled.
+pub(crate) fn update_tr(text: &str, args: &[(&str, &str)]) -> String {
+    actcraft_engine::fill(tr(text), args)
+}
+
+/// What Help > About says about the last update check, if anything.
+pub(crate) fn update_status_text(status: &craft_update::updater::Status) -> Option<String> {
+    use craft_update::updater::{READY_TEXT, Status};
+    let version = env!("CARGO_PKG_VERSION");
+    let app = [("app", "ActCraft"), ("version", version)];
+    Some(match status {
+        Status::Idle => return None,
+        Status::Checking => update_tr("Checking for updates…", &[]),
+        Status::UpToDate => update_tr("{app} {version} is the newest version available.", &app),
+        Status::Failed(why) => format!("{} {why}", update_tr("Could not check for updates.", &[])),
+        Status::Installing => update_tr("Downloading and installing update…", &[]),
+        Status::Ready => update_tr(READY_TEXT, &app),
+        Status::Managed => {
+            update_tr("{app} {version} follows the version chosen in the launcher, so it does not update itself.", &app)
+        }
+        Status::Updated(v) => update_tr("{app} updated to {version}.", &[("app", "ActCraft"), ("version", v)]),
+        Status::InstallFailed(why) => update_tr("The update could not be installed: {reason}", &[("reason", why)]),
+    })
+}
+
 /// An engine message in the window's language: its template translated, values filled in (a
 /// value that is window text, such as a mode's name, translated too).
 pub fn message_text(m: &actcraft_engine::Message) -> String {
@@ -293,6 +325,8 @@ pub struct ActCraftApp {
     /// A further sheet of a song picked in the Sheet music tab (song id, sheet); the song's own
     /// sheet otherwise.
     sheet_pick: Option<(u64, usize)>,
+    /// Looking for a newer release and installing it, each only when the person asks.
+    pub(crate) updater: craft_update::updater::Updater,
     /// The setlist note being written in a playlist's set (playlist, set, song).
     set_note_edit: Option<(usize, usize, u64)>,
     /// The name typed for a new sheet or a new musician in the Sheet music tab.
@@ -386,6 +420,8 @@ impl ActCraftApp {
             mark_edit: sheet_view::MarkEdit::default(),
             note_prompt: None,
             sheet_pick: None,
+            updater: craft_update::updater::Updater::new(&ACTCRAFT, env!("CARGO_PKG_VERSION"))
+                .with_translator(update_tr),
             set_note_edit: None,
             sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,
@@ -582,6 +618,17 @@ impl ActCraftApp {
         let ctx = ui.ctx().clone();
         self.handle_close(&ctx, e);
         self.handle_drops(&ctx, e);
+        // Update checks run only when asked (Help > About); an offer waits for the person to choose.
+        self.updater.tick(&ctx);
+        match self.updater.show(&ctx) {
+            craft_update::updater::Action::OpenUrl(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            craft_update::updater::Action::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            craft_update::updater::Action::None => {}
+        }
+        // An offer is a dialog of its own: Help > About, where it was asked for, makes room.
+        if self.updater.prompt_open() && matches!(self.modal, Some(flows::Modal::About)) {
+            self.modal = None;
+        }
         if self.modal.is_none() {
             self.handle_shortcuts(&ctx, e);
             if !ctx.text_edit_focused()

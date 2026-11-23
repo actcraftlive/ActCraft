@@ -54,6 +54,8 @@ craft-midi = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef9
 craft-docx = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-wordmodel = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1" }
 craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", features = ["raster"] }
+# Checking GitHub for a newer release and installing it, only when the person asks (Help > About).
+craft-update = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", features = ["egui"] }
 craft-audio = { git = "https://github.com/storytold/craft-libs", rev = "8048f8ef92da80fb3ce5a056d59ca591ee66faf1", default-features = false, features = ["decode-native"] }
 
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "wayland", "x11"] }

@@ -515,7 +515,6 @@
 	Verse	Strophe
 	Voice, bus and timing…	Stimme, Bus und Timing…
 	Your own words	Eigene Worte
-	ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, and (coming) MIDI and DMX lighting, all on one clock and in one show file.	ActCraft ist eine Showsteuerung für Live-Musiker: Backing-Tracks mit Songtexten, Akkorden, Noten, Ansagen, Setlisten und Klick, und (in Arbeit) MIDI und DMX-Licht, alles auf einer Uhr und in einer Show-Datei.
 	Free and open source for Windows, macOS and Linux.	Frei und quelloffen für Windows, macOS und Linux.
 	Version	Version
 # Notation (MusicXML scores as notes and tablature)
@@ -1316,3 +1315,39 @@
 	Ranges of channel {n}	Bereiche von Kanal {n}
 	{sheet}, the lines playing now	{sheet}, die Zeilen, die gerade laufen
 	The score is being drawn.	Die Partitur wird gezeichnet.
+	All releases are listed at {url}	Alle Versionen stehen unter {url}
+	Asks GitHub whether there is a newer release; nothing is sent before you press this	Fragt GitHub, ob es eine neuere Version gibt; vor diesem Klick wird nichts gesendet
+	Cannot auto-update	Automatisches Update nicht möglich
+	Cannot auto-update this installation type. Please download manually.	Diese Installationsart kann sich nicht selbst aktualisieren. Bitte von Hand herunterladen.
+	Check Again	Erneut prüfen
+	Check for Updates	Nach Updates suchen
+	Checking for updates…	Suche nach Updates …
+	Close {app}	{app} schließen
+	Could not check for updates.	Die Suche nach Updates ist fehlgeschlagen.
+	Couldn't reach GitHub	GitHub nicht erreichbar
+	Dismiss	Schließen
+	Download	Herunterladen
+	Downloading	Wird heruntergeladen
+	Downloading and installing update…	Update wird heruntergeladen und installiert …
+	Installing update…	Update wird installiert …
+	Later	Später
+	Restart to Update	Neu starten und aktualisieren
+	Save and Update	Speichern und aktualisieren
+	Save or close	Speichern oder schließen
+	Saving your work...	Deine Arbeit wird gespeichert...
+	The update could not be installed: {reason}	Das Update konnte nicht installiert werden: {reason}
+	The update failed unexpectedly.	Das Update ist unerwartet fehlgeschlagen.
+	The update is installed.	Das Update ist installiert.
+	The update is installed. Close {app} to finish; it restarts by itself.	Das Update ist installiert. Schließe {app}, um es abzuschließen; es startet von selbst neu.
+	The update stopped unexpectedly.	Das Update wurde unerwartet abgebrochen.
+	Update	Aktualisieren
+	Update and Restart	Aktualisieren und neu starten
+	Update ready. Close {app} to install it.	Update bereit. Schließe {app}, um es zu installieren.
+	What's new	Was ist neu
+	by {developer}	von {developer}
+	v{from} to {to}	v{from} auf {to}
+	{app} updated to {version}.	{app} wurde auf {version} aktualisiert.
+	{app} {version} follows the version chosen in the launcher, so it does not update itself.	{app} {version} folgt der im Launcher gewählten Version und aktualisiert sich daher nicht selbst.
+	{app} {version} is available with the latest features and bug fixes.	{app} {version} ist verfügbar, mit den neuesten Funktionen und Fehlerbehebungen.
+	{app} {version} is the newest version available.	{app} {version} ist die neueste verfügbare Version.
+	ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, MIDI and DMX lighting, all on one clock and in one show file.	ActCraft ist Showsteuerung für Live-Musiker: Playbacks mit Songtexten, Akkorden, Noten, Ansagen, Setlisten und Klick, MIDI und DMX-Licht, alles auf einer Uhr und in einer Showdatei.

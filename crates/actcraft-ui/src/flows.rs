@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use actcraft_engine::{Engine, registry};
 use actcraft_library::smart;
+use craft_update::updater::Status as UpdateStatus;
 use egui::{Key, RichText, Ui};
 use serde_json::{Value, json};
 
@@ -665,6 +666,9 @@ impl ActCraftApp {
             self.logo = Some(ctx.load_texture("actcraft-logo", image, egui::TextureOptions::LINEAR));
         }
         let logo = self.logo.clone();
+        // Help > About asks GitHub for a newer release only when its button is pressed.
+        let update_status = self.updater.status().clone();
+        let mut check_updates = false;
         let mut keep = true;
         let response = egui::Modal::new(egui::Id::unique("actcraft-modal")).show(ctx, |ui| {
             ui.set_min_width(380.0);
@@ -828,11 +832,23 @@ impl ActCraftApp {
                         });
                     });
                     ui.add_space(8.0);
-                    ui.label(tr("ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, and (coming) MIDI and DMX lighting, all on one clock and in one show file."));
+                    ui.label(tr("ActCraft is show control for live musicians: backing tracks with lyrics, chords, sheet music, spoken cues, setlists and click, MIDI and DMX lighting, all on one clock and in one show file."));
                     ui.add_space(4.0);
                     ui.label(tr("Free and open source for Windows, macOS and Linux."));
                     ui.add_space(8.0);
                     ui.label(RichText::new(tr("Licence: MIT OR Apache-2.0")).small());
+                    ui.add_space(8.0);
+                    let busy = matches!(update_status, UpdateStatus::Checking | UpdateStatus::Installing);
+                    if ui
+                        .add_enabled(!busy, egui::Button::new(tr("Check for Updates")))
+                        .on_hover_text(tr("Asks GitHub whether there is a newer release; nothing is sent before you press this"))
+                        .clicked()
+                    {
+                        check_updates = true;
+                    }
+                    if let Some(text) = crate::update_status_text(&update_status) {
+                        ui.label(text);
+                    }
                     ui.add_space(8.0);
                     let close = ui.button(tr("Close"));
                     if ui.memory(|m| m.focused().is_none()) {
@@ -844,6 +860,9 @@ impl ActCraftApp {
                 }
             }
         });
+        if check_updates {
+            self.updater.check_now(ctx);
+        }
         // Esc or a click outside closes the dialog, as on every platform.
         if response.should_close() {
             keep = false;
@@ -911,6 +930,41 @@ mod tests {
         assert!(has_ext(Path::new("C:/a/Song.WAV"), AUDIO_EXTENSIONS));
         assert!(has_ext(Path::new("gig.actcraft"), SHOW_EXTENSIONS));
         assert!(!has_ext(Path::new("notes.txt"), AUDIO_EXTENSIONS));
+    }
+
+    /// The words the shared update dialog draws (buttons in title case, then its sentences), so
+    /// the language files have them; the update check in Help > About shows them.
+    #[test]
+    fn the_update_dialog_has_its_words() {
+        let words = [
+            crate::update_tr("Later", &[]),
+            crate::update_tr("Download", &[]),
+            crate::update_tr("Update", &[]),
+            crate::update_tr("Update and Restart", &[]),
+            crate::update_tr("Restart to Update", &[]),
+            crate::update_tr("Save and Update", &[]),
+            crate::update_tr("Save or close", &[]),
+            crate::update_tr("Check Again", &[]),
+            crate::update_tr("Dismiss", &[]),
+            crate::update_tr("Downloading", &[]),
+            crate::update_tr("What's new", &[]),
+            crate::update_tr("Couldn't reach GitHub", &[]),
+            crate::update_tr("Cannot auto-update", &[]),
+            crate::update_tr("Cannot auto-update this installation type. Please download manually.", &[]),
+            crate::update_tr("{app} {version} is available with the latest features and bug fixes.", &[]),
+            crate::update_tr("All releases are listed at {url}", &[]),
+            crate::update_tr("by {developer}", &[]),
+            crate::update_tr("v{from} to {to}", &[]),
+            crate::update_tr("Close {app}", &[]),
+            crate::update_tr("Installing update…", &[]),
+            crate::update_tr("Saving your work...", &[]),
+            crate::update_tr("The update failed unexpectedly.", &[]),
+            crate::update_tr("The update stopped unexpectedly.", &[]),
+            crate::update_tr("The update is installed.", &[]),
+            crate::update_tr("Update ready. Close {app} to install it.", &[]),
+            crate::update_tr("The update is installed. Close {app} to finish; it restarts by itself.", &[]),
+        ];
+        assert!(words.iter().all(|w| !w.is_empty()));
     }
 
     #[test]
