@@ -151,6 +151,7 @@ mod tests {
             include_str!("notation_commands.rs"),
             include_str!("pdf_commands.rs"),
             include_str!("sheet_commands.rs"),
+            include_str!("setlist.rs"),
             include_str!("midi_file.rs"),
             include_str!("midi_sync.rs"),
             include_str!("remote.rs"),

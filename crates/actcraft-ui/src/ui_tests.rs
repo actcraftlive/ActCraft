@@ -666,3 +666,32 @@ fn a_song_gets_a_sheet_for_a_musician_from_the_sheet_music_tab() {
     frames(&mut h, 3);
     assert!(h.query_by_role_and_label(Role::TextInput, "Sheet name").is_none());
 }
+
+#[test]
+fn a_setlist_note_is_written_before_a_song_of_a_set() {
+    let (mut h, engine) = window(|e| {
+        for t in ["A", "B"] {
+            let _ = e.run("song.add", &json!({"title": t}));
+        }
+        let ids: Vec<u64> = e.show.songs.iter().map(|s| s.id).collect();
+        let _ = e.run("playlist.create", &json!({"name": "Gig"}));
+        let _ = e.run("playlist.add_songs", &json!({"playlist": 0, "songs": ids}));
+    });
+    frames(&mut h, 3);
+    if let Some(n) = h.query_by_label_contains("Gig") {
+        n.click_accesskit();
+    }
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Note (2. B)").click_accesskit();
+    frames(&mut h, 2);
+    let field = h.get_by_role_and_label(Role::TextInput, "Note before (B)");
+    assert!(field.is_focused(), "the field takes focus");
+    field.type_text("Acoustic guitar");
+    frames(&mut h, 2);
+    h.key_press(egui::Key::Enter);
+    frames(&mut h, 3);
+    let notes = with(&engine, |e| e.show.playlists[0].sets[0].notes.clone());
+    assert_eq!(notes.iter().map(|n| n.text.as_str()).collect::<Vec<_>>(), vec!["Acoustic guitar"]);
+    assert!(h.query_by_label("Acoustic guitar").is_some(), "the note shows above the song");
+    assert!(h.query_by_role_and_label(Role::TextInput, "Note before (B)").is_none(), "the field closes");
+}

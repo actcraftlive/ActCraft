@@ -180,6 +180,9 @@ pub struct Show {
     /// DMX heard from other gear that sets off commands.
     #[serde(default)]
     pub dmx_triggers: Vec<DmxTrigger>,
+    /// The band's logo (a PNG or JPEG file) at the top of a printed setlist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_logo: Option<String>,
     /// The band's musicians by name, for their sheets.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub musicians: Vec<String>,
@@ -237,6 +240,7 @@ impl Default for Show {
             dmx_outputs: Vec::new(),
             dmx_triggers: Vec::new(),
             musicians: Vec::new(),
+            band_logo: None,
             gamepad_actions: Vec::new(),
             gamepad_faders: Vec::new(),
             fixtures: Vec::new(),
@@ -1547,6 +1551,20 @@ pub struct Playlist {
 pub struct Set {
     pub name: String,
     pub songs: Vec<u64>,
+    /// Lines printed on the setlist before a song: a break, an instrument change.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<SetNote>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A line on the setlist before a song of a set ("Break, 20 minutes", "Acoustic guitar").
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SetNote {
+    /// The song it comes before.
+    pub song: u64,
+    pub text: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -1915,6 +1933,9 @@ impl Show {
         }
         self.transitions.crossfade = clamp_f(self.transitions.crossfade, 0.0, 30.0, 0.0);
         self.playlists.truncate(MAX_PLAYLISTS);
+        if let Some(logo) = &mut self.band_logo {
+            cut(logo, MAX_TEXT);
+        }
         for p in &mut self.playlists {
             cut(&mut p.name, MAX_TEXT);
             p.sets.truncate(MAX_SETS);
@@ -1924,6 +1945,10 @@ impl Show {
             for s in &mut p.sets {
                 cut(&mut s.name, MAX_TEXT);
                 s.songs.truncate(MAX_SET_SONGS);
+                s.notes.truncate(MAX_SET_SONGS);
+                for n in &mut s.notes {
+                    cut(&mut n.text, 200);
+                }
             }
             if let Some(smart) = &mut p.smart {
                 smart.rules.truncate(MAX_RULES);
