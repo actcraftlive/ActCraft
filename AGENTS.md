@@ -110,6 +110,7 @@ Layers 0-3 build for `wasm32-unknown-unknown` and may not depend on native crate
 - Gate before every commit: `cargo xtask ci` (fmt, clippy `-D warnings`, tests, layers, wasm, licences, assets).
 - CI runs the same gate on Linux and Windows through `storytold/craft-common-actions` (`.github/workflows/ci.yml`), and checks the house-rule blocks above (`house-rules.yml`). `main` is protected: changes arrive through pull requests whose checks pass.
 - One step: `cargo xtask layers|wasm|licences|assets`.
+- Unsigned package for this computer's system: `cargo xtask package` (release build, licences, attribution and readme in a zip on Windows or a .tar.gz elsewhere, in `target/package/`; nothing is signed or published).
 - Run: `cargo run -p actcraft --bin actcraft` (window), `cargo run -p actcraft --bin actcraft-cli -- commands`.
 - Agent entry point: `actcraft-cli mcp --automation-read-root DIR --automation-write-root DIR` refuses to start without both roots and refuses files outside them.
 
