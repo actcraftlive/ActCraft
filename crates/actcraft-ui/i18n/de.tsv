@@ -1050,3 +1050,14 @@
 	give `time`, or `bar` and maybe `beat`	`time` angeben, oder `bar` und eventuell `beat`
 	that bar is before the song starts	dieser Takt liegt vor dem Songanfang
 	Move a song's lighting cue	Licht-Cue eines Songs verschieben
+	also {n}	weiteres {n}
+	Also moves ({n})	Bewegt auch ({n})
+	Later in the cycle	Später im Zyklus
+	Move another attribute too	Noch ein Attribut bewegen
+	Pan and tilt make a circle; red, green and blue a rainbow	Pan und Tilt ergeben einen Kreis; Rot, Grün und Blau einen Regenbogen
+	Circle	Kreis
+	Circles one after another	Kreise nacheinander
+	Rainbow	Regenbogen
+	Rainbow wave	Regenbogenwelle
+	`also` must be a list of attributes	`also` muss eine Liste von Attributen sein
+	an effect moves at most 8 more attributes	ein Effekt bewegt höchstens 8 weitere Attribute

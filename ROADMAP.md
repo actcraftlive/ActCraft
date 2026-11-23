@@ -25,9 +25,8 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: colour and movement effects across several attributes
-3. M5: beams and moving-head direction in the stage preview
-4. M4: USB DMX interfaces
+2. M5: beams and moving-head direction in the stage preview
+3. M4: USB DMX interfaces
 
 ## Quality and open questions
 
@@ -202,10 +201,12 @@ details are in the milestone sections further down.
   Light cues tab with "Now")
 - ✅ Effects: a group's attribute moved in a wave (smooth, on and off, ramp, up and down) between two
   values, seconds or beats per cycle at the song tempo, spread over the group; started and
-  stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
-  Colour and movement effects across several attributes to do
-- ✅ Ready-made effects: fourteen to start from (breathe, pulse on the beat, chase, wave, build
-  over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom); none flashes
+  stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects); one
+  effect moves more attributes on the same wave, each later in the cycle (pan and tilt make a
+  circle, red, green and blue a rainbow; `effect.set {also}`, "Move another attribute too")
+- ✅ Ready-made effects: eighteen to start from (breathe, pulse on the beat, chase, wave, build
+  over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom, circles,
+  rainbows); none flashes
   more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the
   effect form)
 - ✅ Blackout, master and freeze: blackout takes every fixture dark at the output and a master

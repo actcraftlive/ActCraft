@@ -279,3 +279,31 @@ fn a_lighting_cue_shows_on_the_lane_with_its_bar_and_moves_by_beats() {
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.current().map(|s| s.light_cues.len())), Some(0));
 }
+
+#[test]
+fn a_circle_effect_brings_its_second_attribute_and_another_can_be_added() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1}));
+        let _ = e.run("group.set", &json!({"name": "Head", "fixtures": [0]}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Start from").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Circle").click_accesskit();
+    frames(&mut h, 2);
+    // The template's tilt shows as a second attribute with its own, named controls.
+    assert!(h.query_by_role_and_label(Role::ComboBox, "Also moves (1)").is_some());
+    assert!(h.query_by_role_and_label(Role::Slider, "Later in the cycle (also 1)").is_some());
+    h.get_by_role_and_label(Role::Button, "Move another attribute too").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Remove (also 2)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Save effect").click_accesskit();
+    frames(&mut h, 3);
+    let fx = with(&engine, |e| e.show.effects.first().cloned());
+    assert_eq!(
+        fx.map(|f| (f.attribute, f.also.iter().map(|p| (p.attribute, p.offset)).collect::<Vec<_>>())),
+        Some((actcraft_engine::fixtures::Attribute::Pan, vec![(actcraft_engine::fixtures::Attribute::Tilt, 0.25)]))
+    );
+}

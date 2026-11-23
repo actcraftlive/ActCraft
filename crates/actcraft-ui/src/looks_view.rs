@@ -49,6 +49,10 @@ fn template_text(key: &str) -> &'static str {
         "nod" => tr("Nod"),
         "tilt_wave" => tr("Tilt wave"),
         "zoom_breathe" => tr("Zoom in and out"),
+        "circle" => tr("Circle"),
+        "circle_wave" => tr("Circles one after another"),
+        "rainbow" => tr("Rainbow"),
+        "rainbow_wave" => tr("Rainbow wave"),
         _ => tr("Effect"),
     }
 }
@@ -581,6 +585,15 @@ impl ActCraftApp {
                                 fx.low = t.low;
                                 fx.high = t.high;
                                 fx.spread = t.spread;
+                                fx.also = t
+                                    .also
+                                    .iter()
+                                    .map(|(a, offset)| actcraft_engine::effects::EffectPart {
+                                        attribute: *a,
+                                        offset: *offset,
+                                        ..Default::default()
+                                    })
+                                    .collect();
                             }
                         }
                     })
@@ -637,12 +650,63 @@ impl ActCraftApp {
                     ui.add(egui::Slider::new(value, 0.0..=1.0)).labelled_by(label.id);
                 }
             });
+            // More attributes on the same wave, each later in the cycle (a circle, a rainbow).
+            let mut drop = None;
+            for (k, part) in fx.also.iter_mut().enumerate() {
+                let which = actcraft_engine::fill(tr("also {n}"), &[("n", &(k + 1).to_string())]);
+                ui.horizontal_wrapped(|ui| {
+                    let label = ui.label(actcraft_engine::fill(tr("Also moves ({n})"), &[("n", &(k + 1).to_string())]));
+                    egui::ComboBox::from_id_salt(("effect-also", k))
+                        .selected_text(crate::fixtures_view::attribute_text(part.attribute))
+                        .show_ui(ui, |ui| {
+                            for a in ATTRIBUTES.into_iter().filter(|a| !a.is_fine()) {
+                                ui.selectable_value(&mut part.attribute, a, crate::fixtures_view::attribute_text(a));
+                            }
+                        })
+                        .response
+                        .labelled_by(label.id);
+                    for (key, value) in [
+                        (tr("From value"), &mut part.low),
+                        (tr("To value"), &mut part.high),
+                        (tr("Later in the cycle"), &mut part.offset),
+                    ] {
+                        ui.label(key);
+                        let r = ui.add(egui::Slider::new(value, 0.0..=1.0));
+                        let name = format!("{key} ({which})");
+                        ui.ctx().accesskit_node_builder(r.id, |node| node.set_label(name));
+                    }
+                    let r = ui.small_button(tr("Remove"));
+                    let name = format!("{} ({which})", tr("Remove"));
+                    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                    if r.clicked() {
+                        drop = Some(k);
+                    }
+                });
+            }
+            if let Some(k) = drop {
+                fx.also.remove(k);
+            }
+            let room = fx.also.len() < actcraft_show::limits::MAX_EFFECT_PARTS;
+            if ui
+                .add_enabled(room, egui::Button::new(tr("Move another attribute too")))
+                .on_hover_text(tr("Pan and tilt make a circle; red, green and blue a rainbow"))
+                .clicked()
+            {
+                fx.also.push(actcraft_engine::effects::EffectPart { offset: 0.25, ..Default::default() });
+            }
+            let also: Vec<Value> = fx
+                .also
+                .iter()
+                .map(|p| {
+                    json!({"attribute": attribute_key(p.attribute), "low": p.low, "high": p.high, "offset": p.offset})
+                })
+                .collect();
             if ui.add_enabled(!fx.name.trim().is_empty(), egui::Button::new(tr("Save effect"))).clicked() {
                 run = Some((
                     "effect.set",
                     json!({"name": fx.name.trim(), "group": d.effect_group, "attribute": attribute_key(fx.attribute),
                         "shape": shape_key(fx.shape), "period": fx.period, "beats": fx.beats,
-                        "low": fx.low, "high": fx.high, "spread": fx.spread}),
+                        "low": fx.low, "high": fx.high, "spread": fx.spread, "also": also}),
                 ));
             }
         }
