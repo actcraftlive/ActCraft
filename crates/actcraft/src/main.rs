@@ -189,14 +189,17 @@ impl Host {
     /// it learns one), and tells the window which controllers are connected.
     fn follow_gamepads(&mut self) {
         let Some(pads) = &mut self.gamepads else { return };
-        let pressed = pads.pressed();
+        let input = pads.poll();
         self.app.platform.gamepads = pads.connected();
-        for button in pressed {
+        for button in input.pressed {
             if self.app.gamepad_learning() {
                 self.app.gamepad_learned(button);
             } else {
                 self.app.engine().gamepad_in(button);
             }
+        }
+        for (axis, value) in input.moved {
+            self.app.engine().gamepad_axis(axis, value);
         }
     }
 

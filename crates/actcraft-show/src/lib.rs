@@ -178,6 +178,9 @@ pub struct Show {
     /// Game controller buttons that set off commands.
     #[serde(default)]
     pub gamepad_actions: Vec<GamepadAction>,
+    /// Game controller sticks and triggers that move a volume or the lighting master.
+    #[serde(default)]
+    pub gamepad_faders: Vec<GamepadFader>,
     /// The lights: each fixture with its channels and where it is patched.
     #[serde(default)]
     pub fixtures: Vec<Fixture>,
@@ -226,6 +229,7 @@ impl Default for Show {
             dmx_outputs: Vec::new(),
             dmx_triggers: Vec::new(),
             gamepad_actions: Vec::new(),
+            gamepad_faders: Vec::new(),
             fixtures: Vec::new(),
             fixture_types: Vec::new(),
             groups: Vec::new(),
@@ -981,6 +985,23 @@ pub struct GamepadAction {
     pub extra: Map<String, Value>,
 }
 
+/// A game controller stick or trigger that moves a volume, or the lighting master when
+/// `volume` is `None`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GamepadFader {
+    /// One of [`GamepadFader::AXES`].
+    pub axis: String,
+    pub volume: Option<FaderTarget>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl GamepadFader {
+    /// The sticks (each way) and the analogue triggers.
+    pub const AXES: &[&str] = &["left_trigger", "right_trigger", "left_x", "left_y", "right_x", "right_y"];
+}
+
 impl GamepadAction {
     /// The buttons, by where they sit on a standard controller (south is the lowest face button).
     pub const BUTTONS: &[&str] = &[
@@ -1657,6 +1678,15 @@ impl Show {
                 cut(&mut c.preset, 64);
                 c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
                 c.follow = clamp_f(c.follow, 0.0, MAX_FADE_S, 0.0);
+            }
+        }
+        self.gamepad_faders.truncate(MAX_GAMEPAD_ACTIONS);
+        self.gamepad_faders.retain(|f| GamepadFader::AXES.contains(&f.axis.as_str()));
+        for f in &mut self.gamepad_faders {
+            if let Some(FaderTarget::Bus(b)) = f.volume
+                && usize::from(b) >= BUSES
+            {
+                f.volume = None;
             }
         }
         self.gamepad_actions.truncate(MAX_GAMEPAD_ACTIONS);

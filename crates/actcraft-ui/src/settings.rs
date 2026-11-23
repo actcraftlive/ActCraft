@@ -130,16 +130,19 @@ impl ActCraftApp {
                     }
                 });
                 ui.separator();
-                match self.settings_tab {
-                    Tab::Audio => self.audio_settings(ui, e),
-                    Tab::Metronome => self.metronome_settings(ui, e),
-                    Tab::Voice => self.voice_settings(ui, e),
-                    Tab::Playback => self.playback_settings(ui, e),
-                    Tab::Midi => self.midi_settings(ui, e),
-                    Tab::Macros => self.macro_settings(ui, e),
-                    Tab::Library => self.library_settings(ui, e),
-                    Tab::Lighting => self.lighting_settings(ui, e),
-                }
+                // A long tab scrolls inside the window instead of running off the screen.
+                egui::ScrollArea::vertical().id_salt("settings-scroll").auto_shrink([false, true]).show(ui, |ui| {
+                    match self.settings_tab {
+                        Tab::Audio => self.audio_settings(ui, e),
+                        Tab::Metronome => self.metronome_settings(ui, e),
+                        Tab::Voice => self.voice_settings(ui, e),
+                        Tab::Playback => self.playback_settings(ui, e),
+                        Tab::Midi => self.midi_settings(ui, e),
+                        Tab::Macros => self.macro_settings(ui, e),
+                        Tab::Library => self.library_settings(ui, e),
+                        Tab::Lighting => self.lighting_settings(ui, e),
+                    }
+                });
             });
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.settings_open = false;
@@ -528,9 +531,79 @@ impl ActCraftApp {
         if learn {
             self.gamepad_learning = !learning;
         }
+        self.gamepad_faders_ui(ui, e, &mut run);
         if let Some((id, prm)) = run {
             self.run(e, id, prm);
         }
+    }
+
+    /// Sticks and triggers as faders: the ones set, and a row to add one.
+    fn gamepad_faders_ui(&mut self, ui: &mut Ui, e: &Engine, run: &mut Option<(&'static str, serde_json::Value)>) {
+        use actcraft_show::FaderTarget;
+        let moves_text = |fader: &str, bus: u8| match fader {
+            "master" => tr("Master volume").to_owned(),
+            "song" => tr("Song volume").to_owned(),
+            "bus" => actcraft_engine::fill(tr("Bus {bus} volume"), &[("bus", &(u16::from(bus) + 1).to_string())]),
+            "lighting" => tr("Lighting master").to_owned(),
+            _ => tr("Choose what it moves").to_owned(),
+        };
+        egui::Grid::new("gamepad-faders").num_columns(3).striped(true).show(ui, |ui| {
+            for (i, f) in e.show.gamepad_faders.iter().enumerate() {
+                let (fader, bus) = match f.volume {
+                    None => ("lighting", 0),
+                    Some(FaderTarget::Master) => ("master", 0),
+                    Some(FaderTarget::Song) => ("song", 0),
+                    Some(FaderTarget::Bus(b)) => ("bus", b),
+                };
+                let axis = axis_text(&f.axis);
+                let moves = moves_text(fader, bus);
+                ui.label(axis);
+                ui.label(&moves);
+                let r = ui.button(tr("Remove"));
+                let name = format!("{} ({axis}: {moves})", tr("Remove"));
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                if r.clicked() {
+                    *run = Some(("gamepad.fader_remove", serde_json::json!({"fader": i})));
+                }
+                ui.end_row();
+            }
+        });
+        let buses = u8::try_from(e.show.buses.len()).unwrap_or(0);
+        let d = &mut self.gamepad_fader_draft;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Stick or trigger"));
+            let shown = if d.0.is_empty() { tr("Choose one").to_owned() } else { axis_text(&d.0).to_owned() };
+            egui::ComboBox::from_id_salt("gamepad-axis")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for a in actcraft_engine::gamepad::GamepadFader::AXES {
+                        ui.selectable_value(&mut d.0, (*a).to_owned(), axis_text(a));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            let label = ui.label(tr("Moves"));
+            egui::ComboBox::from_id_salt("gamepad-moves")
+                .selected_text(moves_text(&d.1, d.2))
+                .show_ui(ui, |ui| {
+                    for f in ["master", "song", "lighting"] {
+                        if ui.selectable_label(d.1 == f, moves_text(f, 0)).clicked() {
+                            f.clone_into(&mut d.1);
+                        }
+                    }
+                    for b in 0..buses {
+                        if ui.selectable_label(d.1 == "bus" && d.2 == b, moves_text("bus", b)).clicked() {
+                            "bus".clone_into(&mut d.1);
+                            d.2 = b;
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if ui.add_enabled(!d.0.is_empty() && !d.1.is_empty(), egui::Button::new(tr("Add fader"))).clicked() {
+                *run = Some(("gamepad.fader_add", serde_json::json!({"axis": d.0, "fader": d.1, "bus": d.2})));
+            }
+        });
     }
 
     /// Macros: named lists of commands, called with `$NAME` at a timecoded lyrics line.
@@ -840,5 +913,18 @@ fn button_text(button: &str) -> &'static str {
         "dpad_left" => tr("Direction pad left"),
         "dpad_right" => tr("Direction pad right"),
         _ => tr("Button"),
+    }
+}
+
+/// A stick direction or trigger in words.
+fn axis_text(axis: &str) -> &'static str {
+    match axis {
+        "left_trigger" => tr("Left trigger"),
+        "right_trigger" => tr("Right trigger"),
+        "left_x" => tr("Left stick, left and right"),
+        "left_y" => tr("Left stick, up and down"),
+        "right_x" => tr("Right stick, left and right"),
+        "right_y" => tr("Right stick, up and down"),
+        _ => tr("Stick or trigger"),
     }
 }

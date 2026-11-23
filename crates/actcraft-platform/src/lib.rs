@@ -27,7 +27,7 @@ pub use audio_out::{AudioOutput, OutputInfo, output_devices};
 pub use dmx_in::{DmxIn, DmxInLevels};
 pub use dmx_out::{DmxFrame, DmxOut};
 pub use files::{NativeServices, RootedServices};
-pub use gamepad::Gamepads;
+pub use gamepad::{GamepadInput, Gamepads};
 pub use midi_in::{MidiIn, MidiQueue, input_ports as midi_input_ports};
 pub use midi_out::{MidiTimeOut, output_ports as midi_output_ports};
 pub use osc_in::{OscIn, OscQueue};

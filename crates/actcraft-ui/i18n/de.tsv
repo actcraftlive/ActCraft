@@ -1151,3 +1151,19 @@
 	Sweep the room	Den Raum abfahren
 	Circle over a bar	Kreis über einen Takt
 	Zoom on the beat	Zoom im Takt
+	Choose what it moves	Wählen, was er bewegt
+	Stick or trigger	Stick oder Trigger
+	Choose one	Einen wählen
+	Moves	Bewegt
+	Add fader	Fader hinzufügen
+	Left stick, left and right	Linker Stick, links und rechts
+	Left stick, up and down	Linker Stick, auf und ab
+	Right stick, left and right	Rechter Stick, links und rechts
+	Right stick, up and down	Rechter Stick, auf und ab
+	Add a controller fader	Controller-Fader hinzufügen
+	Remove a controller fader	Controller-Fader entfernen
+	List controller faders	Controller-Fader auflisten
+	Move a controller stick	Controller-Stick bewegen
+	`axis` must be left_trigger, right_trigger, left_x, left_y, right_x or right_y	`axis` muss left_trigger, right_trigger, left_x, left_y, right_x oder right_y sein
+	`fader` must be master, song, bus or lighting	`fader` muss master, song, bus oder lighting sein
+	a show holds at most 128 controller faders	eine Show hat höchstens 128 Controller-Fader
