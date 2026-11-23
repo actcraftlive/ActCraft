@@ -2,7 +2,7 @@
 //! with one press (`pad.press`), and their editor.
 
 use actcraft_engine::Engine;
-use actcraft_show::FaderTarget;
+use actcraft_show::{FaderTarget, ToggleTarget};
 use egui::{Color32, RichText, Ui, vec2};
 use serde_json::json;
 
@@ -18,6 +18,8 @@ pub(crate) struct PadDraft {
     pub runs: String,
     /// A fader instead (then `runs` is empty).
     pub fader: Option<FaderTarget>,
+    /// Or a toggle.
+    pub toggle: Option<ToggleTarget>,
 }
 
 /// The volume a fader shows now, in dB.
@@ -35,6 +37,15 @@ fn fader_command(e: &Engine, target: FaderTarget, db: f64) -> Option<(&'static s
         FaderTarget::Master => Some(("mixer.master_volume", json!({"db": db}))),
         FaderTarget::Song => e.current_song.map(|id| ("song.set", json!({"song": id, "volume_db": db}))),
         FaderTarget::Bus(b) => Some(("bus.set", json!({"bus": b, "volume_db": db}))),
+    }
+}
+
+/// What a toggle switches, in words.
+fn toggle_text(target: ToggleTarget) -> String {
+    match target {
+        ToggleTarget::Metronome => tr("Switch the click").to_owned(),
+        ToggleTarget::LoopSong => tr("Switch looping the song").to_owned(),
+        ToggleTarget::Autoplay => tr("Switch playing the next song").to_owned(),
     }
 }
 
@@ -89,6 +100,26 @@ impl ActCraftApp {
                     continue;
                 }
                 let [r, g, b] = actcraft_show::parse_colour(&pad.colour).unwrap_or([79, 156, 240]);
+                if let Some(target) = pad.toggle {
+                    // A toggle: filled in its colour and saying "on" while on, outlined while off.
+                    let on = actcraft_engine::pads::toggle_state(e, target);
+                    let state = if on { tr("on") } else { tr("off") };
+                    let words = format!("{} \u{b7} {state}", pad.label);
+                    let colour = Color32::from_rgb(r, g, b);
+                    let button = if on {
+                        egui::Button::new(RichText::new(words).size(16.0).color(text_on([r, g, b]))).fill(colour)
+                    } else {
+                        egui::Button::new(RichText::new(words).size(16.0)).stroke(egui::Stroke::new(2.0, colour))
+                    };
+                    let r = ui.add(button.min_size(vec2(96.0, 40.0)).selected(on)).on_hover_text(toggle_text(target));
+                    if r.clicked() {
+                        press = Some(i);
+                    }
+                    if self.pads_editing && ui.small_button(tr("Remove")).clicked() {
+                        remove = Some(i);
+                    }
+                    continue;
+                }
                 let fill = Color32::from_rgb(r, g, b);
                 let text = text_on([r, g, b]);
                 let button = egui::Button::new(RichText::new(&pad.label).size(16.0).color(text))
@@ -164,16 +195,18 @@ impl ActCraftApp {
                 .map(|c| (c.spec.id, tr(c.spec.label)))
                 .collect();
             commands.sort_by(|a, b| a.1.cmp(b.1));
-            let shown = match (d.fader, d.runs.strip_prefix('$')) {
-                (Some(target), _) => fader_text(target),
-                (None, Some(name)) => format!("${name}"),
-                (None, None) => commands
+            let shown = match (d.fader, d.toggle, d.runs.strip_prefix('$')) {
+                (Some(target), _, _) => fader_text(target),
+                (None, Some(target), _) => toggle_text(target),
+                (None, None, Some(name)) => format!("${name}"),
+                (None, None, None) => commands
                     .iter()
                     .find(|c| c.0 == d.runs)
                     .map_or(tr("Choose a command").to_owned(), |c| c.1.to_owned()),
             };
             let mut targets = vec![FaderTarget::Master, FaderTarget::Song];
             targets.extend((0..buses).map(FaderTarget::Bus));
+            let toggles = [ToggleTarget::Metronome, ToggleTarget::LoopSong, ToggleTarget::Autoplay];
             egui::ComboBox::from_id_salt("pad-runs")
                 .width(240.0)
                 .selected_text(shown)
@@ -181,21 +214,32 @@ impl ActCraftApp {
                     for target in &targets {
                         if ui.selectable_label(d.fader == Some(*target), fader_text(*target)).clicked() {
                             d.fader = Some(*target);
+                            d.toggle = None;
+                            d.runs.clear();
+                        }
+                    }
+                    for target in &toggles {
+                        if ui.selectable_label(d.toggle == Some(*target), toggle_text(*target)).clicked() {
+                            d.toggle = Some(*target);
+                            d.fader = None;
                             d.runs.clear();
                         }
                     }
                     ui.separator();
+                    let plain = d.fader.is_none() && d.toggle.is_none();
                     for name in &macros {
                         let key = format!("${name}");
-                        if ui.selectable_label(d.fader.is_none() && d.runs == key, &key).clicked() {
+                        if ui.selectable_label(plain && d.runs == key, &key).clicked() {
                             d.runs = key;
                             d.fader = None;
+                            d.toggle = None;
                         }
                     }
                     for (id, name) in &commands {
-                        if ui.selectable_label(d.fader.is_none() && d.runs == *id, *name).clicked() {
+                        if ui.selectable_label(plain && d.runs == *id, *name).clicked() {
                             d.runs = (*id).to_owned();
                             d.fader = None;
+                            d.toggle = None;
                         }
                     }
                 })
@@ -203,20 +247,27 @@ impl ActCraftApp {
                 .labelled_by(label.id);
         });
         let d = &self.pad_draft;
-        let ready = !d.label.trim().is_empty() && (!d.runs.is_empty() || d.fader.is_some());
+        let ready = !d.label.trim().is_empty() && (!d.runs.is_empty() || d.fader.is_some() || d.toggle.is_some());
         if ui.add_enabled(ready, egui::Button::new(tr("Add pad"))).clicked() {
             let d = std::mem::take(&mut self.pad_draft);
             let colour = MARK_COLOURS.get(d.colour).map_or("#4f9cf0", |c| c.1);
             let mut prm = json!({"label": d.label.trim(), "colour": colour});
-            match (d.fader, d.runs.strip_prefix('$')) {
-                (Some(FaderTarget::Master), _) => prm["fader"] = json!("master"),
-                (Some(FaderTarget::Song), _) => prm["fader"] = json!("song"),
-                (Some(FaderTarget::Bus(b)), _) => {
+            match (d.fader, d.toggle, d.runs.strip_prefix('$')) {
+                (Some(FaderTarget::Master), _, _) => prm["fader"] = json!("master"),
+                (Some(FaderTarget::Song), _, _) => prm["fader"] = json!("song"),
+                (Some(FaderTarget::Bus(b)), _, _) => {
                     prm["fader"] = json!("bus");
                     prm["bus"] = json!(b);
                 }
-                (None, Some(name)) => prm["macro"] = json!(name),
-                (None, None) => prm["command"] = json!(d.runs),
+                (None, Some(t), _) => {
+                    prm["toggle"] = json!(match t {
+                        ToggleTarget::Metronome => "metronome",
+                        ToggleTarget::LoopSong => "loop_song",
+                        ToggleTarget::Autoplay => "autoplay",
+                    });
+                }
+                (None, None, Some(name)) => prm["macro"] = json!(name),
+                (None, None, None) => prm["command"] = json!(d.runs),
             }
             self.run(e, "pad.add", prm);
         }

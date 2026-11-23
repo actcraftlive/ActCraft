@@ -4,7 +4,7 @@
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
 use actcraft_show::limits::MAX_PADS;
-use actcraft_show::{FaderTarget, Macro, Pad, parse_colour};
+use actcraft_show::{FaderTarget, Macro, Pad, ToggleTarget, parse_colour};
 use serde_json::{Value, json};
 
 use crate::Engine;
@@ -37,16 +37,23 @@ pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
         }
         Some(_) => return Err(invalid("`fader` must be master, song or bus")),
     };
-    match (command.is_empty(), macro_name.is_empty(), fader.is_none()) {
-        (true, true, false) => {}
-        (false, true, true) if crate::remote::runnable(&command) => {}
-        (true, false, true) if Macro::valid_name(&macro_name) => {}
-        (false, true, true) | (true, false, true) => {
-            return Err(invalid("a pad runs a command that needs nothing more, or a macro"));
-        }
-        _ => return Err(invalid("a pad runs a command or a macro, or moves a volume: one of them")),
+    let toggle = match p::opt_str_max(prm, "toggle", 16)? {
+        None => None,
+        Some("metronome") => Some(ToggleTarget::Metronome),
+        Some("loop_song") => Some(ToggleTarget::LoopSong),
+        Some("autoplay") => Some(ToggleTarget::Autoplay),
+        Some(_) => return Err(invalid("`toggle` must be metronome, loop_song or autoplay")),
+    };
+    let kinds = [!command.is_empty(), !macro_name.is_empty(), fader.is_some(), toggle.is_some()];
+    if kinds.iter().filter(|k| **k).count() != 1 {
+        return Err(invalid("a pad runs a command or a macro, moves a volume or switches something: one of them"));
     }
-    let mut pad = Pad { label, command, macro_name, fader, ..Pad::default() };
+    if (!command.is_empty() && !crate::remote::runnable(&command))
+        || (!macro_name.is_empty() && !Macro::valid_name(&macro_name))
+    {
+        return Err(invalid("a pad runs a command that needs nothing more, or a macro"));
+    }
+    let mut pad = Pad { label, command, macro_name, fader, toggle, ..Pad::default() };
     if let Some(c) = p::opt_str_max(prm, "colour", 16)? {
         if parse_colour(c).is_none() {
             return Err(invalid("`colour` must look like #rrggbb"));
@@ -59,6 +66,15 @@ pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
     e.show.pads.push(pad);
     e.mark_changed();
     Ok(json!({"pad": e.show.pads.len() - 1}))
+}
+
+/// Whether what a toggle pad switches is on now.
+pub fn toggle_state(e: &Engine, t: ToggleTarget) -> bool {
+    match t {
+        ToggleTarget::Metronome => e.show.metronome.enabled,
+        ToggleTarget::LoopSong => e.current().is_some_and(|s| s.loop_song),
+        ToggleTarget::Autoplay => e.current().is_some_and(|s| s.autoplay),
+    }
 }
 
 /// `pad.remove {pad}`.
@@ -76,7 +92,7 @@ pub fn pad_list(e: &mut Engine, _prm: &Value) -> CommandResult {
             .pads
             .iter()
             .map(|p| {
-                json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name, "fader": p.fader})
+                json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name, "fader": p.fader, "toggle": p.toggle})
             })
             .collect(),
     ))
@@ -88,6 +104,20 @@ pub fn pad_press(e: &mut Engine, prm: &Value) -> CommandResult {
     let Some(pad) = e.show.pads.get(i).cloned() else { return Err(invalid("no such pad")) };
     if pad.fader.is_some() {
         return Err(invalid("a fader is moved, not pressed"));
+    }
+    if let Some(t) = pad.toggle {
+        let on = toggle_state(e, t);
+        match t {
+            ToggleTarget::Metronome => {
+                e.run("metronome.toggle", &Value::Null)?;
+            }
+            ToggleTarget::LoopSong | ToggleTarget::Autoplay => {
+                let id = e.current_song.ok_or_else(|| invalid("no song chosen"))?;
+                let field = if t == ToggleTarget::LoopSong { "loop_song" } else { "autoplay" };
+                e.run("song.set", &json!({"song": id, field: !on}))?;
+            }
+        }
+        return Ok(json!({"on": toggle_state(e, t)}));
     }
     if !pad.macro_name.is_empty() {
         let ran = e.run_macro(&pad.macro_name)?;
@@ -103,6 +133,23 @@ pub fn pad_press(e: &mut Engine, prm: &Value) -> CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toggles_switch_and_show_their_state() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("song.add", &Value::Null);
+        assert!(e.run("pad.add", &json!({"label": "Click", "toggle": "metronome"})).is_ok());
+        assert!(e.run("pad.add", &json!({"label": "Loop", "toggle": "loop_song"})).is_ok());
+        assert!(e.run("pad.add", &json!({"label": "x", "toggle": "lights"})).is_err());
+        assert!(e.run("pad.add", &json!({"label": "x", "toggle": "autoplay", "command": "transport.stop"})).is_err());
+        let click = toggle_state(&e, ToggleTarget::Metronome);
+        assert_eq!(e.run("pad.press", &json!({"pad": 0})).ok(), Some(json!({"on": !click})));
+        assert_eq!(toggle_state(&e, ToggleTarget::Metronome), !click);
+        assert!(!toggle_state(&e, ToggleTarget::LoopSong));
+        assert_eq!(e.run("pad.press", &json!({"pad": 1})).ok(), Some(json!({"on": true})));
+        assert!(e.current().is_some_and(|s| s.loop_song), "the song loops now");
+        assert_eq!(e.run("pad.press", &json!({"pad": 1})).ok(), Some(json!({"on": false})));
+    }
 
     #[test]
     fn pads_are_added_pressed_and_removed() {

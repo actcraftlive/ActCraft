@@ -474,6 +474,18 @@ impl Default for VoiceSettings {
     }
 }
 
+/// What a toggle pad switches on and off (and shows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToggleTarget {
+    /// The click.
+    Metronome,
+    /// The playing song loops.
+    LoopSong,
+    /// The next song starts when the playing one ends.
+    Autoplay,
+}
+
 /// The volume a fader pad moves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -500,6 +512,8 @@ pub struct Pad {
     pub macro_name: String,
     /// A fader instead of a button: the volume it moves.
     pub fader: Option<FaderTarget>,
+    /// A toggle instead of a button: what it switches, showing whether it is on.
+    pub toggle: Option<ToggleTarget>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -512,6 +526,7 @@ impl Default for Pad {
             command: String::new(),
             macro_name: String::new(),
             fader: None,
+            toggle: None,
             extra: Map::new(),
         }
     }

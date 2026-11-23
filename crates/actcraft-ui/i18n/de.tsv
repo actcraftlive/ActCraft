@@ -743,4 +743,10 @@
 	Bus {bus} volume	Lautstärke Bus {bus}
 	`fader` must be master, song or bus	`fader` muss master, song oder bus sein
 	a fader is moved, not pressed	ein Regler wird bewegt, nicht gedrückt
-	a pad runs a command or a macro, or moves a volume: one of them	ein Pad führt einen Befehl oder ein Makro aus oder bewegt eine Lautstärke: eines davon
+	Switch looping the song	Das Wiederholen des Songs schalten
+	Switch playing the next song	Das Abspielen des nächsten Songs schalten
+	Switch the click	Den Klick schalten
+	`toggle` must be metronome, loop_song or autoplay	`toggle` muss metronome, loop_song oder autoplay sein
+	a pad runs a command or a macro, moves a volume or switches something: one of them	ein Pad führt einen Befehl oder ein Makro aus, bewegt eine Lautstärke oder schaltet etwas: eines davon
+	off	aus
+	on	an
