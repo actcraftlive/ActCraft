@@ -141,6 +141,11 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     let doc: Value =
         serde_json::from_slice(&bytes).map_err(|_| failed("that file is not an Open Fixture Library fixture"))?;
     let ty = read_ofl(&doc)?;
+    keep(e, ty)
+}
+
+/// Puts a fixture type into the show, in place of one with the same name.
+fn keep(e: &mut Engine, ty: FixtureType) -> CommandResult {
     let modes: Vec<String> = ty.modes.iter().map(|m| m.name.clone()).collect();
     let name = ty.name.clone();
     let index = match e.show.fixture_types.iter().position(|t| t.name == ty.name) {
@@ -160,6 +165,37 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     };
     e.mark_changed();
     Ok(json!({"type": index, "name": name, "modes": modes}))
+}
+
+/// `fixture_type.set {name, modes: [{name, channels: [attribute, ...]}]}`: makes a fixture type by
+/// hand, or replaces the one of that name.
+pub fn fixture_type_set(e: &mut Engine, prm: &Value) -> CommandResult {
+    let name = p::str_max(prm, "name", 64)?.trim().to_owned();
+    if name.is_empty() {
+        return Err(invalid("a fixture type needs a name"));
+    }
+    let list = prm.get("modes").and_then(Value::as_array).ok_or_else(|| invalid("`modes` must be a list of modes"))?;
+    if list.is_empty() || list.len() > MAX_FIXTURE_MODES {
+        return Err(invalid("a fixture type has 1 to 32 modes"));
+    }
+    let mut modes = Vec::new();
+    for m in list {
+        let mode_name = m.get("name").and_then(Value::as_str).map(str::trim).unwrap_or_default();
+        let channels =
+            m.get("channels").and_then(Value::as_array).ok_or_else(|| invalid("each mode needs `channels`"))?;
+        if channels.is_empty() || channels.len() > MAX_FIXTURE_CHANNELS {
+            return Err(invalid("a fixture has 1 to 64 channels"));
+        }
+        let channels = channels
+            .iter()
+            .map(|c| c.as_str().and_then(crate::fixtures::attribute_named))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
+        let mode_name =
+            if mode_name.is_empty() { format!("{} ch", channels.len()) } else { mode_name.chars().take(64).collect() };
+        modes.push(FixtureMode { name: mode_name, channels, ..FixtureMode::default() });
+    }
+    keep(e, FixtureType { name, modes, ..FixtureType::default() })
 }
 
 /// `fixture_type.remove {type}`: patched fixtures keep their channels.
@@ -248,6 +284,26 @@ mod tests {
             [json!({}), json!({"name": "x"}), json!({"name": "x", "availableChannels": {}, "modes": []}), json!([1, 2])]
         {
             assert!(read_ofl(&bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_type_made_by_hand_replaces_one_of_its_name() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let par = json!({"name": "Par", "modes": [{"name": "3 ch", "channels": ["red", "green", "blue"]}, {"channels": ["intensity"]}]});
+        assert_eq!(e.run("fixture_type.set", &par).ok().map(|v| v["modes"].clone()), Some(json!(["3 ch", "1 ch"])));
+        let again = json!({"name": "Par", "modes": [{"name": "Dim", "channels": ["intensity", "strobe"]}]});
+        assert!(e.run("fixture_type.set", &again).is_ok());
+        assert_eq!(e.show.fixture_types.len(), 1);
+        assert_eq!(e.show.fixture_types[0].modes[0].channels, vec![Attribute::Intensity, Attribute::Strobe]);
+        for bad in [
+            json!({"name": " ", "modes": [{"channels": ["red"]}]}),
+            json!({"name": "X", "modes": []}),
+            json!({"name": "X", "modes": [{"channels": []}]}),
+            json!({"name": "X", "modes": [{"channels": ["smoke"]}]}),
+            json!({"name": "X"}),
+        ] {
+            assert!(e.run("fixture_type.set", &bad).is_err(), "{bad}");
         }
     }
 
