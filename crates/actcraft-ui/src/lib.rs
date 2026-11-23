@@ -100,6 +100,17 @@ impl ClockMode {
     }
 }
 
+/// Something Settings > Band asks for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BandRequest {
+    /// Let band members follow this computer (on) or not.
+    Host(bool),
+    /// Follow the host at this address, pairing with this code (empty when paired before).
+    Follow(String, String),
+    /// Stop following.
+    Unfollow,
+}
+
 /// Something Settings asks of the Hue bridge; the host does it off the window's thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HueRequest {
@@ -166,6 +177,11 @@ pub struct PlatformInfo {
     pub hue_paired: Option<String>,
     pub hue_lights: Option<Result<Vec<(String, String)>, String>>,
     pub hue_note: Option<String>,
+    /// Band link: while this computer hosts, where it listens, the pairing code and how many
+    /// follow; while it follows, the host and whether it is there; the last thing worth saying.
+    pub band_hosting: Option<(String, String, usize)>,
+    pub band_following: Option<(String, bool)>,
+    pub band_note: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -222,6 +238,9 @@ pub struct ActCraftApp {
     gamepad_fader_draft: (String, String, u8),
     /// What Settings > Lighting asked of the Hue bridge.
     hue_request: Option<HueRequest>,
+    /// What Settings > Band asked for, and the host address and code being typed.
+    band_request: Option<BandRequest>,
+    band_draft: (String, String),
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -322,6 +341,8 @@ impl ActCraftApp {
             gamepad_draft: (String::new(), String::new()),
             gamepad_fader_draft: (String::new(), String::new(), 0),
             hue_request: None,
+            band_request: None,
+            band_draft: (String::new(), String::new()),
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -488,6 +509,11 @@ impl ActCraftApp {
     }
 
     /// A controller button pressed while learning.
+    /// What Settings > Band asked for, for the host to do.
+    pub fn take_band_request(&mut self) -> Option<BandRequest> {
+        self.band_request.take()
+    }
+
     /// What Settings asked of the Hue bridge, for the host to do.
     pub fn take_hue_request(&mut self) -> Option<HueRequest> {
         self.hue_request.take()

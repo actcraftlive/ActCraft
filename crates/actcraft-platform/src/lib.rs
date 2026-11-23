@@ -11,6 +11,7 @@
 
 pub mod artnet_nodes;
 pub mod audio_out;
+pub mod band;
 pub mod dmx_in;
 pub mod dmx_out;
 pub mod files;

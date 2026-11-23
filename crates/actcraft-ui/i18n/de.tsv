@@ -1216,3 +1216,18 @@
 	Let a Hue light follow a fixture	Eine Hue-Lampe einem Gerät folgen lassen
 	`light` must be a Hue light's id, like 3	`light` muss die ID einer Hue-Lampe sein, etwa 3
 	Hue: {error}	Hue: {error}
+	Band	Band
+	Band link	Bandverbindung
+	Other ActCraft computers on this network can follow this one: the same song, playing and stopping with it. Each plays its own copy of the songs; if this one stops answering, they keep playing.	Andere ActCraft-Computer in diesem Netzwerk können diesem folgen: derselbe Song, Abspielen und Stoppen gemeinsam. Jeder spielt seine eigene Kopie der Songs; antwortet dieser nicht mehr, spielen sie weiter.
+	Let band members follow this computer	Bandmitglieder diesem Computer folgen lassen
+	Code for a new follower: {code} · listening on {address} · following: {n}	Code für einen neuen Folgenden: {code} · horcht auf {address} · folgen: {n}
+	Follow another computer	Einem anderen Computer folgen
+	Following {host}	Folgt {host}
+	{host} is not answering; playing on, trying again	{host} antwortet nicht; spielt weiter, versucht es erneut
+	Stop following	Nicht mehr folgen
+	Host address	Adresse des Hosts
+	Code	Code
+	The code the other computer shows; empty when paired before	Der Code, den der andere Computer zeigt; leer, wenn schon gekoppelt
+	Follow	Folgen
+	The host plays “{song}”, which this computer does not have.	Der Host spielt „{song}“, den dieser Computer nicht hat.
+	That is not an address like 192.168.1.20.	Das ist keine Adresse wie 192.168.1.20.

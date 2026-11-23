@@ -516,3 +516,35 @@ fn a_fixture_gets_a_hue_light_to_follow_it() {
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.show.fixtures[0].hue.clone()), "1");
 }
+
+#[test]
+fn band_hosting_shows_its_code_and_a_follower_asks_to_follow() {
+    use crate::BandRequest;
+    let (mut h, _engine) = window(|_| {});
+    h.state_mut().open_settings_at("band");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::CheckBox, "Let band members follow this computer").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_band_request(), Some(BandRequest::Host(true)));
+    h.state_mut().platform.band_hosting = Some(("0.0.0.0:47390".to_owned(), "123456".to_owned(), 1));
+    frames(&mut h, 2);
+    assert!(h.query_by_label_contains("Code for a new follower: 123456").is_some());
+    h.get_by_role_and_label(Role::TextInput, "Host address").focus();
+    h.get_by_role_and_label(Role::TextInput, "Host address").type_text("192.168.1.20");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::TextInput, "Code").focus();
+    h.get_by_role_and_label(Role::TextInput, "Code").type_text("654321");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Follow").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(
+        h.state_mut().take_band_request(),
+        Some(BandRequest::Follow("192.168.1.20".to_owned(), "654321".to_owned()))
+    );
+    h.state_mut().platform.band_following = Some(("192.168.1.20".to_owned(), false));
+    frames(&mut h, 2);
+    assert!(h.query_by_label_contains("is not answering; playing on").is_some());
+    h.get_by_role_and_label(Role::Button, "Stop following").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_band_request(), Some(BandRequest::Unfollow));
+}
