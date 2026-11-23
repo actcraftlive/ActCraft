@@ -20,15 +20,11 @@ sacn = { workspace = true }
 gilrs = { workspace = true }
 serde_json = { workspace = true }
 getrandom = "0.3"
+serial2 = "0.2.39"
 
 [lints]
 workspace = true
 
-# Serial ports for USB DMX interfaces: raw mode on Unix, the port list on Windows. Both are
-# already in the build through other crates (nix through zip, windows-registry through
-# craft-i18n).
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.32", default-features = false, features = ["term", "fs"] }
-
+# The serial port list on Windows (already in the build through craft-i18n).
 [target.'cfg(windows)'.dependencies]
 windows-registry = "0.6"

@@ -150,13 +150,13 @@ impl Sender {
         let keys: Vec<OutputKey> = frame.outputs.iter().map(OutputKey::from).collect();
         self.sent.retain(|k, _| keys.contains(k));
         // A port no output uses any more is let go, so another program can open it.
-        self.ports.retain(|name, _| {
-            frame.outputs.iter().any(|o| o.protocol == DmxProtocol::UsbPro && o.address.trim() == name)
-        });
+        self.ports.retain(|name, _| frame.outputs.iter().any(|o| o.protocol.is_usb() && o.address.trim() == name));
         let any_artnet = frame.outputs.iter().any(|o| o.protocol == DmxProtocol::ArtNet);
         for (output, key) in frame.outputs.iter().zip(keys) {
             let due =
-                self.sent.get(&key).is_none_or(|(v, at)| *v != frame.version || now.duration_since(*at) >= REFRESH);
+                // A plain USB cable needs its frames all the time; the others when the levels
+                // change and on the refresh.
+                output.protocol == DmxProtocol::UsbCable || self.sent.get(&key).is_none_or(|(v, at)| *v != frame.version || now.duration_since(*at) >= REFRESH);
             if !due {
                 continue;
             }
@@ -165,6 +165,7 @@ impl Sender {
                 DmxProtocol::ArtNet => self.artnet(output, &levels),
                 DmxProtocol::Sacn => self.sacn(output, &levels),
                 DmxProtocol::UsbPro => self.usb_pro(output, &levels),
+                DmxProtocol::UsbCable => self.usb_cable(output, &levels),
             };
             if let Err(e) = result {
                 errors.push(e);
@@ -210,11 +211,34 @@ impl Sender {
             return Err("USB DMX: no port chosen".to_owned());
         }
         if !self.ports.contains_key(name) {
-            let port = crate::serial::SerialPort::open(name).map_err(|e| format!("USB DMX on {name}: {e}"))?;
+            let port = crate::serial::SerialPort::open(name, crate::serial::Line::Interface)
+                .map_err(|e| format!("USB DMX on {name}: {e}"))?;
             self.ports.insert(name.to_owned(), port);
         }
         let Some(port) = self.ports.get_mut(name) else { return Ok(()) };
         if let Err(e) = port.write_all(&usb_pro_packet(levels)) {
+            self.ports.remove(name);
+            return Err(format!("USB DMX on {name}: {e}"));
+        }
+        Ok(())
+    }
+}
+
+impl Sender {
+    /// Sends one DMX frame down a plain USB cable on the output's port (the computer times the
+    /// signal), opening the port the first time; a port that fails is opened again next time.
+    fn usb_cable(&mut self, o: &DmxOutput, levels: &[u8; CHANNELS]) -> Result<(), String> {
+        let name = o.address.trim();
+        if name.is_empty() {
+            return Err("USB DMX: no port chosen".to_owned());
+        }
+        if !self.ports.contains_key(name) {
+            let port = crate::serial::SerialPort::open(name, crate::serial::Line::Cable)
+                .map_err(|e| format!("USB DMX on {name}: {e}"))?;
+            self.ports.insert(name.to_owned(), port);
+        }
+        let Some(port) = self.ports.get_mut(name) else { return Ok(()) };
+        if let Err(e) = port.send_frame(levels) {
             self.ports.remove(name);
             return Err(format!("USB DMX on {name}: {e}"));
         }

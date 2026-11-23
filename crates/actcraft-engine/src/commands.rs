@@ -572,7 +572,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add a DMX output",
             "",
             None,
-            "{universe: 1-64, protocol: artnet | sacn | usb_pro, network_universe?: Art-Net 0-32767 | sACN 1-63999, address?: IPv4 (empty: everyone on the network) | serial port for usb_pro (COM3, /dev/ttyUSB0), priority?: sACN 0-200} -> {output: index}",
+            "{universe: 1-64, protocol: artnet | sacn | usb_pro | usb_cable, network_universe?: Art-Net 0-32767 | sACN 1-63999, address?: IPv4 (empty: everyone on the network) | serial port for usb_pro and usb_cable (COM3, /dev/ttyUSB0), priority?: sACN 0-200} -> {output: index}",
             crate::dmx::dmx_output_add,
         ),
         cmd("dmx.output_remove", "Remove a DMX output", "", None, "{output: index}", crate::dmx::dmx_output_remove),

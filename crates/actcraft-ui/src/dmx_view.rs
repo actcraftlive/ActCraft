@@ -35,6 +35,7 @@ fn protocol_text(p: DmxProtocol) -> &'static str {
         DmxProtocol::ArtNet => "Art-Net",
         DmxProtocol::Sacn => "sACN",
         DmxProtocol::UsbPro => tr("USB interface"),
+        DmxProtocol::UsbCable => tr("USB cable"),
     }
 }
 
@@ -60,12 +61,8 @@ impl ActCraftApp {
                 for (i, o) in outputs.iter().enumerate() {
                     ui.label(o.universe.to_string());
                     ui.label(protocol_text(o.protocol));
-                    ui.label(if o.protocol == DmxProtocol::UsbPro {
-                        "\u{2013}".to_owned()
-                    } else {
-                        o.network_universe.to_string()
-                    });
-                    ui.label(if o.address.is_empty() && o.protocol != DmxProtocol::UsbPro {
+                    ui.label(if o.protocol.is_usb() { "\u{2013}".to_owned() } else { o.network_universe.to_string() });
+                    ui.label(if o.address.is_empty() && !o.protocol.is_usb() {
                         tr("Everyone on the network").to_owned()
                     } else {
                         o.address.clone()
@@ -101,7 +98,7 @@ impl ActCraftApp {
             egui::ComboBox::from_id_salt("dmx-protocol")
                 .selected_text(protocol_text(d.protocol))
                 .show_ui(ui, |ui| {
-                    for p in [DmxProtocol::ArtNet, DmxProtocol::Sacn, DmxProtocol::UsbPro] {
+                    for p in [DmxProtocol::ArtNet, DmxProtocol::Sacn, DmxProtocol::UsbPro, DmxProtocol::UsbCable] {
                         if ui.selectable_label(d.protocol == p, protocol_text(p)).clicked() && d.protocol != p {
                             d.protocol = p;
                             changed_universe = true;
@@ -119,7 +116,7 @@ impl ActCraftApp {
             let range = match d.protocol {
                 DmxProtocol::ArtNet => Some((0, DmxOutput::ARTNET_MAX)),
                 DmxProtocol::Sacn => Some((DmxOutput::SACN_MIN, DmxOutput::SACN_MAX)),
-                DmxProtocol::UsbPro => None,
+                DmxProtocol::UsbPro | DmxProtocol::UsbCable => None,
             };
             if let Some((low, high)) = range {
                 let label = ui.label(tr("Network universe"));
@@ -128,7 +125,7 @@ impl ActCraftApp {
         });
         let mut find_ports = false;
         ui.horizontal_wrapped(|ui| {
-            if d.protocol == DmxProtocol::UsbPro {
+            if d.protocol.is_usb() {
                 // A USB interface is a serial port: picked from those this computer has.
                 let label = ui.label(tr("Port"));
                 let found = ports.clone().unwrap_or_default();
@@ -143,7 +140,11 @@ impl ActCraftApp {
                     })
                     .response
                     .labelled_by(label.id)
-                    .on_hover_text(tr("For USB interfaces that speak the DMX USB Pro serial protocol"));
+                    .on_hover_text(if d.protocol == DmxProtocol::UsbCable {
+                        tr("For a plain USB-to-DMX cable (an FTDI chip, no processor of its own); ActCraft makes the DMX signal")
+                    } else {
+                        tr("For USB interfaces that speak the DMX USB Pro serial protocol")
+                    });
                 find_ports = ui.button(tr("Find USB interfaces")).clicked();
                 if ports.as_ref().is_some_and(Vec::is_empty) {
                     ui.label(
@@ -167,7 +168,7 @@ impl ActCraftApp {
                     .on_hover_text(tr("Receivers take the source with the highest priority (100 normally)"));
             }
         });
-        let usb = d.protocol == DmxProtocol::UsbPro;
+        let usb = d.protocol.is_usb();
         let address_ok = if usb {
             DmxOutput::valid_port_name(d.address.trim())
         } else {
@@ -185,6 +186,7 @@ impl ActCraftApp {
                 DmxProtocol::ArtNet => "artnet",
                 DmxProtocol::Sacn => "sacn",
                 DmxProtocol::UsbPro => "usb_pro",
+                DmxProtocol::UsbCable => "usb_cable",
             };
             self.run(
                 e,

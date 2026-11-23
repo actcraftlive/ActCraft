@@ -178,7 +178,9 @@ details are in the milestone sections further down.
   "Find Art-Net nodes" asks the network (ArtPoll) and lists who answered with their universes;
   one click uses a node for the next output. A USB interface that speaks the DMX USB Pro serial
   protocol sends a universe on a serial port picked from the ones the computer has ("Find USB
-  interfaces"; `dmx.output_add {protocol: usb_pro, address: port}`)
+  interfaces"; `dmx.output_add {protocol: usb_pro, address: port}`); a plain USB-to-DMX cable (an FTDI
+  chip, no processor of its own) works too: ActCraft makes the DMX signal itself (break, 250 000
+  baud 8N2, about 20 frames a second; `protocol: usb_cable`), tried with a moving head
 - ✅ Fixtures and patch: Lighting > Fixtures patches lights by kind (dimmer, RGB, RGBW, RGBAW+UV,
   a moving head with 16-bit pan and tilt) or channel by channel into a universe, one or a row of
   them, at an address or the first free one, refusing overlaps; each fixture's attributes are set
