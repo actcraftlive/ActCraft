@@ -1094,6 +1094,39 @@
 	List DMX triggers	DMX-Auslöser auflisten
 	a trigger runs a command that needs nothing more	ein Auslöser führt einen Befehl aus, der nichts weiter braucht
 	a show holds at most 256 DMX triggers	eine Show hat höchstens 256 DMX-Auslöser
+	Game controllers	Gamecontroller
+	None connected: plug one in or pair it, and it shows here.	Keiner verbunden: einstecken oder koppeln, dann erscheint er hier.
+	Connected:	Verbunden:
+	Button	Taste
+	Choose a button	Taste wählen
+	Press a button…	Taste drücken …
+	The next button pressed on a controller is chosen	Die nächste am Controller gedrückte Taste wird gewählt
+	Add button	Taste hinzufügen
+	Bottom face button	Untere Aktionstaste
+	Right face button	Rechte Aktionstaste
+	Top face button	Obere Aktionstaste
+	Left face button	Linke Aktionstaste
+	Left shoulder button	Linke Schultertaste
+	Left trigger	Linker Trigger
+	Right shoulder button	Rechte Schultertaste
+	Right trigger	Rechter Trigger
+	Select	Auswahl
+	Home button	Home-Taste
+	Left stick pressed	Linker Stick gedrückt
+	Right stick pressed	Rechter Stick gedrückt
+	Direction pad up	Steuerkreuz oben
+	Direction pad down	Steuerkreuz unten
+	Direction pad left	Steuerkreuz links
+	Direction pad right	Steuerkreuz rechts
+	Add a controller button	Controller-Taste hinzufügen
+	Remove a controller button	Controller-Taste entfernen
+	List controller buttons	Controller-Tasten auflisten
+	Press a controller button	Controller-Taste drücken
+	`button` must be a controller button like south, start or dpad_up	`button` muss eine Controller-Taste sein, etwa south, start oder dpad_up
+	a button runs a command that needs nothing more	eine Taste führt einen Befehl aus, der nichts weiter braucht
+	a show holds at most 128 controller buttons	eine Show hat höchstens 128 Controller-Tasten
+	Learn a button	Taste lernen
+	The button runs	Die Taste führt aus
 	Then on after	Dann weiter nach
 	The next cue comes by itself after this long (after the last, the first); 0 waits for Go	Der nächste Cue kommt nach dieser Zeit von selbst (nach dem letzten der erste); 0 wartet auf Go
 	then on after {s} s	dann weiter nach {s} s

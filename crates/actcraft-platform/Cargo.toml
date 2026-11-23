@@ -17,6 +17,7 @@ midir = { workspace = true }
 rosc = { workspace = true }
 artnet_protocol = { workspace = true }
 sacn = { workspace = true }
+gilrs = { workspace = true }
 
 [lints]
 workspace = true

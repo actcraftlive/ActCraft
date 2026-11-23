@@ -17,8 +17,8 @@ use actcraft_engine::{Engine, MessageArg};
 
 use actcraft_engine::midi_sync::SyncConfig;
 use actcraft_platform::{
-    AudioOutput, DmxFrame, DmxIn, DmxInLevels, DmxOut, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue,
-    StatusReader,
+    AudioOutput, DmxFrame, DmxIn, DmxInLevels, DmxOut, Gamepads, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn,
+    OscQueue, StatusReader,
 };
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
@@ -57,6 +57,8 @@ struct Host {
     /// Listening for Art-Net from other gear, and the newest levels it heard.
     dmx_in: Option<DmxIn>,
     dmx_in_levels: DmxInLevels,
+    /// Game controllers (`None` when they could not be watched).
+    gamepads: Option<Gamepads>,
     /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
     /// version and the outputs) and the problems already reported.
     dmx_out: Option<DmxOut>,
@@ -118,6 +120,7 @@ impl eframe::App for Host {
         for (universe, levels) in actcraft_platform::dmx_in::take(&self.dmx_in_levels) {
             self.app.engine().dmx_in(universe, &levels);
         }
+        self.follow_gamepads();
         for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
             self.app.engine().osc_in(&address, value);
         }
@@ -182,6 +185,21 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Hands controller buttons pressed since the last frame to the engine (or to Settings while
+    /// it learns one), and tells the window which controllers are connected.
+    fn follow_gamepads(&mut self) {
+        let Some(pads) = &mut self.gamepads else { return };
+        let pressed = pads.pressed();
+        self.app.platform.gamepads = pads.connected();
+        for button in pressed {
+            if self.app.gamepad_learning() {
+                self.app.gamepad_learned(button);
+            } else {
+                self.app.engine().gamepad_in(button);
+            }
+        }
+    }
+
     /// Stops listening for Art-Net DMX and listens again as asked (`Some(network)`), or not
     /// (`None`). Remembered on this computer.
     fn switch_dmx_in(&mut self, listen: Option<bool>) {
@@ -642,6 +660,7 @@ fn main() {
                 osc_queue: OscQueue::default(),
                 dmx_in: None,
                 dmx_in_levels: DmxInLevels::default(),
+                gamepads: Gamepads::open().ok(),
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),

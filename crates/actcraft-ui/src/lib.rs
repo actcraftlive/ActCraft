@@ -143,6 +143,8 @@ pub struct PlatformInfo {
     /// does not).
     pub dmx_in_network: bool,
     pub dmx_in_listening: Option<String>,
+    /// The game controllers connected now, by name.
+    pub gamepads: Vec<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -191,6 +193,9 @@ pub struct ActCraftApp {
     dmx_in_request: Option<Option<bool>>,
     /// A new DMX trigger: Art-Net universe, channel and command.
     dmx_trigger_draft: (u16, u16, String),
+    /// Settings waits for a controller button to learn; and the button and command being added.
+    gamepad_learning: bool,
+    gamepad_draft: (String, String),
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -287,6 +292,8 @@ impl ActCraftApp {
             usb_find_request: false,
             dmx_in_request: None,
             dmx_trigger_draft: (0, 1, String::new()),
+            gamepad_learning: false,
+            gamepad_draft: (String::new(), String::new()),
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -444,6 +451,18 @@ impl ActCraftApp {
     /// listens (on the network too or not).
     pub fn take_dmx_in_request(&mut self) -> Option<Option<bool>> {
         self.dmx_in_request.take()
+    }
+
+    /// Whether Settings waits for a controller button to learn; the host then hands presses to
+    /// [`Self::gamepad_learned`] instead of the engine.
+    pub fn gamepad_learning(&self) -> bool {
+        self.gamepad_learning
+    }
+
+    /// A controller button pressed while learning.
+    pub fn gamepad_learned(&mut self, button: &str) {
+        button.clone_into(&mut self.gamepad_draft.0);
+        self.gamepad_learning = false;
     }
 
     /// Whether Settings waits for a MIDI message to learn a remote action's trigger from; the

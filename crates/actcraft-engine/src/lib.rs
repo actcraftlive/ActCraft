@@ -31,6 +31,7 @@ pub mod effects;
 pub mod error_text;
 pub mod fixture_library;
 pub mod fixtures;
+pub mod gamepad;
 pub mod looks;
 pub mod macros;
 pub mod midi_file;

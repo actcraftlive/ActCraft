@@ -153,6 +153,7 @@ mod tests {
             include_str!("pads.rs"),
             include_str!("osc.rs"),
             include_str!("dmx.rs"),
+            include_str!("gamepad.rs"),
             include_str!("fixtures.rs"),
             include_str!("fixture_library.rs"),
             include_str!("looks.rs"),
