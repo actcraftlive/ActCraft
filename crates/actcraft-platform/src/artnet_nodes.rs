@@ -29,6 +29,11 @@ pub fn discover(wait: Duration) -> Result<Vec<ArtNode>, String> {
 
 fn discover_on(port: u16, to: Ipv4Addr, wait: Duration) -> Result<Vec<ArtNode>, String> {
     let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).map_err(|e| format!("port {port}: {e}"))?;
+    search(&socket, to, port, wait)
+}
+
+/// Sends the ArtPoll from `socket` to `to`:`port` and gathers the answers that reach it.
+fn search(socket: &UdpSocket, to: Ipv4Addr, port: u16, wait: Duration) -> Result<Vec<ArtNode>, String> {
     socket.set_broadcast(true).map_err(|e| e.to_string())?;
     socket.set_read_timeout(Some(Duration::from_millis(50))).map_err(|e| e.to_string())?;
     let poll = ArtCommand::Poll(Poll::default()).write_to_buffer().map_err(|e| e.to_string())?;
@@ -98,9 +103,10 @@ mod tests {
 
     #[test]
     fn answers_become_nodes_with_their_universes() {
-        // A free port for the search; a node answers to it on 127.0.0.1.
-        let port =
-            UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).and_then(|s| s.local_addr()).map(|a| a.port()).unwrap_or(0);
+        // The search keeps its own socket on a free port, and a node answers to it on 127.0.0.1.
+        // (Taking a free port and binding it again later raced other tests for that port.)
+        let Ok(socket) = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)) else { return };
+        let port = socket.local_addr().map(|a| a.port()).unwrap_or(0);
         let node = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(150));
             if let Ok(s) = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)) {
@@ -109,7 +115,7 @@ mod tests {
                 }
             }
         });
-        let found = discover_on(port, Ipv4Addr::LOCALHOST, Duration::from_millis(600));
+        let found = search(&socket, Ipv4Addr::LOCALHOST, port, Duration::from_millis(1000));
         let _ = node.join();
         assert_eq!(
             found,
