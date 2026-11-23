@@ -150,6 +150,7 @@ mod tests {
             include_str!("midi_sync.rs"),
             include_str!("remote.rs"),
             include_str!("macros.rs"),
+            include_str!("pads.rs"),
             include_str!("voice.rs"),
             include_str!("lib.rs"),
             include_str!("../../actcraft-command/src/params.rs"),

@@ -58,6 +58,8 @@ pub mod limits {
     /// Macros in one show, and commands in one macro.
     pub const MAX_MACROS: usize = 128;
     pub const MAX_MACRO_COMMANDS: usize = 32;
+    /// Pads in one show.
+    pub const MAX_PADS: usize = 64;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -133,6 +135,9 @@ pub struct Show {
     /// gets there.
     #[serde(default)]
     pub macros: Vec<Macro>,
+    /// Buttons on the screen that run a command or a macro with one press.
+    #[serde(default)]
+    pub pads: Vec<Pad>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -159,6 +164,7 @@ impl Default for Show {
             midi: MidiSettings::default(),
             remote: Vec::new(),
             macros: Vec::new(),
+            pads: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -465,6 +471,34 @@ pub struct VoiceSettings {
 impl Default for VoiceSettings {
     fn default() -> Self {
         Self { enabled: true, bus: 1, volume_db: 0.0, lead_beats: 4, language: String::new() }
+    }
+}
+
+/// A button on the screen: one press runs its command or its macro.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Pad {
+    pub label: String,
+    /// `#rrggbb`.
+    pub colour: String,
+    /// A command id that needs nothing more; empty when the pad runs a macro.
+    pub command: String,
+    /// A macro's name; empty when the pad runs a command.
+    #[serde(rename = "macro")]
+    pub macro_name: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for Pad {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            colour: "#4f9cf0".to_owned(),
+            command: String::new(),
+            macro_name: String::new(),
+            extra: Map::new(),
+        }
     }
 }
 
@@ -1004,6 +1038,13 @@ impl Show {
         cut(&mut v.language, 16);
         self.mixer.master_volume_db = clamp_f(self.mixer.master_volume_db, -96.0, 12.0, 0.0);
         self.mixer.midi_latency_offset_ms = clamp_f(self.mixer.midi_latency_offset_ms, -500.0, 500.0, 0.0);
+        self.pads.truncate(MAX_PADS);
+        for pad in &mut self.pads {
+            cut(&mut pad.label, 64);
+            fix_colour(&mut pad.colour, "#4f9cf0");
+            cut(&mut pad.command, 64);
+            cut(&mut pad.macro_name, 32);
+        }
         self.macros.truncate(MAX_MACROS);
         self.macros.retain(|m| Macro::valid_name(&m.name));
         for m in &mut self.macros {

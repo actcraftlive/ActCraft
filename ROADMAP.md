@@ -25,10 +25,14 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. M3: OSC and on-screen controls for remote actions; assignable on-screen buttons and knobs
+2. M3: knobs, sliders and toggles on the screen; clock modes; session timer; OSC (needs an OSC
+   reader: shared library or a dependency, see below)
 
 ## Quality and open questions
 
+- ⬜ OSC (remote actions and, with M8, the band network) needs an OSC reader and writer; the
+  shared libraries have none. Either one goes into `storytold/craft-libs` (house rule 16) or a
+  crates.io crate is used; waiting on the owner's choice
 - ⬜ Lyrics in audio tags (ID3 `USLT`, Vorbis comments, MP4 `©lyr`) and markers in formats other
   than WAV need readers that belong in the shared audio library (`craft-audio`, which reads WAV
   markers today), not in ActCraft (house rule 16); waiting on the owner's go-ahead to propose
@@ -151,8 +155,10 @@ details are in the milestone sections further down.
 - 🔶 Remote actions: a MIDI note, controller (a foot switch, once per press) or program change,
   on one channel or any, runs a command that needs nothing more; set up in Settings > MIDI by
   hand or with MIDI learn (`remote.add`, `remote.remove`, `remote.list`, `remote.trigger`).
-  Keys have their shortcuts; OSC and on-screen controls to do
-- ⬜ Assignable on-screen buttons, knobs, sliders, toggles; clock modes; session timer
+  Keys have their shortcuts; pads on the screen (below); OSC to do
+- 🔶 Pads: buttons along the bottom of the window that run a command or a macro with one press,
+  in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads); knobs,
+  sliders, toggles, clock modes and a session timer to do
 
 ## M4–M6 Lighting ⬜
 

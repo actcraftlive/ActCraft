@@ -444,6 +444,17 @@ pub fn all() -> Vec<Command<Engine>> {
         cmd("macro.remove", "Remove macro", "", None, "{name: text}", crate::macros::macro_remove),
         cmd("macro.list", "List macros", "", None, "none", crate::macros::macro_list),
         cmd("macro.run", "Run macro", "", None, "{name: text}", crate::macros::macro_run),
+        cmd(
+            "pad.add",
+            "Add pad",
+            "",
+            None,
+            "{label: text, colour?: #rrggbb, command?: id (one that needs nothing more), macro?: name} (a command or a macro) -> {pad: index}",
+            crate::pads::pad_add,
+        ),
+        cmd("pad.remove", "Remove pad", "", None, "{pad: index}", crate::pads::pad_remove),
+        cmd("pad.list", "List pads", "", None, "none", crate::pads::pad_list),
+        cmd("pad.press", "Press pad", "", None, "{pad: index} -> {ran}", crate::pads::pad_press),
         cmd("voice.prepare", "Speak cues now", "", None, "{song?: id}", crate::voice::voice_prepare),
         with_song(cmd(
             "metronome.count_in",

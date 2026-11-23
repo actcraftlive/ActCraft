@@ -23,6 +23,7 @@ pub mod flows;
 pub mod i18n;
 mod lyrics_view;
 mod notation_view;
+mod pads_view;
 mod regions_view;
 mod settings;
 mod sheet_view;
@@ -148,6 +149,9 @@ pub struct ActCraftApp {
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
     macro_draft: (String, Vec<String>),
+    /// The pads' editor is open, and the pad being put together.
+    pads_editing: bool,
+    pad_draft: pads_view::PadDraft,
     /// A language the person picked in Settings; the host remembers it.
     language_request: Option<String>,
     /// Tap-tempo times (seconds of app time).
@@ -217,6 +221,8 @@ impl ActCraftApp {
             midi_input_request: None,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
+            pads_editing: false,
+            pad_draft: pads_view::PadDraft::default(),
             language_request: None,
             taps: Vec::new(),
             centre_tab: CentreTab::Mixer,
@@ -364,6 +370,9 @@ impl ActCraftApp {
         egui::Panel::bottom("status")
             .frame(egui::Frame::new().fill(t.bg).inner_margin(egui::Margin::symmetric(10, 4)))
             .show(ui, |ui| self.status_line(ui, e));
+        egui::Panel::bottom("pads")
+            .frame(egui::Frame::new().fill(t.panel).inner_margin(egui::Margin::symmetric(10, 6)))
+            .show(ui, |ui| self.pads_bar(ui, e));
         // The sidebar hides during playback so the stage view gets the room.
         if !e.playing() {
             egui::Panel::left("library")
