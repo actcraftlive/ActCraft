@@ -25,6 +25,7 @@ use actcraft_show::{MetronomeMode, Show, Song, SongClick, Track};
 use serde_json::Value;
 
 pub mod commands;
+pub mod dmx;
 pub mod error_text;
 pub mod macros;
 pub mod midi_file;
@@ -145,6 +146,8 @@ pub struct Engine {
     pub play_guard_ms: u32,
     /// Newest audio status.
     pub status: Status,
+    /// DMX levels now (live, not saved).
+    pub dmx: dmx::Dmx,
     /// Messages for the person, newest last.
     pub messages: VecDeque<Message>,
     audio: Option<Controller>,
@@ -221,6 +224,7 @@ impl Engine {
             play_guard_ms: 0,
             status: Status::default(),
             messages: VecDeque::new(),
+            dmx: dmx::Dmx::default(),
             audio: None,
             loaded_song: None,
             last_ended: 0,
