@@ -79,6 +79,8 @@ impl ActCraftApp {
             self.run(e, "dmx.output_remove", json!({"output": i}));
         }
         ui.add_space(8.0);
+        self.artnet_nodes_ui(ui);
+        ui.add_space(8.0);
         let d = &mut self.dmx_draft;
         let mut changed_universe = false;
         ui.horizontal_wrapped(|ui| {
@@ -142,6 +144,49 @@ impl ActCraftApp {
                     "address": d.address.trim(), "priority": d.priority}),
             );
         }
+    }
+
+    /// Looking for Art-Net nodes on the network, and using one for the next output.
+    fn artnet_nodes_ui(&mut self, ui: &mut Ui) {
+        let t = self.tokens;
+        let busy = self.platform.artnet_searching;
+        let words = if busy { tr("Looking for Art-Net nodes\u{2026}") } else { tr("Find Art-Net nodes") };
+        if ui
+            .add_enabled(!busy, egui::Button::new(words))
+            .on_hover_text(tr("Asks everyone on the network which Art-Net nodes are there (2 seconds)"))
+            .clicked()
+        {
+            self.artnet_find_request = true;
+        }
+        let nodes = match &self.platform.artnet_nodes {
+            None => return,
+            Some(Err(why)) => {
+                ui.label(RichText::new(format!("{} {why}", tr("Could not look for Art-Net nodes:"))).color(t.danger));
+                return;
+            }
+            Some(Ok(nodes)) if nodes.is_empty() => {
+                ui.label(RichText::new(tr("No Art-Net node answered.")).color(t.text_dim));
+                return;
+            }
+            Some(Ok(nodes)) => nodes.clone(),
+        };
+        egui::Grid::new("artnet-nodes").num_columns(4).striped(true).show(ui, |ui| {
+            for node in &nodes {
+                ui.label(if node.name.is_empty() { tr("Art-Net node") } else { node.name.as_str() });
+                ui.label(&node.address);
+                let universes: Vec<String> = node.universes.iter().map(u16::to_string).collect();
+                ui.label(format!("{} {}", tr("Universes"), universes.join(", ")));
+                if ui.button(tr("Use for the next output")).clicked() {
+                    let d = &mut self.dmx_draft;
+                    d.protocol = DmxProtocol::ArtNet;
+                    d.address = node.address.clone();
+                    if let Some(u) = node.universes.first() {
+                        d.network_universe = *u;
+                    }
+                }
+                ui.end_row();
+            }
+        });
     }
 
     /// The DMX monitor window, while it is open.

@@ -58,6 +58,8 @@ struct Host {
     dmx_out: Option<DmxOut>,
     dmx_sent: Option<(u64, Vec<actcraft_engine::dmx::DmxOutput>)>,
     dmx_reported: Vec<String>,
+    /// An Art-Net node search running in the background.
+    artnet_search: Option<std::sync::mpsc::Receiver<Result<Vec<actcraft_platform::ArtNode>, String>>>,
     /// Wakes the window when a MIDI message comes in.
     wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -127,6 +129,7 @@ impl eframe::App for Host {
         }
         self.follow_midi_file();
         self.follow_dmx();
+        self.follow_artnet_search();
         if let Some(language) = self.app.take_language_request() {
             self.prefs.update(|pr| pr.window.language = language);
         }
@@ -259,6 +262,40 @@ impl Host {
         for e in errors {
             self.report_dmx(e);
         }
+    }
+
+    /// Starts an Art-Net node search when asked (on a thread: it listens for two seconds) and
+    /// hands its answer to the window when it ends.
+    fn follow_artnet_search(&mut self) {
+        if self.app.take_artnet_find_request() && self.artnet_search.is_none() {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let wake = Arc::clone(&self.wake);
+            let started = std::thread::Builder::new().name("actcraft-artnet-search".into()).spawn(move || {
+                let _ = tx.send(actcraft_platform::discover_artnet_nodes(std::time::Duration::from_secs(2)));
+                wake();
+            });
+            match started {
+                Ok(_) => {
+                    self.artnet_search = Some(rx);
+                    self.app.platform.artnet_searching = true;
+                }
+                Err(e) => self.app.platform.artnet_nodes = Some(Err(e.to_string())),
+            }
+        }
+        let Some(rx) = &self.artnet_search else { return };
+        let answer = match rx.try_recv() {
+            Ok(answer) => answer,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err("the search stopped".to_owned()),
+        };
+        self.artnet_search = None;
+        self.app.platform.artnet_searching = false;
+        self.app.platform.artnet_nodes = Some(answer.map(|nodes| {
+            nodes
+                .into_iter()
+                .map(|n| actcraft_ui::ArtNetNode { address: n.address.to_string(), name: n.name, universes: n.outputs })
+                .collect()
+        }));
     }
 
     fn report_dmx(&mut self, error: String) {
@@ -543,6 +580,7 @@ fn main() {
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),
+                artnet_search: None,
                 wake,
             };
             // The MIDI output and input chosen last time, if they are still there.
