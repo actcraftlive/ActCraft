@@ -32,6 +32,7 @@ mod settings;
 mod sheet_view;
 pub mod shortcuts;
 mod stage_view;
+mod svg;
 mod text_history;
 pub mod theme;
 #[cfg(test)]
@@ -43,6 +44,7 @@ use theme::Tokens;
 
 /// Translation hook: every visible string goes through it with English as the key (see `i18n`).
 pub use i18n::{set_language, tr};
+pub use notation_view::score_svg;
 
 /// An engine message in the window's language: its template translated, values filled in (a
 /// value that is window text, such as a mode's name, translated too).

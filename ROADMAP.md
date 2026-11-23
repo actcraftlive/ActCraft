@@ -17,7 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
-| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF, MIDI to notes and PDF sheets in the browser done; scores in the browser to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
 
 ## Next up
 
@@ -28,9 +28,7 @@ details are in the milestone sections further down.
    the shared audio library first, see below)
 2. M9: unsigned installers (MSI, DMG, AppImage/DEB/RPM) and CI build artifacts (owner agreed; no release, no signing; a portable zip or tarball is `cargo xtask package`)
 
-Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
-
-3. M10: scores (MusicXML, MIDI) in the browser view, as they are for PDF sheets
+M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section.
 
 ## Quality and open questions
 
@@ -283,9 +281,9 @@ Lighting lane on the song timeline driven by the song's beat grid; band network 
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for
 all platforms.
 
-## M10 Band sheets 🔶
+## M10 Band sheets ✅
 
-Planned with the owner on 2026-11-23. Each item is its own pull request.
+Planned with the owner on 2026-11-23 and done the same day, one pull request per item.
 
 - ✅ Several sheets per song, each for a musician: besides its main sheet a song holds up to 32
   further sheets, each with a name ("Guitar", "Bass"), the musician it is for (or anyone), a PDF
@@ -294,14 +292,15 @@ Planned with the owner on 2026-11-23. Each item is its own pull request.
   keeps the band's musicians. Older shows load unchanged: their PDF and score are the main
   sheet. A musician sees their own sheet, else one for anyone (`musician.add`, `sheet.add`,
   `sheet.set`, `sheet.for`, …; `pdf.mark` and `notation.attach` take `sheet`)
-- 🔶 Musicians follow their sheets in a browser (Settings > Band > Sheets in the browser, off until
+- ✅ Musicians follow their sheets in a browser (Settings > Band > Sheets in the browser, off until
   switched on): ActCraft serves pages on the local network only; a musician opens the address
   shown on a tablet or laptop, signs in once with a six-digit code, picks their name and sees
   the sheet made for them (else one for anyone) for the song that plays: a PDF sheet as pictures
   of the page in view and the next, turning as the song goes on; it says so when there is none.
   Plain HTML without scripts (house rule 4): a page asks for itself again and the answer waits
-  until there is something new. To do: scores (MusicXML, MIDI) in the browser; for now they say
-  they show in ActCraft
+  until there is something new. A score sheet (MusicXML or MIDI) shows as a picture of the three
+  lines from the one playing, drawn as the Sheet music tab draws it (notes and tab), moving on
+  line by line
 - ✅ Notes from MIDI files: a MIDI file (.mid) is read as a score like MusicXML ("Attach notation…",
   or "Notes from the MIDI file" for the song's own MIDI file); each track, and each channel of a
   track, becomes a part a sheet can show for its musician. Onsets and ends go to a sixteenth grid,

@@ -1307,7 +1307,6 @@
 	Sign in	Anmelden
 	That code is not right. Look again in ActCraft.	Der Code stimmt nicht. Schau noch einmal in ActCraft nach.
 	The PDF could not be opened.	Die PDF konnte nicht geöffnet werden.
-	This sheet is a score; it shows in ActCraft for now.	Dieses Notenblatt ist eine Partitur; sie wird vorerst nur in ActCraft angezeigt.
 	Who are you?	Wer bist du?
 	{sheet}, page {page} of {pages}	{sheet}, Seite {page} von {pages}
 	this computer's address	die Adresse dieses Computers
@@ -1315,3 +1314,5 @@
 	Range	Bereich
 	Ranges ({n})	Bereiche ({n})
 	Ranges of channel {n}	Bereiche von Kanal {n}
+	{sheet}, the lines playing now	{sheet}, die Zeilen, die gerade laufen
+	The score is being drawn.	Die Partitur wird gezeichnet.
