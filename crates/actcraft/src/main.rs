@@ -130,6 +130,10 @@ impl eframe::App for Host {
         self.follow_midi_file();
         self.follow_dmx();
         self.follow_artnet_search();
+        // Listing serial ports is quick (no waiting on the network), so it runs right here.
+        if self.app.take_usb_find_request() {
+            self.app.platform.serial_ports = Some(actcraft_platform::serial_ports());
+        }
         if let Some(language) = self.app.take_language_request() {
             self.prefs.update(|pr| pr.window.language = language);
         }

@@ -1,5 +1,6 @@
-//! DMX out: sends the show's DMX levels over the network, Art-Net or sACN (ANSI E1.31), one
-//! universe per output. A thread sends a universe when its levels change and again every
+//! DMX out: sends the show's DMX levels over the network, Art-Net or sACN (ANSI E1.31), or to a
+//! USB interface speaking the DMX USB Pro serial protocol; one universe per output. A thread
+//! sends a universe when its levels change and again every
 //! [`REFRESH`] so receivers keep their levels; the window hands it the outputs and levels.
 
 use std::collections::HashMap;
@@ -60,7 +61,15 @@ impl DmxOut {
         let thread = std::thread::Builder::new()
             .name("actcraft-dmx-out".into())
             .spawn(move || {
-                let mut sender = Sender { socket, sacn: None, artnet_port, sacn_port, sent: HashMap::new(), seq: 1 };
+                let mut sender = Sender {
+                    socket,
+                    sacn: None,
+                    artnet_port,
+                    sacn_port,
+                    sent: HashMap::new(),
+                    seq: 1,
+                    ports: HashMap::new(),
+                };
                 while !stop.load(Ordering::Relaxed) {
                     let frame = shared.lock().map(|f| f.clone()).unwrap_or_default();
                     for e in sender.step(&frame, Instant::now()) {
@@ -109,6 +118,8 @@ struct Sender {
     sent: HashMap<OutputKey, (u64, Instant)>,
     /// Art-Net sequence, 1-255 (0 would switch sequencing off).
     seq: u8,
+    /// USB interfaces open now, by port name.
+    ports: HashMap<String, crate::serial::SerialPort>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -138,6 +149,10 @@ impl Sender {
         let mut errors = Vec::new();
         let keys: Vec<OutputKey> = frame.outputs.iter().map(OutputKey::from).collect();
         self.sent.retain(|k, _| keys.contains(k));
+        // A port no output uses any more is let go, so another program can open it.
+        self.ports.retain(|name, _| {
+            frame.outputs.iter().any(|o| o.protocol == DmxProtocol::UsbPro && o.address.trim() == name)
+        });
         let any_artnet = frame.outputs.iter().any(|o| o.protocol == DmxProtocol::ArtNet);
         for (output, key) in frame.outputs.iter().zip(keys) {
             let due =
@@ -149,6 +164,7 @@ impl Sender {
             let result = match output.protocol {
                 DmxProtocol::ArtNet => self.artnet(output, &levels),
                 DmxProtocol::Sacn => self.sacn(output, &levels),
+                DmxProtocol::UsbPro => self.usb_pro(output, &levels),
             };
             if let Err(e) = result {
                 errors.push(e);
@@ -185,6 +201,41 @@ impl Sender {
     }
 }
 
+impl Sender {
+    /// Sends a universe to the USB interface on the output's port, opening the port the first
+    /// time; a port that fails is closed and opened again on the next send.
+    fn usb_pro(&mut self, o: &DmxOutput, levels: &[u8; CHANNELS]) -> Result<(), String> {
+        let name = o.address.trim();
+        if name.is_empty() {
+            return Err("USB DMX: no port chosen".to_owned());
+        }
+        if !self.ports.contains_key(name) {
+            let port = crate::serial::SerialPort::open(name).map_err(|e| format!("USB DMX on {name}: {e}"))?;
+            self.ports.insert(name.to_owned(), port);
+        }
+        let Some(port) = self.ports.get_mut(name) else { return Ok(()) };
+        if let Err(e) = port.write_all(&usb_pro_packet(levels)) {
+            self.ports.remove(name);
+            return Err(format!("USB DMX on {name}: {e}"));
+        }
+        Ok(())
+    }
+}
+
+/// A DMX USB Pro "output only send DMX packet" message (label 6): the DMX start code 0, then the
+/// 512 levels, framed by the start and end delimiters and the data length (low byte first).
+pub fn usb_pro_packet(levels: &[u8; CHANNELS]) -> Vec<u8> {
+    const START: u8 = 0x7E;
+    const SEND_DMX: u8 = 6;
+    const END: u8 = 0xE7;
+    let [lo, hi] = u16::try_from(CHANNELS + 1).unwrap_or(513).to_le_bytes();
+    let mut packet = Vec::with_capacity(CHANNELS + 6);
+    packet.extend_from_slice(&[START, SEND_DMX, lo, hi, 0]);
+    packet.extend_from_slice(levels);
+    packet.push(END);
+    packet
+}
+
 /// An ArtDmx packet for port address `port_address` with sequence `seq`.
 pub fn artnet_packet(port_address: u16, seq: u8, levels: &[u8; CHANNELS]) -> Result<Vec<u8>, String> {
     let port_address = PortAddress::try_from(port_address).map_err(|e| e.to_string())?;
@@ -201,6 +252,41 @@ mod tests {
         l[0] = 255;
         l[511] = 7;
         l
+    }
+
+    #[test]
+    fn a_usb_pro_message_frames_the_start_code_and_every_level() {
+        let l = levels();
+        let packet = usb_pro_packet(&l);
+        assert_eq!(packet.len(), 5 + CHANNELS + 1);
+        // Start, label 6 (send DMX), length 513 low byte first, then the start code 0.
+        assert_eq!(packet[..5], [0x7E, 6, 0x01, 0x02, 0]);
+        assert_eq!(packet[5..5 + CHANNELS], l[..]);
+        assert_eq!(packet.last(), Some(&0xE7));
+    }
+
+    #[test]
+    fn a_usb_output_without_its_interface_reports_and_keeps_going() {
+        let Ok(socket) = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)) else { return };
+        let mut sender = Sender {
+            socket,
+            sacn: None,
+            artnet_port: 9,
+            sacn_port: 9,
+            sent: HashMap::new(),
+            seq: 1,
+            ports: HashMap::new(),
+        };
+        let output = DmxOutput {
+            protocol: DmxProtocol::UsbPro,
+            address: "ActCraftNoSuchPort9".to_owned(),
+            ..DmxOutput::default()
+        };
+        let frame = DmxFrame { outputs: vec![output], levels: HashMap::new(), version: 1 };
+        let errors = sender.step(&frame, Instant::now());
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].starts_with("USB DMX on ActCraftNoSuchPort9"), "{errors:?}");
+        assert!(sender.ports.is_empty());
     }
 
     #[test]
