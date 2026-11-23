@@ -234,6 +234,51 @@ pub const TEMPLATES: &[Template] = &[
         also: &[(Attribute::Green, 1.0 / 3.0), (Attribute::Blue, 2.0 / 3.0)],
         ..template("rainbow_wave", "Rainbow wave", Attribute::Red, Shape::Sine, 6.0, 0.0, 1.0)
     },
+    // Brightness.
+    template("slow_wave", "Slow wave", Attribute::Intensity, Shape::Sine, 8.0, 0.0, 1.0),
+    template("pulse_two_beats", "Pulse every other beat", Attribute::Intensity, Shape::Sine, 2.0, 2.0, 0.0),
+    template("breathe_bar", "Breathe over a bar", Attribute::Intensity, Shape::Sine, 4.0, 4.0, 0.0),
+    template("build_two_bars", "Build over two bars", Attribute::Intensity, Shape::Saw, 8.0, 8.0, 0.0),
+    template("every_other", "Every other light", Attribute::Intensity, Shape::Square, 2.0, 2.0, 0.5),
+    template("slow_chase", "Slow chase", Attribute::Intensity, Shape::Square, 2.0, 0.0, 1.0),
+    template("wave_on_the_bar", "Wave over a bar", Attribute::Intensity, Shape::Sine, 4.0, 4.0, 1.0),
+    // Colour.
+    template("green_pulse", "Green pulse", Attribute::Green, Shape::Sine, 2.0, 0.0, 0.0),
+    template("white_wave", "White wave", Attribute::White, Shape::Sine, 3.0, 0.0, 1.0),
+    template("uv_glow", "UV glow", Attribute::Uv, Shape::Sine, 4.0, 0.0, 0.0),
+    template("amber_chase", "Amber chase", Attribute::Amber, Shape::Square, 2.0, 2.0, 1.0),
+    Template {
+        also: &[(Attribute::Blue, 0.5)],
+        ..template("red_and_blue", "Red and blue", Attribute::Red, Shape::Sine, 4.0, 0.0, 0.0)
+    },
+    Template {
+        also: &[(Attribute::Blue, 0.5)],
+        ..template("warm_and_cool", "Warm and cool", Attribute::Amber, Shape::Sine, 6.0, 0.0, 0.5)
+    },
+    Template {
+        also: &[(Attribute::Amber, 0.3)],
+        ..template("embers", "Embers", Attribute::Red, Shape::Sine, 1.5, 0.0, 0.7)
+    },
+    Template {
+        also: &[(Attribute::Green, 0.25)],
+        ..template("ocean", "Ocean", Attribute::Blue, Shape::Sine, 5.0, 0.0, 1.0)
+    },
+    Template {
+        also: &[(Attribute::Green, 1.0 / 3.0), (Attribute::Blue, 2.0 / 3.0)],
+        ..template("colour_chase", "Colour chase", Attribute::Red, Shape::Square, 4.0, 4.0, 1.0)
+    },
+    // Movement.
+    template("pan_wave_beat", "Pan wave on the beat", Attribute::Pan, Shape::Sine, 4.0, 8.0, 1.0),
+    template("nod_beat", "Nod on the beat", Attribute::Tilt, Shape::Sine, 1.0, 2.0, 0.0),
+    Template {
+        also: &[(Attribute::Tilt, 0.5)],
+        ..template("sweep_room", "Sweep the room", Attribute::Pan, Shape::Triangle, 3.0, 0.0, 1.0)
+    },
+    Template {
+        also: &[(Attribute::Tilt, 0.25)],
+        ..template("circle_bar", "Circle over a bar", Attribute::Pan, Shape::Sine, 2.0, 4.0, 0.0)
+    },
+    template("zoom_beat", "Zoom on the beat", Attribute::Zoom, Shape::Sine, 1.0, 1.0, 0.0),
 ];
 
 /// A template's more attributes as `also` params (each between 0 and 1).
