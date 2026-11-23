@@ -203,7 +203,7 @@ impl ActCraftApp {
         self.hue_settings(ui);
     }
 
-    /// DMX in: whether ActCraft listens for Art-Net from other gear (a desk, another program),
+    /// DMX in: whether ActCraft listens for Art-Net and sACN from other gear (a desk, another program),
     /// whether from other computers too, and the universes heard.
     pub(crate) fn dmx_input_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
@@ -211,7 +211,7 @@ impl ActCraftApp {
         let mut on = self.platform.dmx_in_listening.is_some();
         let mut changed = false;
         ui.horizontal_wrapped(|ui| {
-            changed |= ui.checkbox(&mut on, tr("Receive DMX over Art-Net")).changed();
+            changed |= ui.checkbox(&mut on, tr("Receive DMX over Art-Net and sACN")).changed();
             changed |= ui
                 .checkbox(&mut self.platform.dmx_in_network, tr("From other computers too"))
                 .on_hover_text(tr("Desks and nodes on the network can then send DMX to ActCraft"))
@@ -448,7 +448,12 @@ impl ActCraftApp {
         m.input = m.input.filter(|n| heard.contains(n));
         if !heard.is_empty() {
             let our = tr("The show's levels");
-            let input_text = |n: u16| tr("DMX in, Art-Net universe {n}").replace("{n}", &n.to_string());
+            // By Art-Net port address; sACN universes count from 1.
+            let input_text = |n: u16| {
+                tr("DMX in, Art-Net {n} / sACN {s}")
+                    .replace("{n}", &n.to_string())
+                    .replace("{s}", &(u32::from(n) + 1).to_string())
+            };
             ui.horizontal(|ui| {
                 let label = ui.label(tr("Show"));
                 egui::ComboBox::from_id_salt("dmx-monitor-source")

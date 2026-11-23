@@ -379,14 +379,14 @@ fn dmx_from_other_gear_is_switched_on_in_settings_and_shown_in_the_monitor() {
     });
     h.state_mut().open_settings_at("lighting");
     frames(&mut h, 3);
-    h.get_by_role_and_label(Role::CheckBox, "Receive DMX over Art-Net").click_accesskit();
+    h.get_by_role_and_label(Role::CheckBox, "Receive DMX over Art-Net and sACN").click_accesskit();
     frames(&mut h, 2);
     assert_eq!(h.state_mut().take_dmx_in_request(), Some(Some(false)), "listen, this computer only");
     h.state_mut().show_dmx_monitor();
     frames(&mut h, 3);
     h.get_by_role_and_label(Role::ComboBox, "Show").click_accesskit();
     frames(&mut h, 2);
-    h.get_by_label("DMX in, Art-Net universe 3").click_accesskit();
+    h.get_by_label("DMX in, Art-Net 3 / sACN 4").click_accesskit();
     frames(&mut h, 3);
     assert!(h.query_by_label_contains("Channel 1: 200").is_some(), "the heard level shows");
     assert!(h.query_by_role_and_label(Role::Button, "This universe to zero").is_none(), "read only");

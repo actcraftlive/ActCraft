@@ -513,7 +513,12 @@ impl Host {
         let Some(network) = listen else { return };
         match DmxIn::open(network, Arc::clone(&self.dmx_in_levels), Arc::clone(&self.wake)) {
             Ok(input) => {
-                let address = input.addr().to_string();
+                // Art-Net's address, and sACN's port when it could be had.
+                let address = if input.hears_sacn() {
+                    format!("{} \u{b7} sACN {}", input.addr(), actcraft_platform::dmx_in::SACN_PORT)
+                } else {
+                    input.addr().to_string()
+                };
                 self.app
                     .engine()
                     .say_with("DMX in: listening on {address}", vec![MessageArg::plain("address", &address)]);
