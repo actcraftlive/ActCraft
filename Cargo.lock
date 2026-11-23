@@ -112,7 +112,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-control",
  "actcraft-engine",
@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-audio"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "craft-audio",
  "rtrb",
@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-command"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-control"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-engine",
  "craft-jsonrpc",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-engine"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-audio",
  "actcraft-command",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-library"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-show",
  "chrono",
@@ -184,11 +184,11 @@ dependencies = [
 
 [[package]]
 name = "actcraft-lyrics"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "actcraft-notation"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "craft-midi",
  "craft-xml",
@@ -197,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-platform"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-audio",
  "actcraft-engine",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-show"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "actcraft-ui"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "actcraft-command",
  "actcraft-engine",
@@ -6248,7 +6248,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "craft-xtask",
  "image",

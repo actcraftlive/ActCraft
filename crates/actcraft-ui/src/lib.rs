@@ -58,6 +58,35 @@ pub(crate) fn update_tr(text: &str, args: &[(&str, &str)]) -> String {
     actcraft_engine::fill(tr(text), args)
 }
 
+/// Asks GitHub for the release to offer, as the shared check does, except that a pre-release copy
+/// (an alpha) is offered newer pre-releases too; a stable copy is offered stable releases only.
+fn update_source() -> craft_update::updater::CheckSource {
+    std::sync::Arc::new(|| {
+        let running = env!("CARGO_PKG_VERSION");
+        let http = craft_update::Http::new("ActCraft/Update")?;
+        let url = format!("https://api.github.com/repos/{}/releases?per_page=30", ACTCRAFT.repo);
+        match http.get_api(&url, None)? {
+            craft_update::http::Fetched::Body { text, .. } => {
+                pick_release(&text, running).map(|r| r.filter(|r| offered(r, running)))
+            }
+            craft_update::http::Fetched::RateLimited { .. } => Err("GitHub's request limit was reached".into()),
+            craft_update::http::Fetched::NotModified | craft_update::http::Fetched::NotFound => Ok(None),
+        }
+    })
+}
+
+/// The newest release in GitHub's list `json` that a copy running `running` may take: pre-releases
+/// count only while it runs one.
+fn pick_release(json: &str, running: &str) -> Result<Option<craft_update::Release>, String> {
+    craft_update::parse_github_release_list(json, ACTCRAFT.repo, running.contains('-'))
+}
+
+/// Whether `release` is newer than `running`.
+fn offered(release: &craft_update::Release, running: &str) -> bool {
+    let current = craft_update::parse_version(running);
+    release.version.as_ref().zip(current.as_ref()).is_some_and(|(l, c)| craft_update::version::offers_update(l, c))
+}
+
 /// What Help > About says about the last update check, if anything.
 pub(crate) fn update_status_text(status: &craft_update::updater::Status) -> Option<String> {
     use craft_update::updater::{READY_TEXT, Status};
@@ -421,7 +450,8 @@ impl ActCraftApp {
             note_prompt: None,
             sheet_pick: None,
             updater: craft_update::updater::Updater::new(&ACTCRAFT, env!("CARGO_PKG_VERSION"))
-                .with_translator(update_tr),
+                .with_translator(update_tr)
+                .with_source(update_source()),
             set_note_edit: None,
             sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,

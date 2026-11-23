@@ -978,3 +978,24 @@ mod tests {
         assert_eq!(WEBSITE, "https://actcraft.org");
     }
 }
+
+#[cfg(test)]
+mod release_choice_tests {
+    /// GitHub's list: a stable 0.1.0 is not out yet, two alphas are.
+    const LIST: &str = r#"[
+        {"tag_name": "v0.1.0-alpha.3", "name": "a3", "prerelease": true, "draft": false, "html_url": "https://github.com/actcraftlive/ActCraft/releases/tag/v0.1.0-alpha.3", "assets": []},
+        {"tag_name": "v0.1.0-alpha.2", "name": "a2", "prerelease": true, "draft": false, "html_url": "https://github.com/actcraftlive/ActCraft/releases/tag/v0.1.0-alpha.2", "assets": []},
+        {"tag_name": "v0.0.9", "name": "old", "prerelease": false, "draft": false, "html_url": "https://github.com/actcraftlive/ActCraft/releases/tag/v0.0.9", "assets": []}
+    ]"#;
+
+    #[test]
+    fn an_alpha_is_offered_the_next_alpha_and_a_stable_copy_only_stable_releases() {
+        let pick = |running: &str| {
+            crate::pick_release(LIST, running).ok().flatten().filter(|r| crate::offered(r, running)).map(|r| r.tag)
+        };
+        assert_eq!(pick("0.1.0-alpha.2").as_deref(), Some("v0.1.0-alpha.3"));
+        assert_eq!(pick("0.1.0-alpha.3"), None, "already the newest");
+        assert_eq!(pick("0.0.8").as_deref(), Some("v0.0.9"), "a stable copy skips the alphas");
+        assert_eq!(pick("0.0.9"), None);
+    }
+}
