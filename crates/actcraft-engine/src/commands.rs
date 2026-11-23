@@ -467,6 +467,23 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::dmx::dmx_clear,
         ),
         cmd(
+            "dmx.blackout",
+            "Blackout",
+            "Lighting/Blackout",
+            None,
+            "{on?: bool} (switches without) -> {on}",
+            crate::dmx::dmx_blackout,
+        ),
+        cmd("dmx.master", "Lighting master", "", None, "{level: 0-1}", crate::dmx::dmx_master),
+        cmd(
+            "lighting.freeze",
+            "Freeze lighting",
+            "Lighting/Freeze",
+            None,
+            "{on?: bool} (holds fades and effects; switches without) -> {on}",
+            crate::dmx::lighting_freeze,
+        ),
+        cmd(
             "dmx.output_add",
             "Add a DMX output",
             "",

@@ -746,7 +746,6 @@
 	Switch looping the song	Das Wiederholen des Songs schalten
 	Switch playing the next song	Das Abspielen des nächsten Songs schalten
 	Switch the click	Den Klick schalten
-	`toggle` must be metronome, loop_song or autoplay	`toggle` muss metronome, loop_song oder autoplay sein
 	a pad runs a command or a macro, moves a volume or switches something: one of them	ein Pad führt einen Befehl oder ein Makro aus, bewegt eine Lautstärke oder schaltet etwas: eines davon
 	off	aus
 	on	an
@@ -994,3 +993,12 @@
 	Seen from above, the audience at the bottom. Drag a fixture, or pick it and set its place.	Von oben gesehen, das Publikum unten. Ein Gerät ziehen oder wählen und seinen Platz setzen.
 	Stage	Bühne
 	{name}: red {r} %, green {g} %, blue {b} %	{name}: Rot {r} %, Grün {g} %, Blau {b} %
+	Blackout	Blackout
+	Every fixture dark; positions and levels stay	Alle Geräte dunkel; Positionen und Werte bleiben
+	Freeze	Einfrieren
+	Freeze lighting	Licht einfrieren
+	Hold fades and effects where they are	Überblendungen und Effekte anhalten, wo sie sind
+	Lighting master	Licht-Master
+	Switch holding fades and effects	Das Anhalten von Überblendungen und Effekten schalten
+	Switch the blackout	Den Blackout schalten
+	`toggle` must be metronome, loop_song, autoplay, blackout or freeze	`toggle` muss metronome, loop_song, autoplay, blackout oder freeze sein

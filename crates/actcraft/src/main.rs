@@ -159,6 +159,7 @@ impl eframe::App for Host {
                 });
             }
             if shot.done.load(std::sync::atomic::Ordering::Relaxed) {
+                self.app.close_without_asking();
                 ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Close);
             }
             ctx.request_repaint();
@@ -230,8 +231,8 @@ impl Host {
             } else {
                 let mut levels = std::collections::HashMap::new();
                 for o in outputs {
-                    if let Some(u) = e.dmx.universe(usize::from(o.universe)) {
-                        levels.insert(o.universe, *u);
+                    if let Some(u) = e.output_universe(usize::from(o.universe)) {
+                        levels.insert(o.universe, u);
                     }
                 }
                 Some(DmxFrame { outputs: outputs.clone(), levels, version: e.dmx.version })

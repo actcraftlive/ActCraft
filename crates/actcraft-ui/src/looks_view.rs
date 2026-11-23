@@ -144,6 +144,8 @@ impl ActCraftApp {
             .collapsible(false)
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().id_salt("presets-scroll").auto_shrink([false, true]).show(ui, |ui| {
+                    self.output_ui(ui, e);
+                    ui.separator();
                     self.presets_ui(ui, e);
                     ui.separator();
                     self.cue_lists_ui(ui, e);
@@ -229,6 +231,40 @@ impl ActCraftApp {
             if e.run("preset.store", &prm).is_ok() {
                 self.looks_draft.preset_name.clear();
             }
+        }
+    }
+
+    /// What reaches the lights: blackout, freeze and the master.
+    fn output_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        let mut run: Option<(&str, Value)> = None;
+        ui.horizontal_wrapped(|ui| {
+            let blackout = e.dmx.blackout;
+            let words = format!("{} \u{b7} {}", tr("Blackout"), if blackout { tr("on") } else { tr("off") });
+            let fill = if blackout { RichText::new(words).color(t.danger).strong() } else { RichText::new(words) };
+            if ui
+                .selectable_label(blackout, fill)
+                .on_hover_text(tr("Every fixture dark; positions and levels stay"))
+                .clicked()
+            {
+                run = Some(("dmx.blackout", Value::Null));
+            }
+            let frozen = e.frozen();
+            let words = format!("{} \u{b7} {}", tr("Freeze"), if frozen { tr("on") } else { tr("off") });
+            if ui.selectable_label(frozen, words).on_hover_text(tr("Hold fades and effects where they are")).clicked() {
+                run = Some(("lighting.freeze", Value::Null));
+            }
+            let label = ui.label(tr("Master"));
+            let mut master = e.dmx.master;
+            let slider = egui::Slider::new(&mut master, 0.0..=1.0)
+                .custom_formatter(|v, _| format!("{:.0} %", v * 100.0))
+                .custom_parser(|s| s.trim().trim_end_matches('%').trim().parse::<f64>().ok().map(|p| p / 100.0));
+            if ui.add(slider).labelled_by(label.id).changed() {
+                run = Some(("dmx.master", json!({"level": master})));
+            }
+        });
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
         }
     }
 

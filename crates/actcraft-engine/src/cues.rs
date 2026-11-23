@@ -38,6 +38,13 @@ struct Part {
     to: f64,
 }
 
+impl Fade {
+    /// Moves its start later by `by` (after a freeze).
+    pub(crate) fn shift(&mut self, by: chrono::TimeDelta) {
+        self.started += by;
+    }
+}
+
 impl Engine {
     /// Sets one fixture attribute (by fixture id) to `value`; whether a level changed.
     pub(crate) fn put(&mut self, fixture: u64, attribute: Attribute, value: f64) -> bool {

@@ -46,6 +46,8 @@ fn toggle_text(target: ToggleTarget) -> String {
         ToggleTarget::Metronome => tr("Switch the click").to_owned(),
         ToggleTarget::LoopSong => tr("Switch looping the song").to_owned(),
         ToggleTarget::Autoplay => tr("Switch playing the next song").to_owned(),
+        ToggleTarget::Blackout => tr("Switch the blackout").to_owned(),
+        ToggleTarget::Freeze => tr("Switch holding fades and effects").to_owned(),
     }
 }
 
@@ -206,7 +208,13 @@ impl ActCraftApp {
             };
             let mut targets = vec![FaderTarget::Master, FaderTarget::Song];
             targets.extend((0..buses).map(FaderTarget::Bus));
-            let toggles = [ToggleTarget::Metronome, ToggleTarget::LoopSong, ToggleTarget::Autoplay];
+            let toggles = [
+                ToggleTarget::Metronome,
+                ToggleTarget::LoopSong,
+                ToggleTarget::Autoplay,
+                ToggleTarget::Blackout,
+                ToggleTarget::Freeze,
+            ];
             egui::ComboBox::from_id_salt("pad-runs")
                 .width(240.0)
                 .selected_text(shown)
@@ -264,6 +272,8 @@ impl ActCraftApp {
                         ToggleTarget::Metronome => "metronome",
                         ToggleTarget::LoopSong => "loop_song",
                         ToggleTarget::Autoplay => "autoplay",
+                        ToggleTarget::Blackout => "blackout",
+                        ToggleTarget::Freeze => "freeze",
                     });
                 }
                 (None, None, Some(name)) => prm["macro"] = json!(name),
