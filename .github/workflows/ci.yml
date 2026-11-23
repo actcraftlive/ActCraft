@@ -22,9 +22,10 @@ jobs:
     uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
     with:
       # Linux build dependencies of the window (winit, wgpu), the audio output (ALSA) and the
-      # native file pickers (GTK through the desktop portal fallback).
+      # native file pickers (GTK through the desktop portal fallback), and libudev for game
+      # controllers (gilrs).
       packages: >-
         libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
-        libgtk-3-dev libasound2-dev pkg-config
+        libgtk-3-dev libasound2-dev libudev-dev pkg-config
       # ActCraft ships on all three desktop systems, so every pull request builds and tests on each.
       os: '["ubuntu-24.04","windows-latest","macos-latest"]'
