@@ -1,0 +1,2 @@
+// Windows resources: the program icon (shown in Explorer, on shortcuts, in the taskbar and Alt+Tab).
+1 ICON "../../assets/logo/actcraft.ico"
