@@ -214,6 +214,7 @@ mod tests {
             crate::ClockMode::Remaining,
             crate::ClockMode::QueueEnd,
             crate::ClockMode::TimeOfDay,
+            crate::ClockMode::ShowTime,
         ] {
             out.push(clock.label().to_owned());
         }

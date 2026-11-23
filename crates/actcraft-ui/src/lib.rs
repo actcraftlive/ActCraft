@@ -68,6 +68,8 @@ pub enum ClockMode {
     Remaining,
     QueueEnd,
     TimeOfDay,
+    /// Time since the show began (the first Play this session), pauses between songs included.
+    ShowTime,
 }
 
 impl ClockMode {
@@ -76,7 +78,8 @@ impl ClockMode {
             Self::Elapsed => Self::Remaining,
             Self::Remaining => Self::QueueEnd,
             Self::QueueEnd => Self::TimeOfDay,
-            Self::TimeOfDay => Self::Elapsed,
+            Self::TimeOfDay => Self::ShowTime,
+            Self::ShowTime => Self::Elapsed,
         }
     }
 
@@ -86,6 +89,7 @@ impl ClockMode {
             Self::Remaining => "Remaining",
             Self::QueueEnd => "Queue ends in",
             Self::TimeOfDay => "Time",
+            Self::ShowTime => "Show time",
         }
     }
 }
@@ -125,6 +129,9 @@ pub struct ActCraftApp {
     focus_search: bool,
     selected_track: usize,
     clock_mode: ClockMode,
+    /// When the show began (the first Play, in the window's seconds), and the time now.
+    show_began: Option<f64>,
+    now: f64,
     zoom: f32,
     /// Clicking the waveform jumps to the nearest beat.
     snap_to_beat: bool,
@@ -205,6 +212,8 @@ impl ActCraftApp {
             focus_search: false,
             selected_track: 0,
             clock_mode: ClockMode::Elapsed,
+            show_began: None,
+            now: 0.0,
             zoom: 1.0,
             snap_to_beat: false,
             last_announced: 0,
@@ -446,6 +455,14 @@ impl ActCraftApp {
 
     fn transport(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
+        // The show time runs from the first Play; the clock shows it once a second while stopped.
+        self.now = ui.input(|i| i.time);
+        if e.playing() && self.show_began.is_none() {
+            self.show_began = Some(self.now);
+        }
+        if self.clock_mode == ClockMode::ShowTime && self.show_began.is_some() {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+        }
         ui.horizontal(|ui| {
             let playing = e.playing();
             // Play / Pause in one button (Space); Stop also goes back to the song's start (Esc).
@@ -488,9 +505,16 @@ impl ActCraftApp {
                 let r = ui.add(
                     egui::Label::new(RichText::new(clock).size(t.big_text_size).monospace()).sense(Sense::click()),
                 );
-                if r.on_hover_text(format!("{} ({})", tr(self.clock_mode.label()), tr("click to change"))).clicked() {
+                let r = r.on_hover_text(format!("{} ({})", tr(self.clock_mode.label()), tr("click to change")));
+                if r.clicked() {
                     self.clock_mode = self.clock_mode.next();
                 }
+                r.context_menu(|ui| {
+                    if ui.button(tr("Start show time again")).clicked() {
+                        self.show_began = e.playing().then_some(self.now);
+                        ui.close();
+                    }
+                });
             });
             ui.separator();
 
@@ -571,6 +595,7 @@ impl ActCraftApp {
                 fmt_time(queued + (dur - s.time).max(0.0))
             }
             ClockMode::TimeOfDay => self.platform.time_of_day.clone(),
+            ClockMode::ShowTime => fmt_time(self.show_began.map_or(0.0, |began| self.now - began)),
         }
     }
 
@@ -1400,6 +1425,30 @@ pub fn fmt_time(secs: f64) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_clock_goes_round_its_modes_and_show_time_counts_from_the_first_play() {
+        use super::{ActCraftApp, ClockMode};
+        let mut mode = ClockMode::Elapsed;
+        let mut seen = vec![mode];
+        for _ in 0..4 {
+            mode = mode.next();
+            seen.push(mode);
+        }
+        assert_eq!(seen.last(), Some(&ClockMode::ShowTime));
+        assert_eq!(mode.next(), ClockMode::Elapsed, "round again");
+        let ctx = egui::Context::default();
+        let engine = actcraft_engine::Engine::new(Box::new(actcraft_engine::MemoryServices::default()));
+        let shared = std::sync::Arc::new(std::sync::Mutex::new(actcraft_engine::Engine::new(Box::new(
+            actcraft_engine::MemoryServices::default(),
+        ))));
+        let mut app = ActCraftApp::new(&ctx, shared, Default::default());
+        app.clock_mode = ClockMode::ShowTime;
+        assert_eq!(app.clock_text(&engine), "0:00", "before the first Play");
+        app.show_began = Some(100.0);
+        app.now = 100.0 + 3725.0;
+        assert_eq!(app.clock_text(&engine), "1:02:05");
+    }
+
     #[test]
     fn time_format() {
         assert_eq!(super::fmt_time(65.4), "1:05");
