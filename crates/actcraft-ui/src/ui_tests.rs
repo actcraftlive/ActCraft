@@ -548,3 +548,19 @@ fn band_hosting_shows_its_code_and_a_follower_asks_to_follow() {
     frames(&mut h, 2);
     assert_eq!(h.state_mut().take_band_request(), Some(BandRequest::Unfollow));
 }
+
+#[test]
+fn a_tracks_colour_and_remove_buttons_say_which_track() {
+    let (mut h, _engine) = window(|e| {
+        let _ = e.run("song.add", &json!({"title": "Opener"}));
+        let _ = e.run("track.add", &json!({"name": "Bass"}));
+        let _ = e.run("track.add", &json!({"name": "Keys"}));
+    });
+    frames(&mut h, 3);
+    for name in ["Bass", "Keys"] {
+        assert!(h.query_by_role_and_label(Role::Button, &format!("Track colour ({name})")).is_some(), "{name}");
+        assert!(h.query_by_role_and_label(Role::Button, &format!("Remove track ({name})")).is_some(), "{name}");
+        assert!(h.query_by_role_and_label(Role::ComboBox, &format!("Output bus ({name})")).is_some(), "{name}");
+        assert!(h.query_by_role_and_label(Role::Button, &format!("Mute group 1 ({name})")).is_some(), "{name}");
+    }
+}
