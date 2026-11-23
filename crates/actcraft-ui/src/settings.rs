@@ -536,6 +536,40 @@ impl ActCraftApp {
         }
     }
 
+    /// OSC: whether ActCraft listens, on which port, and whether other computers may send.
+    fn osc_settings(&mut self, ui: &mut Ui) {
+        let t = self.tokens;
+        let mut on = self.platform.osc_listening.is_some();
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            changed |= ui.checkbox(&mut on, tr("Listen for OSC")).changed();
+            let label = ui.label(tr("Port"));
+            let mut port = self.platform.osc_port;
+            let r = ui.add(egui::DragValue::new(&mut port).range(1024..=65535).speed(1.0)).labelled_by(label.id);
+            self.platform.osc_port = port;
+            // While dragging, only once it is let go.
+            changed |= on && ((r.changed() && !r.dragged()) || r.drag_stopped());
+            changed |= ui
+                .checkbox(&mut self.platform.osc_network, tr("From other computers too"))
+                .on_hover_text(tr("Anyone on the network can then run commands in ActCraft"))
+                .changed()
+                && on;
+        });
+        let help = match &self.platform.osc_listening {
+            Some(address) => {
+                tr("Listening on {address}: send /actcraft/<command>, /actcraft/macro/<NAME> or /actcraft/pad/<n>")
+                    .replace("{address}", address)
+            }
+            None => {
+                tr("A tablet or another program can send OSC messages to run commands, macros and pads.").to_owned()
+            }
+        };
+        ui.label(RichText::new(help).color(t.text_dim));
+        if changed {
+            self.osc_request = Some(on.then_some((self.platform.osc_port, self.platform.osc_network)));
+        }
+    }
+
     /// Remote actions: the MIDI input a controller is on, and what its messages set off.
     fn remote_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
@@ -565,6 +599,7 @@ impl ActCraftApp {
                 .response
                 .labelled_by(label.id);
         });
+        self.osc_settings(ui);
         // The actions there are.
         let actions = e.show.remote.clone();
         let mut remove = None;

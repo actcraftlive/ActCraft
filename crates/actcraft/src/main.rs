@@ -16,7 +16,7 @@ use actcraft_control::channel;
 use actcraft_engine::{Engine, MessageArg};
 
 use actcraft_engine::midi_sync::SyncConfig;
-use actcraft_platform::{AudioOutput, MidiIn, MidiQueue, MidiTimeOut, NativeServices, StatusReader};
+use actcraft_platform::{AudioOutput, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue, StatusReader};
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
 use serde_json::json;
@@ -48,6 +48,9 @@ struct Host {
     /// The MIDI input remote actions listen to, and what came in from it.
     midi_in: Option<MidiIn>,
     midi_queue: MidiQueue,
+    /// Where OSC messages come in, and what came.
+    osc_in: Option<OscIn>,
+    osc_queue: OscQueue,
     /// Wakes the window when a MIDI message comes in.
     wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -92,6 +95,12 @@ impl eframe::App for Host {
         }
         if let Some(port) = self.app.take_midi_input_request() {
             self.switch_midi_input(port);
+        }
+        if let Some(listen) = self.app.take_osc_request() {
+            self.switch_osc(listen);
+        }
+        for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
+            self.app.engine().osc_in(&address, value);
         }
         if self.app.take_midi_refresh() {
             self.app.platform.midi_ports = actcraft_platform::midi_output_ports();
@@ -147,6 +156,34 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Stops listening for OSC and listens again as asked (none for `None`). Remembered on this
+    /// computer.
+    fn switch_osc(&mut self, listen: Option<(u16, bool)>) {
+        self.osc_in = None;
+        self.app.platform.osc_listening = None;
+        self.prefs.update(|pr| {
+            pr.audio.osc = listen.is_some();
+            if let Some((port, network)) = listen {
+                pr.audio.osc_port = port;
+                pr.audio.osc_network = network;
+            }
+        });
+        let Some((port, network)) = listen else { return };
+        match OscIn::open(port, network, Arc::clone(&self.osc_queue), Arc::clone(&self.wake)) {
+            Ok(input) => {
+                let address = input.addr().to_string();
+                self.app.engine().say_with("OSC: listening on {address}", vec![MessageArg::plain("address", &address)]);
+                self.app.platform.osc_listening = Some(address);
+                self.osc_in = Some(input);
+            }
+            Err(e) => {
+                self.app
+                    .engine()
+                    .say_error_with("Could not listen for OSC: {error}", vec![MessageArg::plain("error", e)]);
+            }
+        }
+    }
+
     /// Stops listening to the MIDI input and listens to `port` (none for `None`). Remembered on
     /// this computer.
     fn switch_midi_input(&mut self, port: Option<String>) {
@@ -252,6 +289,9 @@ impl Host {
     }
 }
 
+/// The UDP port OSC is listened for on until another is chosen.
+const DEFAULT_OSC_PORT: u16 = 8000;
+
 /// What ActCraft remembers on this computer (not in the show file).
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -276,6 +316,11 @@ struct AudioPrefs {
     midi_output: String,
     /// MIDI input remote actions listen to; empty for none.
     midi_input: String,
+    /// Whether ActCraft listens for OSC, on which UDP port (0: the default), and whether other
+    /// computers may send.
+    osc: bool,
+    osc_port: u16,
+    osc_network: bool,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -422,6 +467,8 @@ fn main() {
                 midi_part: None,
                 midi_in: None,
                 midi_queue: MidiQueue::default(),
+                osc_in: None,
+                osc_queue: OscQueue::default(),
                 wake,
             };
             // The MIDI output and input chosen last time, if they are still there.
@@ -434,6 +481,13 @@ fn main() {
             let saved = host.prefs.get().audio.midi_input.clone();
             if !saved.is_empty() && host.app.platform.midi_inputs.contains(&saved) {
                 host.switch_midi_input(Some(saved));
+            }
+            // OSC as it was set last time.
+            let pr = host.prefs.get().audio.clone();
+            host.app.platform.osc_port = if pr.osc_port == 0 { DEFAULT_OSC_PORT } else { pr.osc_port };
+            host.app.platform.osc_network = pr.osc_network;
+            if pr.osc {
+                host.switch_osc(Some((host.app.platform.osc_port, pr.osc_network)));
             }
             Ok(Box::new(host))
         }),

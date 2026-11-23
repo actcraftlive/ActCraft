@@ -104,6 +104,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/remote.rs"),
             include_str!("../../actcraft-engine/src/macros.rs"),
             include_str!("../../actcraft-engine/src/pads.rs"),
+            include_str!("../../actcraft-engine/src/osc.rs"),
             include_str!("../../actcraft-engine/src/voice.rs"),
             include_str!("../../actcraft/src/main.rs"),
         ];

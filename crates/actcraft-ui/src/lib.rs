@@ -114,6 +114,11 @@ pub struct PlatformInfo {
     /// The computer's MIDI inputs, and the one remote actions listen to.
     pub midi_inputs: Vec<String>,
     pub midi_input: Option<String>,
+    /// OSC: the UDP port, whether other computers may send to it, and where it listens now
+    /// (`None`: it does not).
+    pub osc_port: u16,
+    pub osc_network: bool,
+    pub osc_listening: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -152,6 +157,8 @@ pub struct ActCraftApp {
     midi_refresh: bool,
     /// A MIDI input the person picked in Settings (`None`: none); the host opens it.
     midi_input_request: Option<Option<String>>,
+    /// OSC to listen for (port, from the network) or `None` to stop, once asked.
+    osc_request: Option<Option<(u16, bool)>>,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -228,6 +235,7 @@ impl ActCraftApp {
             midi_request: None,
             midi_refresh: false,
             midi_input_request: None,
+            osc_request: None,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             pads_editing: false,
@@ -318,6 +326,11 @@ impl ActCraftApp {
     /// A MIDI input the person picked (`Some(None)`: none); the host calls this every frame.
     pub fn take_midi_input_request(&mut self) -> Option<Option<String>> {
         self.midi_input_request.take()
+    }
+
+    /// OSC listening the person changed (`Some(None)`: stop); the host calls this every frame.
+    pub fn take_osc_request(&mut self) -> Option<Option<(u16, bool)>> {
+        self.osc_request.take()
     }
 
     /// Whether Settings waits for a MIDI message to learn a remote action's trigger from; the

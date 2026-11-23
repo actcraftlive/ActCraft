@@ -23,19 +23,17 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 The open items below, in the order they are planned. Each one is a pull request of its own;
 details are in the milestone sections further down.
 
-1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
-   audio library first, see below)
-2. M3: OSC (needs an OSC reader: shared library or a dependency, see below)
+1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
+   the shared audio library first, see below)
+2. M4: DMX lighting
 
 ## Quality and open questions
 
-- ⬜ OSC (remote actions and, with M8, the band network) needs an OSC reader and writer; the
-  shared libraries have none. Either one goes into `storytold/craft-libs` (house rule 16) or a
-  crates.io crate is used; waiting on the owner's choice
+- ✅ OSC: the shared libraries have none; the owner chose a crates.io crate (`rosc`,
+  MIT OR Apache-2.0), and the same for DMX (Art-Net, sACN)
 - ⬜ Lyrics in audio tags (ID3 `USLT`, Vorbis comments, MP4 `©lyr`) and markers in formats other
   than WAV need readers that belong in the shared audio library (`craft-audio`, which reads WAV
-  markers today), not in ActCraft (house rule 16); waiting on the owner's go-ahead to propose
-  them there
+  markers today), not in ActCraft (house rule 16); the owner agreed to propose them there
 - ⬜ Keyboard and accessibility-tree tests (kittest) for the window: the helpers don't exist in
   this repository yet; every new control should get one once they do
 - ⬜ The MusicXML reader (`actcraft-notation`) is app-independent: offer it to the shared
@@ -151,10 +149,12 @@ details are in the milestone sections further down.
 - ✅ MIDI Clock (with start, stop, continue and song position) and MIDI Timecode (quarter frames,
   a full frame on a jump; 24, 25 or 30 fps) out to a MIDI output chosen in Settings > MIDI
   (`midi.set`); the output is kept on the computer, what is sent with the show
-- 🔶 Remote actions: a MIDI note, controller (a foot switch, once per press) or program change,
+- ✅ Remote actions: a MIDI note, controller (a foot switch, once per press) or program change,
   on one channel or any, runs a command that needs nothing more; set up in Settings > MIDI by
   hand or with MIDI learn (`remote.add`, `remote.remove`, `remote.list`, `remote.trigger`).
-  Keys have their shortcuts; pads on the screen (below); OSC to do
+  Keys have their shortcuts; pads on the screen (below). OSC: Settings > MIDI listens on a UDP
+  port (this computer only, or the network too); `/actcraft/<command id>`, `/actcraft/macro/<NAME>`
+  and `/actcraft/pad/<n>` run a command, a macro or a pad (`osc.trigger`)
 - ✅ Pads: buttons along the bottom of the window that run a command or a macro with one press,
   in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads); faders for
   the master, the song or a bus volume (`pad.add {fader}`); toggles that switch the click,
