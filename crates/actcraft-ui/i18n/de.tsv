@@ -1310,5 +1310,9 @@
 	this computer's address	die Adresse dieses Computers
 	DMX in, Art-Net {n} / sACN {s}	DMX-Eingang, Art-Net {n} / sACN {s}
 	Receive DMX over Art-Net and sACN	DMX über Art-Net und sACN empfangen
+	Add range	Bereich hinzufügen
+	Range	Bereich
+	Ranges ({n})	Bereiche ({n})
+	Ranges of channel {n}	Bereiche von Kanal {n}
 	{sheet}, the lines playing now	{sheet}, die Zeilen, die gerade laufen
 	The score is being drawn.	Die Partitur wird gezeichnet.
