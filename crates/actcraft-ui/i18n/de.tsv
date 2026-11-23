@@ -734,10 +734,13 @@
 	Press pad	Pad drücken
 	Remove pad	Pad entfernen
 	a pad needs a label	ein Pad braucht eine Beschriftung
-	a pad runs a command or a macro, one of them	ein Pad führt einen Befehl oder ein Makro aus, eines davon
 	a pad runs a command that needs nothing more, or a macro	ein Pad führt einen Befehl aus, der nichts weiter braucht, oder ein Makro
 	a show holds at most 64 pads	eine Show hat höchstens 64 Pads
 	no such pad	dieses Pad gibt es nicht
 	this pad's command can't run without more	der Befehl dieses Pads läuft nicht ohne weitere Angaben
 	Show time	Showzeit
 	Start show time again	Showzeit neu starten
+	Bus {bus} volume	Lautstärke Bus {bus}
+	`fader` must be master, song or bus	`fader` muss master, song oder bus sein
+	a fader is moved, not pressed	ein Regler wird bewegt, nicht gedrückt
+	a pad runs a command or a macro, or moves a volume: one of them	ein Pad führt einen Befehl oder ein Makro aus oder bewegt eine Lautstärke: eines davon

@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; needs readers in the shared
    audio library first, see below)
-2. M3: knobs, sliders and toggles on the screen; OSC (needs an OSC
+2. M3: toggles on the screen that show their state; OSC (needs an OSC
    reader: shared library or a dependency, see below)
 
 ## Quality and open questions
@@ -157,8 +157,9 @@ details are in the milestone sections further down.
   hand or with MIDI learn (`remote.add`, `remote.remove`, `remote.list`, `remote.trigger`).
   Keys have their shortcuts; pads on the screen (below); OSC to do
 - 🔶 Pads: buttons along the bottom of the window that run a command or a macro with one press,
-  in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads); knobs,
-  sliders and toggles to do
+  in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads), and faders
+  for the master, the song or a bus volume (`pad.add {fader}`); toggles that show their state to
+  do
 - ✅ Clock modes (click the big clock): elapsed, remaining, until the queue ends, time of day and
   show time (from the first Play, pauses included; its menu starts it again)
 

@@ -4,7 +4,7 @@
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
 use actcraft_show::limits::MAX_PADS;
-use actcraft_show::{Macro, Pad, parse_colour};
+use actcraft_show::{FaderTarget, Macro, Pad, parse_colour};
 use serde_json::{Value, json};
 
 use crate::Engine;
@@ -17,8 +17,9 @@ fn failed(msg: impl Into<String>) -> CommandError {
     CommandError::Failed(msg.into())
 }
 
-/// `pad.add {label, colour?, command? | macro?}`: a pad that runs a command that needs nothing
-/// more, or a macro.
+/// `pad.add {label, colour?, command? | macro? | fader?}`: a pad that runs a command that needs
+/// nothing more or a macro, or a fader that moves a volume (`master`, `song`, or `bus` with
+/// `bus: index`).
 pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let label = p::str_max(prm, "label", 64)?.trim().to_owned();
     if label.is_empty() {
@@ -26,13 +27,26 @@ pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
     }
     let command = p::opt_str_max(prm, "command", 64)?.unwrap_or_default().to_owned();
     let macro_name = p::opt_str_max(prm, "macro", 32)?.unwrap_or_default().trim().to_ascii_uppercase();
-    match (command.is_empty(), macro_name.is_empty()) {
-        (false, true) if crate::remote::runnable(&command) => {}
-        (true, false) if Macro::valid_name(&macro_name) => {}
-        (false, false) | (true, true) => return Err(invalid("a pad runs a command or a macro, one of them")),
-        _ => return Err(invalid("a pad runs a command that needs nothing more, or a macro")),
+    let fader = match p::opt_str_max(prm, "fader", 16)? {
+        None => None,
+        Some("master") => Some(FaderTarget::Master),
+        Some("song") => Some(FaderTarget::Song),
+        Some("bus") => {
+            let bus = p::i64_in(prm, "bus", 0, actcraft_show::limits::BUSES as i64 - 1)?;
+            Some(FaderTarget::Bus(u8::try_from(bus).unwrap_or(0)))
+        }
+        Some(_) => return Err(invalid("`fader` must be master, song or bus")),
+    };
+    match (command.is_empty(), macro_name.is_empty(), fader.is_none()) {
+        (true, true, false) => {}
+        (false, true, true) if crate::remote::runnable(&command) => {}
+        (true, false, true) if Macro::valid_name(&macro_name) => {}
+        (false, true, true) | (true, false, true) => {
+            return Err(invalid("a pad runs a command that needs nothing more, or a macro"));
+        }
+        _ => return Err(invalid("a pad runs a command or a macro, or moves a volume: one of them")),
     }
-    let mut pad = Pad { label, command, macro_name, ..Pad::default() };
+    let mut pad = Pad { label, command, macro_name, fader, ..Pad::default() };
     if let Some(c) = p::opt_str_max(prm, "colour", 16)? {
         if parse_colour(c).is_none() {
             return Err(invalid("`colour` must look like #rrggbb"));
@@ -61,7 +75,9 @@ pub fn pad_list(e: &mut Engine, _prm: &Value) -> CommandResult {
         e.show
             .pads
             .iter()
-            .map(|p| json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name}))
+            .map(|p| {
+                json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name, "fader": p.fader})
+            })
             .collect(),
     ))
 }
@@ -70,6 +86,9 @@ pub fn pad_list(e: &mut Engine, _prm: &Value) -> CommandResult {
 pub fn pad_press(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "pad", e.show.pads.len())?;
     let Some(pad) = e.show.pads.get(i).cloned() else { return Err(invalid("no such pad")) };
+    if pad.fader.is_some() {
+        return Err(invalid("a fader is moved, not pressed"));
+    }
     if !pad.macro_name.is_empty() {
         let ran = e.run_macro(&pad.macro_name)?;
         return Ok(json!({"ran": ran}));
@@ -99,6 +118,9 @@ mod tests {
             json!({"label": "", "command": "transport.stop"}),
             json!({"label": "x", "command": "show.open"}),
             json!({"label": "x", "command": "transport.stop", "macro": "A"}),
+            json!({"label": "x", "command": "transport.stop", "fader": "master"}),
+            json!({"label": "x", "fader": "bus", "bus": 99}),
+            json!({"label": "x", "fader": "lights"}),
             json!({"label": "x"}),
             json!({"label": "x", "macro": "2BAD"}),
             json!({"label": "x", "command": "transport.stop", "colour": "green"}),
@@ -110,9 +132,13 @@ mod tests {
         assert_eq!(e.run("pad.press", &json!({"pad": 1})).ok(), Some(json!({"ran": 1})), "the macro");
         assert_eq!(e.current_song, first);
         assert!(e.run("pad.press", &json!({"pad": 9})).is_err());
+        let r = e.run("pad.add", &json!({"label": "Monitors", "fader": "bus", "bus": 2}));
+        assert_eq!(r.ok(), Some(json!({"pad": 2})));
+        assert_eq!(e.show.pads[2].fader, Some(FaderTarget::Bus(2)));
+        assert!(e.run("pad.press", &json!({"pad": 2})).is_err(), "a fader is moved, not pressed");
         assert_eq!(e.run("pad.list", &Value::Null).ok().map(|v| v[1]["macro"].clone()), Some(json!("BACK")));
         assert!(e.run("pad.remove", &json!({"pad": 0})).is_ok());
-        assert_eq!(e.show.pads.len(), 1);
+        assert_eq!(e.show.pads.len(), 2);
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.pads).unwrap_or_default();
         assert_eq!(back, e.show.pads);
     }

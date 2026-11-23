@@ -449,7 +449,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add pad",
             "",
             None,
-            "{label: text, colour?: #rrggbb, command?: id (one that needs nothing more), macro?: name} (a command or a macro) -> {pad: index}",
+            "{label: text, colour?: #rrggbb, command?: id (one that needs nothing more), macro?: name, fader?: master|song|bus, bus?: index} (a command, a macro or a fader) -> {pad: index}",
             crate::pads::pad_add,
         ),
         cmd("pad.remove", "Remove pad", "", None, "{pad: index}", crate::pads::pad_remove),
