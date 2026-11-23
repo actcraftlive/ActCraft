@@ -100,6 +100,19 @@ impl ClockMode {
     }
 }
 
+/// Something Settings asks of the Hue bridge; the host does it off the window's thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HueRequest {
+    /// Look for bridges on the local network.
+    Find,
+    /// Pair with the bridge at this address (its link button pressed).
+    Pair(String),
+    /// Read the paired bridge's lights again.
+    Lights,
+    /// Forget the pairing (the key is removed from this computer).
+    Forget,
+}
+
 /// An Art-Net node that answered a search.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtNetNode {
@@ -145,6 +158,14 @@ pub struct PlatformInfo {
     pub dmx_in_listening: Option<String>,
     /// The game controllers connected now, by name.
     pub gamepads: Vec<String>,
+    /// Philips Hue: bridges found (or why the search failed), whether a search or request runs,
+    /// the bridge paired with, its lights (id, name) or why they could not be read, and the last
+    /// answer worth saying (a pairing that waits for the button).
+    pub hue_bridges: Option<Result<Vec<String>, String>>,
+    pub hue_busy: bool,
+    pub hue_paired: Option<String>,
+    pub hue_lights: Option<Result<Vec<(String, String)>, String>>,
+    pub hue_note: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -199,6 +220,8 @@ pub struct ActCraftApp {
     /// A new controller fader: stick or trigger, what it moves (master, song, bus, lighting) and
     /// the bus.
     gamepad_fader_draft: (String, String, u8),
+    /// What Settings > Lighting asked of the Hue bridge.
+    hue_request: Option<HueRequest>,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -298,6 +321,7 @@ impl ActCraftApp {
             gamepad_learning: false,
             gamepad_draft: (String::new(), String::new()),
             gamepad_fader_draft: (String::new(), String::new(), 0),
+            hue_request: None,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -464,6 +488,11 @@ impl ActCraftApp {
     }
 
     /// A controller button pressed while learning.
+    /// What Settings asked of the Hue bridge, for the host to do.
+    pub fn take_hue_request(&mut self) -> Option<HueRequest> {
+        self.hue_request.take()
+    }
+
     pub fn gamepad_learned(&mut self, button: &str) {
         button.clone_into(&mut self.gamepad_draft.0);
         self.gamepad_learning = false;

@@ -1198,3 +1198,17 @@
 	Tilt bounce on the beat	Tilt-Hüpfen im Takt
 	Zoom wave	Zoom-Welle
 	Zoom build over a bar	Zoom-Aufbau über einen Takt
+	Paired with the bridge at {address}	Gekoppelt mit der Bridge unter {address}
+	Read the lights again	Lampen neu einlesen
+	Forget this bridge	Diese Bridge vergessen
+	Removes the bridge's key from this computer	Entfernt den Schlüssel der Bridge von diesem Computer
+	The bridge has no lights.	Die Bridge hat keine Lampen.
+	Lights:	Lampen:
+	Hue lights can follow fixtures. Find the bridge on this network, press its round button, then pair.	Hue-Lampen können Geräten folgen. Die Bridge in diesem Netzwerk suchen, ihren runden Knopf drücken, dann koppeln.
+	Looking…	Suche läuft …
+	Find Hue bridges	Hue-Bridges suchen
+	No bridge answered on this network.	Keine Bridge hat in diesem Netzwerk geantwortet.
+	Bridge at {address}	Bridge unter {address}
+	Pair	Koppeln
+	Press the round button on the bridge first, then pair within 30 seconds	Zuerst den runden Knopf an der Bridge drücken, dann innerhalb von 30 Sekunden koppeln
+	Press the round button on the bridge, then pair again within 30 seconds.	Den runden Knopf an der Bridge drücken, dann innerhalb von 30 Sekunden erneut koppeln.

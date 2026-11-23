@@ -475,3 +475,28 @@ fn a_controller_trigger_is_set_to_move_the_lighting_master() {
     with(&engine, |e| e.gamepad_axis("right_trigger", 0.5));
     assert!(with(&engine, |e| (e.dmx.master - 0.5).abs() < 1e-9));
 }
+
+#[test]
+fn a_hue_bridge_is_found_and_paired_in_settings() {
+    use crate::HueRequest;
+    let (mut h, _engine) = window(|_| {});
+    h.state_mut().open_settings_at("lighting");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Find Hue bridges").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_hue_request(), Some(HueRequest::Find));
+    // The host's answer: one bridge.
+    h.state_mut().platform.hue_bridges = Some(Ok(vec!["192.168.1.5".to_owned()]));
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Pair (192.168.1.5)").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_hue_request(), Some(HueRequest::Pair("192.168.1.5".to_owned())));
+    // Paired, with its lights read.
+    h.state_mut().platform.hue_paired = Some("192.168.1.5".to_owned());
+    h.state_mut().platform.hue_lights = Some(Ok(vec![("1".to_owned(), "Front".to_owned())]));
+    frames(&mut h, 2);
+    assert!(h.query_by_label("Lights: 1: Front").is_some());
+    h.get_by_role_and_label(Role::Button, "Forget this bridge").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(h.state_mut().take_hue_request(), Some(HueRequest::Forget));
+}
