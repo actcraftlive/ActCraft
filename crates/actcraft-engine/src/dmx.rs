@@ -27,11 +27,20 @@ pub struct Dmx {
     /// Blind: while on, fixture and preset edits go to this copy of the levels and not to the
     /// output; the copy goes when blind goes off.
     blind: Option<Vec<[u8; CHANNELS]>>,
+    /// DMX heard from other gear (Art-Net in), by Art-Net port address; live, not saved.
+    input: std::collections::BTreeMap<u16, [u8; CHANNELS]>,
 }
 
 impl Default for Dmx {
     fn default() -> Self {
-        Self { universes: vec![[0; CHANNELS]; UNIVERSES], version: 0, blackout: false, master: 1.0, blind: None }
+        Self {
+            universes: vec![[0; CHANNELS]; UNIVERSES],
+            version: 0,
+            blackout: false,
+            master: 1.0,
+            blind: None,
+            input: std::collections::BTreeMap::new(),
+        }
     }
 }
 
@@ -48,6 +57,16 @@ impl Dmx {
             self.version += 1;
         }
         changed
+    }
+
+    /// Levels heard from other gear on an Art-Net port address, if any came.
+    pub fn input(&self, port_address: u16) -> Option<&[u8; CHANNELS]> {
+        self.input.get(&port_address)
+    }
+
+    /// The Art-Net port addresses DMX came in on, lowest first.
+    pub fn inputs(&self) -> Vec<u16> {
+        self.input.keys().copied().collect()
     }
 
     /// Whether blind is on.
@@ -212,6 +231,19 @@ impl Engine {
         }
     }
 
+    /// Takes levels heard from other gear on Art-Net port address `port_address` (at most 512;
+    /// missing ones are 0). At most 256 universes are kept.
+    pub fn dmx_in(&mut self, port_address: u16, levels: &[u8]) {
+        if self.dmx.input.len() >= 256 && !self.dmx.input.contains_key(&port_address) {
+            return;
+        }
+        let mut u = [0; CHANNELS];
+        for (slot, v) in u.iter_mut().zip(levels) {
+            *slot = *v;
+        }
+        self.dmx.input.insert(port_address, u);
+    }
+
     /// Whether fades and effects are held.
     pub fn frozen(&self) -> bool {
         self.frozen_at.is_some()
@@ -251,6 +283,20 @@ pub fn lighting_blind(e: &mut Engine, prm: &Value) -> CommandResult {
     let on = opt_on(prm, e.dmx.blind())?;
     e.dmx.set_blind(on);
     Ok(json!({"on": on}))
+}
+
+/// `dmx.input_list`: the Art-Net port addresses DMX came in on.
+pub fn dmx_input_list(e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(json!(e.dmx.inputs()))
+}
+
+/// `dmx.input_get {network_universe}`: the levels heard on an Art-Net port address, channel 1
+/// first.
+pub fn dmx_input_get(e: &mut Engine, prm: &Value) -> CommandResult {
+    let n = p::i64_in(prm, "network_universe", 0, i64::from(DmxOutput::ARTNET_MAX))?;
+    let n = u16::try_from(n).map_err(|_| invalid("no such universe"))?;
+    let levels = e.dmx.input(n).ok_or_else(|| failed("no DMX came in on that universe"))?;
+    Ok(json!(levels.to_vec()))
 }
 
 /// `dmx.get {universe}`: the levels of one universe, channel 1 first.
@@ -369,6 +415,24 @@ mod tests {
         assert_eq!(back, e.show.dmx_outputs);
         assert!(e.run("dmx.output_remove", &json!({"output": 0})).is_ok());
         assert_eq!(e.show.dmx_outputs.len(), 1);
+    }
+
+    #[test]
+    fn dmx_from_other_gear_is_kept_by_universe_apart_from_ours() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        assert_eq!(e.run("dmx.input_list", &Value::Null).ok(), Some(json!([])));
+        e.dmx_in(5, &[10, 20, 30]);
+        e.dmx_in(1, &[255; 600]);
+        assert_eq!(e.run("dmx.input_list", &Value::Null).ok(), Some(json!([1, 5])));
+        let got = e.run("dmx.input_get", &json!({"network_universe": 5})).ok().unwrap_or_default();
+        assert_eq!((got[0].clone(), got[2].clone(), got[3].clone()), (json!(10), json!(30), json!(0)));
+        assert_eq!(got.as_array().map(Vec::len), Some(CHANNELS), "padded and cut to 512");
+        assert!(e.run("dmx.input_get", &json!({"network_universe": 9})).is_err(), "nothing came there");
+        assert_eq!(e.dmx.universe(1).map(|u| u[0]), Some(0), "the show's own levels stay");
+        for n in 100..400 {
+            e.dmx_in(n, &[1]);
+        }
+        assert_eq!(e.dmx.inputs().len(), 256, "bounded");
     }
 
     #[test]

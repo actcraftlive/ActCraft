@@ -1069,3 +1069,17 @@
 	No serial ports found: is the interface plugged in?	Keine seriellen Ports gefunden: Ist das Interface angesteckt?
 	`protocol` must be artnet, sacn or usb_pro	`protocol` muss artnet, sacn oder usb_pro sein
 	`address` must name the serial port, like COM3 or /dev/ttyUSB0	`address` muss den seriellen Port nennen, etwa COM3 oder /dev/ttyUSB0
+	DMX in: listening on {address}	DMX-Eingang: horcht auf {address}
+	Could not listen for DMX: {error}	Konnte nicht auf DMX horchen: {error}
+	DMX in	DMX-Eingang
+	Receive DMX over Art-Net	DMX über Art-Net empfangen
+	Desks and nodes on the network can then send DMX to ActCraft	Pulte und Nodes im Netzwerk können dann DMX an ActCraft senden
+	Listening on {address}; nothing heard yet.	Horcht auf {address}; noch nichts empfangen.
+	Listening on {address}; heard universes {list} (the DMX monitor shows them).	Horcht auf {address}; empfangene Universen {list} (der DMX-Monitor zeigt sie).
+	A lighting desk or another program can send its levels to ActCraft.	Ein Lichtpult oder ein anderes Programm kann seine Werte an ActCraft senden.
+	The show's levels	Werte der Show
+	DMX in, Art-Net universe {n}	DMX-Eingang, Art-Net-Universum {n}
+	Levels 0-255 heard from other gear; they only show here.	Werte 0-255 von anderen Geräten; sie werden nur hier gezeigt.
+	List DMX inputs	DMX-Eingänge auflisten
+	Read DMX input	DMX-Eingang lesen
+	no DMX came in on that universe	auf diesem Universum kam kein DMX an
