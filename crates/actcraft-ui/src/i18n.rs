@@ -94,6 +94,7 @@ mod tests {
             include_str!("dmx_view.rs"),
             include_str!("fixtures_view.rs"),
             include_str!("looks_view.rs"),
+            include_str!("stage_view.rs"),
         ];
         let engine = [
             include_str!("../../actcraft-engine/src/lib.rs"),

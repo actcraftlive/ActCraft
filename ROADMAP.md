@@ -12,7 +12,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | 🔶 USB to do |
-| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 groups and presets done |
+| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists and fades done |
 | M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: ready-made effect templates and a 2D stage preview
+2. M5: ready-made effect templates; M6: control pages, blind and freeze
 
 ## Quality and open questions
 
@@ -199,6 +199,9 @@ details are in the milestone sections further down.
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
   Ready-made effect templates, colour and movement effects across several attributes, control
   pages, blind and freeze to do
+- ✅ 2D stage preview: Lighting > Stage shows the fixtures from above in the colour they show now;
+  placed by dragging or by numbers (`fixture.place`; `fixture.stage` lists places and colours).
+  Beams and moving-head direction to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
