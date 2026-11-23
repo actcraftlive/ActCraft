@@ -11,6 +11,7 @@
 
 pub mod artnet_nodes;
 pub mod audio_out;
+pub mod dmx_in;
 pub mod dmx_out;
 pub mod files;
 pub mod midi_in;
@@ -22,6 +23,7 @@ pub mod speech;
 pub use actcraft_audio::StatusReader;
 pub use artnet_nodes::{ArtNode, discover as discover_artnet_nodes};
 pub use audio_out::{AudioOutput, OutputInfo, output_devices};
+pub use dmx_in::{DmxIn, DmxInLevels};
 pub use dmx_out::{DmxFrame, DmxOut};
 pub use files::{NativeServices, RootedServices};
 pub use midi_in::{MidiIn, MidiQueue, input_ports as midi_input_ports};

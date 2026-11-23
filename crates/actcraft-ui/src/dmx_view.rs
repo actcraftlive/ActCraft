@@ -20,11 +20,13 @@ pub struct DmxMonitor {
     pub universe: u16,
     /// The channel the level control sets, from 1.
     pub channel: u16,
+    /// DMX heard from other gear on this Art-Net port address instead of the show's levels.
+    pub input: Option<u16>,
 }
 
 impl Default for DmxMonitor {
     fn default() -> Self {
-        Self { universe: 1, channel: 1 }
+        Self { universe: 1, channel: 1, input: None }
     }
 }
 
@@ -191,6 +193,40 @@ impl ActCraftApp {
                     "address": d.address.trim(), "priority": d.priority}),
             );
         }
+        ui.add_space(12.0);
+        ui.separator();
+        self.dmx_input_settings(ui, e);
+    }
+
+    /// DMX in: whether ActCraft listens for Art-Net from other gear (a desk, another program),
+    /// whether from other computers too, and the universes heard.
+    pub(crate) fn dmx_input_settings(&mut self, ui: &mut Ui, e: &Engine) {
+        let t = self.tokens;
+        ui.label(RichText::new(tr("DMX in")).strong());
+        let mut on = self.platform.dmx_in_listening.is_some();
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            changed |= ui.checkbox(&mut on, tr("Receive DMX over Art-Net")).changed();
+            changed |= ui
+                .checkbox(&mut self.platform.dmx_in_network, tr("From other computers too"))
+                .on_hover_text(tr("Desks and nodes on the network can then send DMX to ActCraft"))
+                .changed()
+                && on;
+        });
+        let heard = e.dmx.inputs();
+        let help = match &self.platform.dmx_in_listening {
+            Some(address) if heard.is_empty() => {
+                tr("Listening on {address}; nothing heard yet.").replace("{address}", address)
+            }
+            Some(address) => tr("Listening on {address}; heard universes {list} (the DMX monitor shows them).")
+                .replace("{address}", address)
+                .replace("{list}", &heard.iter().map(u16::to_string).collect::<Vec<_>>().join(", ")),
+            None => tr("A lighting desk or another program can send its levels to ActCraft.").to_owned(),
+        };
+        ui.label(RichText::new(help).color(t.text_dim));
+        if changed {
+            self.dmx_in_request = Some(on.then_some(self.platform.dmx_in_network));
+        }
     }
 
     /// Looking for Art-Net nodes on the network, and using one for the next output.
@@ -254,6 +290,37 @@ impl ActCraftApp {
 
     fn dmx_monitor_ui(&mut self, ui: &mut Ui, e: &mut Engine, m: &mut DmxMonitor) {
         let t = self.tokens;
+        // What it shows: the show's levels, or DMX heard from other gear (read only).
+        let heard = e.dmx.inputs();
+        m.input = m.input.filter(|n| heard.contains(n));
+        if !heard.is_empty() {
+            let our = tr("The show's levels");
+            let input_text = |n: u16| tr("DMX in, Art-Net universe {n}").replace("{n}", &n.to_string());
+            ui.horizontal(|ui| {
+                let label = ui.label(tr("Show"));
+                egui::ComboBox::from_id_salt("dmx-monitor-source")
+                    .selected_text(m.input.map_or_else(|| our.to_owned(), input_text))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut m.input, None, our);
+                        for n in &heard {
+                            ui.selectable_value(&mut m.input, Some(*n), input_text(*n));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            });
+        }
+        if let Some(n) = m.input {
+            let levels = e.dmx.input(n).copied().unwrap_or([0; CHANNELS]);
+            ui.label(RichText::new(tr("Levels 0-255 heard from other gear; they only show here.")).color(t.text_dim));
+            let cell = vec2(26.0, 30.0);
+            let room = (ui.available_width() - 40.0) / (cell.x + 2.0);
+            let per_row = ((room.max(1.0) as usize) / GROUP).max(1) * GROUP;
+            egui::ScrollArea::vertical().id_salt("dmx-input-scroll").auto_shrink([false, true]).show(ui, |ui| {
+                self.dmx_grid(ui, &levels, per_row, cell, m);
+            });
+            return;
+        }
         let levels = e.dmx.universe(usize::from(m.universe)).copied().unwrap_or([0; CHANNELS]);
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Universe"));

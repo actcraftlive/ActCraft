@@ -15,7 +15,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
-| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
+| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in and DMX in (Art-Net, seen in the DMX monitor) done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
 ## Next up
@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M8: DMX input (levels from a desk over Art-Net or sACN, to see and to trigger cues)
+2. M8: DMX input sets off cues (a channel from a desk as a trigger, like a MIDI remote action)
 3. M8: Philips Hue lights as fixtures
 
 ## Quality and open questions
@@ -242,6 +242,9 @@ sync.
   Snap to beat), a click on a mark jumps there, dragging a mark moves its cue, and the list moves
   a cue a beat earlier or later and says its bar and beat. Cues are placed by time or by bar and
   beat (`song.light_cue_add {bar, beat}`, `song.light_cue_move`)
+- ✅ DMX in: Settings > Lighting listens for Art-Net from a desk or another program (this
+  computer only, or other computers too); the DMX monitor shows each universe heard, read only
+  (`dmx.input_list`, `dmx.input_get`). Triggers from it are next
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for

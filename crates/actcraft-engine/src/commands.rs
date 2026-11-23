@@ -476,6 +476,22 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("dmx.master", "Lighting master", "", None, "{level: 0-1}", crate::dmx::dmx_master),
         cmd(
+            "dmx.input_list",
+            "List DMX inputs",
+            "",
+            None,
+            "none -> [Art-Net port address]",
+            crate::dmx::dmx_input_list,
+        ),
+        cmd(
+            "dmx.input_get",
+            "Read DMX input",
+            "",
+            None,
+            "{network_universe: Art-Net port address 0-32767} -> [level x 512]",
+            crate::dmx::dmx_input_get,
+        ),
+        cmd(
             "lighting.freeze",
             "Freeze lighting",
             "Lighting/Freeze",

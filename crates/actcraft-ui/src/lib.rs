@@ -139,6 +139,10 @@ pub struct PlatformInfo {
     pub artnet_searching: bool,
     /// Serial ports from the last look (USB DMX interfaces show up as one); `None` before it.
     pub serial_ports: Option<Vec<String>>,
+    /// DMX in (Art-Net): whether other computers may send, and where it listens now (`None`: it
+    /// does not).
+    pub dmx_in_network: bool,
+    pub dmx_in_listening: Option<String>,
     /// Output channels of the running device.
     pub output_channels: u16,
     /// The window's language setting: `en` (the default), `auto` (the system's) or a language
@@ -183,6 +187,8 @@ pub struct ActCraftApp {
     artnet_find_request: bool,
     /// Settings > Lighting asked for the serial ports.
     usb_find_request: bool,
+    /// Settings > Lighting asked to listen for DMX (`Some(Some(network))`) or to stop.
+    dmx_in_request: Option<Option<bool>>,
     /// The remote action being put together in Settings > MIDI.
     remote_draft: settings::RemoteDraft,
     /// The macro being put together in Settings > Macros: its name and commands.
@@ -277,6 +283,7 @@ impl ActCraftApp {
             osc_request: None,
             artnet_find_request: false,
             usb_find_request: false,
+            dmx_in_request: None,
             remote_draft: settings::RemoteDraft::default(),
             macro_draft: (String::new(), Vec::new()),
             dmx_draft: actcraft_show::DmxOutput::default(),
@@ -428,6 +435,12 @@ impl ActCraftApp {
     /// [`PlatformInfo::serial_ports`]).
     pub fn take_usb_find_request(&mut self) -> bool {
         std::mem::take(&mut self.usb_find_request)
+    }
+
+    /// A change to listening for DMX asked for in Settings: `Some(None)` stops, `Some(Some(network))`
+    /// listens (on the network too or not).
+    pub fn take_dmx_in_request(&mut self) -> Option<Option<bool>> {
+        self.dmx_in_request.take()
     }
 
     /// Whether Settings waits for a MIDI message to learn a remote action's trigger from; the

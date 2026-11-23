@@ -17,7 +17,8 @@ use actcraft_engine::{Engine, MessageArg};
 
 use actcraft_engine::midi_sync::SyncConfig;
 use actcraft_platform::{
-    AudioOutput, DmxFrame, DmxOut, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue, StatusReader,
+    AudioOutput, DmxFrame, DmxIn, DmxInLevels, DmxOut, MidiIn, MidiQueue, MidiTimeOut, NativeServices, OscIn, OscQueue,
+    StatusReader,
 };
 use actcraft_ui::{ActCraftApp, FileAsk, FileKind, FileRequest, PlatformInfo};
 use craft_dialogs::{Answer, Dialogs, FileDialog};
@@ -53,6 +54,9 @@ struct Host {
     /// Where OSC messages come in, and what came.
     osc_in: Option<OscIn>,
     osc_queue: OscQueue,
+    /// Listening for Art-Net from other gear, and the newest levels it heard.
+    dmx_in: Option<DmxIn>,
+    dmx_in_levels: DmxInLevels,
     /// Sends DMX levels to the show.s outputs while it has any; what it sends now (the levels.
     /// version and the outputs) and the problems already reported.
     dmx_out: Option<DmxOut>,
@@ -107,6 +111,12 @@ impl eframe::App for Host {
         }
         if let Some(listen) = self.app.take_osc_request() {
             self.switch_osc(listen);
+        }
+        if let Some(listen) = self.app.take_dmx_in_request() {
+            self.switch_dmx_in(listen);
+        }
+        for (universe, levels) in actcraft_platform::dmx_in::take(&self.dmx_in_levels) {
+            self.app.engine().dmx_in(universe, &levels);
         }
         for (address, value) in actcraft_platform::osc_in::drain(&self.osc_queue) {
             self.app.engine().osc_in(&address, value);
@@ -172,6 +182,35 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Stops listening for Art-Net DMX and listens again as asked (`Some(network)`), or not
+    /// (`None`). Remembered on this computer.
+    fn switch_dmx_in(&mut self, listen: Option<bool>) {
+        self.dmx_in = None;
+        self.app.platform.dmx_in_listening = None;
+        self.prefs.update(|pr| {
+            pr.audio.dmx_in = listen.is_some();
+            if let Some(network) = listen {
+                pr.audio.dmx_in_network = network;
+            }
+        });
+        let Some(network) = listen else { return };
+        match DmxIn::open(network, Arc::clone(&self.dmx_in_levels), Arc::clone(&self.wake)) {
+            Ok(input) => {
+                let address = input.addr().to_string();
+                self.app
+                    .engine()
+                    .say_with("DMX in: listening on {address}", vec![MessageArg::plain("address", &address)]);
+                self.app.platform.dmx_in_listening = Some(address);
+                self.dmx_in = Some(input);
+            }
+            Err(e) => {
+                self.app
+                    .engine()
+                    .say_error_with("Could not listen for DMX: {error}", vec![MessageArg::plain("error", e)]);
+            }
+        }
+    }
+
     /// Stops listening for OSC and listens again as asked (none for `None`). Remembered on this
     /// computer.
     fn switch_osc(&mut self, listen: Option<(u16, bool)>) {
@@ -426,6 +465,9 @@ struct AudioPrefs {
     osc: bool,
     osc_port: u16,
     osc_network: bool,
+    /// Whether ActCraft listens for Art-Net DMX, and whether other computers may send.
+    dmx_in: bool,
+    dmx_in_network: bool,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -598,6 +640,8 @@ fn main() {
                 midi_queue: MidiQueue::default(),
                 osc_in: None,
                 osc_queue: OscQueue::default(),
+                dmx_in: None,
+                dmx_in_levels: DmxInLevels::default(),
                 dmx_out: None,
                 dmx_sent: None,
                 dmx_reported: Vec::new(),
@@ -621,6 +665,10 @@ fn main() {
             host.app.platform.osc_network = pr.osc_network;
             if pr.osc {
                 host.switch_osc(Some((host.app.platform.osc_port, pr.osc_network)));
+            }
+            host.app.platform.dmx_in_network = pr.dmx_in_network;
+            if pr.dmx_in {
+                host.switch_dmx_in(Some(pr.dmx_in_network));
             }
             Ok(Box::new(host))
         }),
