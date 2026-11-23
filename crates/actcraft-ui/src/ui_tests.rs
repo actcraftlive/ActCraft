@@ -500,3 +500,19 @@ fn a_hue_bridge_is_found_and_paired_in_settings() {
     frames(&mut h, 2);
     assert_eq!(h.state_mut().take_hue_request(), Some(HueRequest::Forget));
 }
+
+#[test]
+fn a_fixture_gets_a_hue_light_to_follow_it() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "rgb", "universe": 1, "name": "Front"}));
+    });
+    h.state_mut().platform.hue_paired = Some("192.168.1.5".to_owned());
+    h.state_mut().platform.hue_lights = Some(Ok(vec![("1".to_owned(), "Lamp".to_owned())]));
+    h.state_mut().show_fixtures();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Hue light (Front)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("1: Lamp").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.show.fixtures[0].hue.clone()), "1");
+}

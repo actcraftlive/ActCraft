@@ -595,6 +595,14 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::fixtures::fixture_place,
         ),
         cmd(
+            "fixture.hue",
+            "Let a Hue light follow a fixture",
+            "",
+            None,
+            "{fixture: index, light: Hue light id (empty: none)}",
+            crate::fixtures::fixture_hue,
+        ),
+        cmd(
             "fixture.stage",
             "Stage",
             "Lighting/Stage",

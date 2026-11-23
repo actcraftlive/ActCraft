@@ -356,6 +356,7 @@ impl ActCraftApp {
             return;
         }
         let mut remove = None;
+        let mut hue: Option<(usize, String)> = None;
         for (i, f) in fixtures.iter().enumerate() {
             let title = format!("{} \u{b7} {}.{:03} \u{b7} {} ch", f.name, f.universe, f.address, f.channels.len());
             egui::CollapsingHeader::new(title).id_salt(("fixture", i)).default_open(i == 0).show(ui, |ui| {
@@ -379,10 +380,44 @@ impl ActCraftApp {
                         ui.end_row();
                     }
                 });
+                // A Hue light of the paired bridge that shows what this fixture sends.
+                if let Some(Ok(lights)) = &self.platform.hue_lights {
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Hue light"));
+                        let none = tr("None");
+                        let shown = lights
+                            .iter()
+                            .find(|(id, _)| *id == f.hue)
+                            .map_or_else(|| none.to_owned(), |(id, name)| format!("{id}: {name}"));
+                        egui::ComboBox::from_id_salt(("fixture-hue", i))
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(f.hue.is_empty(), none).clicked() {
+                                    hue = Some((i, String::new()));
+                                }
+                                for (id, name) in lights {
+                                    if ui.selectable_label(f.hue == *id, format!("{id}: {name}")).clicked() {
+                                        hue = Some((i, id.clone()));
+                                    }
+                                }
+                            })
+                            .response
+                            .widget_info(|| {
+                                egui::WidgetInfo::labeled(
+                                    egui::Role::ComboBox,
+                                    true,
+                                    format!("{} ({})", tr("Hue light"), f.name),
+                                )
+                            });
+                    });
+                }
                 if ui.button(tr("Remove")).clicked() {
                     remove = Some(i);
                 }
             });
+        }
+        if let Some((i, light)) = hue {
+            self.run(e, "fixture.hue", json!({"fixture": i, "light": light}));
         }
         if let Some(i) = remove {
             self.run(e, "fixture.remove", json!({"fixture": i}));

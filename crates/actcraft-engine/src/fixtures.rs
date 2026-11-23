@@ -319,8 +319,20 @@ fn value_in(levels: &[u8; CHANNELS], f: &Fixture, attribute: Attribute) -> Optio
 /// a preview: white, amber and UV lighten the channels they look like; a fixture without colour
 /// channels shows white.
 pub fn shown_colour(e: &Engine, f: &Fixture) -> [f64; 3] {
-    let v = |a| value_of(e, f, a).unwrap_or(0.0);
-    let intensity = value_of(e, f, A::Intensity).unwrap_or(1.0);
+    colour_from(f, |a| value_of(e, f, a))
+}
+
+/// What a fixture sends to the lights now as a colour, with blackout and the master applied
+/// (for lights that follow it, like a Hue light).
+pub fn output_colour(e: &Engine, f: &Fixture) -> [f64; 3] {
+    let Some(levels) = e.output_universe(usize::from(f.universe)) else { return [0.0; 3] };
+    colour_from(f, |a| value_in(&levels, f, a))
+}
+
+/// A fixture's colour from its attribute values.
+fn colour_from(f: &Fixture, value: impl Fn(Attribute) -> Option<f64>) -> [f64; 3] {
+    let v = |a| value(a).unwrap_or(0.0);
+    let intensity = value(A::Intensity).unwrap_or(1.0);
     let coloured = f.channels.iter().any(|a| matches!(a, A::Red | A::Green | A::Blue | A::White | A::Amber | A::Uv));
     let [r, g, b] = if coloured {
         let (w, amber, uv) = (v(A::White), v(A::Amber), v(A::Uv));
@@ -360,6 +372,21 @@ pub fn beam(e: &Engine, f: &Fixture) -> Option<Beam> {
     direction = (direction + 180.0).rem_euclid(360.0) - 180.0;
     let reach = from_down.abs().min(90.0).to_radians().sin();
     Some(Beam { direction, reach })
+}
+
+/// `fixture.hue {fixture, light}`: a Philips Hue light (its id on the paired bridge) shows what the
+/// fixture shows; an empty `light` lets it go.
+pub fn fixture_hue(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "fixture", e.show.fixtures.len())?;
+    let light = p::str_max(prm, "light", 16)?.trim().to_owned();
+    if !light.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(invalid("`light` must be a Hue light's id, like 3"));
+    }
+    if let Some(f) = e.show.fixtures.get_mut(i) {
+        f.hue = light;
+    }
+    e.mark_changed();
+    Ok(Value::Null)
 }
 
 /// `fixture.place {fixture, x, y}`: where it is on the stage, each 0-1 (x left to right, y back to
@@ -499,6 +526,25 @@ mod tests {
         let stage = e.run("fixture.stage", &Value::Null).ok().unwrap_or_default();
         assert_eq!(stage[0]["beam"], json!({"direction": -90.0, "reach": 0.71}));
         assert_eq!(stage[1]["beam"], Value::Null);
+    }
+
+    #[test]
+    fn a_hue_light_follows_what_a_fixture_sends() {
+        let mut e = engine();
+        let _ = e.run("fixture.add", &json!({"kind": "rgb_dimmer", "universe": 1}));
+        assert!(e.run("fixture.hue", &json!({"fixture": 0, "light": "3"})).is_ok());
+        assert!(e.run("fixture.hue", &json!({"fixture": 0, "light": "3; rm"})).is_err());
+        assert_eq!(e.show.fixtures[0].hue, "3");
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0, "red": 1.0}}));
+        let f = e.show.fixtures[0].clone();
+        assert_eq!(output_colour(&e, &f), [1.0, 0.0, 0.0]);
+        // What goes out, not what is set: blackout takes it dark.
+        let _ = e.run("dmx.blackout", &json!({"on": true}));
+        assert_eq!(output_colour(&e, &f), [0.0, 0.0, 0.0]);
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.fixtures).unwrap_or_default();
+        assert_eq!(back[0].hue, "3");
+        assert!(e.run("fixture.hue", &json!({"fixture": 0, "light": ""})).is_ok());
+        assert!(e.show.fixtures[0].hue.is_empty());
     }
 
     #[test]

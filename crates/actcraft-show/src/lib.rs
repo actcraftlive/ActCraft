@@ -922,6 +922,10 @@ pub struct Fixture {
     /// Where it is on the stage seen from the audience: x left to right, y back to front, each
     /// 0-1; `None` until placed.
     pub place: Option<[f64; 2]>,
+    /// The Philips Hue light that shows what it shows (its id on the paired bridge); empty for
+    /// none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub hue: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -936,6 +940,7 @@ impl Default for Fixture {
             universe: 1,
             address: 1,
             place: None,
+            hue: String::new(),
             extra: Map::new(),
         }
     }
@@ -1616,6 +1621,10 @@ impl Show {
         for f in &mut self.fixtures {
             cut(&mut f.name, 64);
             cut(&mut f.kind, 64);
+            cut(&mut f.hue, 16);
+            if !f.hue.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                f.hue.clear();
+            }
             f.channels.truncate(MAX_FIXTURE_CHANNELS);
             if let Some([x, y]) = f.place {
                 f.place = (x.is_finite() && y.is_finite()).then(|| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)]);
