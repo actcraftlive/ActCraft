@@ -74,6 +74,8 @@ pub mod limits {
     pub const MAX_FIXTURES: usize = 1_024;
     /// Channels of one fixture.
     pub const MAX_FIXTURE_CHANNELS: usize = 64;
+    /// Named ranges on the channels of one fixture or mode.
+    pub const MAX_CHANNEL_RANGES: usize = 256;
     /// Fixture types in a show, and modes of one.
     pub const MAX_FIXTURE_TYPES: usize = 256;
     pub const MAX_FIXTURE_MODES: usize = 32;
@@ -898,8 +900,41 @@ pub struct FixtureType {
 pub struct FixtureMode {
     pub name: String,
     pub channels: Vec<Attribute>,
+    /// Named parts of channels that do several things (off, dimmer, strobe, open on one channel).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ranges: Vec<ChannelRange>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// A named part of one channel's levels: `from` to `to` (inclusive) on channel `channel` (from 1)
+/// does `name` ("Strobe slow to fast", "Open").
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ChannelRange {
+    pub channel: u16,
+    pub from: u8,
+    pub to: u8,
+    pub name: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl ChannelRange {
+    /// Whether it fits a fixture with `channels` channels and is in order.
+    pub fn fits(&self, channels: usize) -> bool {
+        self.channel >= 1 && usize::from(self.channel) <= channels && self.from <= self.to
+    }
+
+    /// Keeps only ranges that fit `channels` channels, at most [`limits::MAX_CHANNEL_RANGES`],
+    /// with short names.
+    pub fn tidy(ranges: &mut Vec<ChannelRange>, channels: usize) {
+        ranges.retain(|r| r.fits(channels));
+        ranges.truncate(limits::MAX_CHANNEL_RANGES);
+        for r in ranges.iter_mut() {
+            cut(&mut r.name, 64);
+        }
+    }
 }
 
 /// A light (or anything else DMX drives) patched into a universe.
@@ -926,6 +961,9 @@ pub struct Fixture {
     /// none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub hue: String,
+    /// Named parts of its channels that do several things, from its fixture type.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ranges: Vec<ChannelRange>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -941,6 +979,7 @@ impl Default for Fixture {
             address: 1,
             place: None,
             hue: String::new(),
+            ranges: Vec::new(),
             extra: Map::new(),
         }
     }
@@ -1623,6 +1662,7 @@ impl Show {
             for m in &mut t.modes {
                 cut(&mut m.name, 64);
                 m.channels.truncate(MAX_FIXTURE_CHANNELS);
+                ChannelRange::tidy(&mut m.ranges, m.channels.len());
             }
             t.modes.retain(|m| !m.channels.is_empty());
         }
@@ -1636,6 +1676,7 @@ impl Show {
                 f.hue.clear();
             }
             f.channels.truncate(MAX_FIXTURE_CHANNELS);
+            ChannelRange::tidy(&mut f.ranges, f.channels.len());
             if let Some([x, y]) = f.place {
                 f.place = (x.is_finite() && y.is_finite()).then(|| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)]);
             }

@@ -1240,3 +1240,11 @@
 	Clear picks	Auswahl aufheben
 	USB cable	USB-Kabel
 	For a plain USB-to-DMX cable (an FTDI chip, no processor of its own); ActCraft makes the DMX signal	Für ein einfaches USB-DMX-Kabel (FTDI-Chip, ohne eigenen Prozessor); ActCraft erzeugt das DMX-Signal
+	Set one channel of a fixture	Einen Kanal eines Geräts setzen
+	Put a fixture's channel in one of its ranges	Einen Kanal eines Geräts in einen seiner Bereiche setzen
+	`ranges` must be a list of channel ranges	`ranges` muss eine Liste von Kanalbereichen sein
+	a mode has at most 256 ranges	ein Modus hat höchstens 256 Bereiche
+	a range goes from its lower level to its higher one	ein Bereich geht vom niedrigeren zum höheren Wert
+	give each range a name	jedem Bereich einen Namen geben
+	the fixture has no such channel	das Gerät hat diesen Kanal nicht
+	no such range	diesen Bereich gibt es nicht

@@ -193,9 +193,40 @@ pub fn fixture_type_set(e: &mut Engine, prm: &Value) -> CommandResult {
             .ok_or_else(|| invalid("`channels` must be a list of attributes"))?;
         let mode_name =
             if mode_name.is_empty() { format!("{} ch", channels.len()) } else { mode_name.chars().take(64).collect() };
-        modes.push(FixtureMode { name: mode_name, channels, ..FixtureMode::default() });
+        let ranges = ranges_param(m, channels.len())?;
+        modes.push(FixtureMode { name: mode_name, channels, ranges, ..FixtureMode::default() });
     }
     keep(e, FixtureType { name, modes, ..FixtureType::default() })
+}
+
+/// A mode's `ranges`: `[{channel (from 1), from, to, name}]`, each on one of its channels.
+fn ranges_param(mode: &Value, channels: usize) -> Result<Vec<actcraft_show::ChannelRange>, CommandError> {
+    let Some(list) = mode.get("ranges") else { return Ok(Vec::new()) };
+    let list = list.as_array().ok_or_else(|| invalid("`ranges` must be a list of channel ranges"))?;
+    if list.len() > actcraft_show::limits::MAX_CHANNEL_RANGES {
+        return Err(invalid("a mode has at most 256 ranges"));
+    }
+    list.iter()
+        .map(|r| {
+            let channel = p::i64_in(r, "channel", 1, i64::try_from(channels).unwrap_or(1))?;
+            let from = p::i64_in(r, "from", 0, 255)?;
+            let to = p::i64_in(r, "to", 0, 255)?;
+            if from > to {
+                return Err(invalid("a range goes from its lower level to its higher one"));
+            }
+            let name = p::str_max(r, "name", 64)?.trim().to_owned();
+            if name.is_empty() {
+                return Err(invalid("give each range a name"));
+            }
+            Ok(actcraft_show::ChannelRange {
+                channel: u16::try_from(channel).unwrap_or(1),
+                from: u8::try_from(from).unwrap_or(0),
+                to: u8::try_from(to).unwrap_or(255),
+                name,
+                ..Default::default()
+            })
+        })
+        .collect()
 }
 
 /// `fixture_type.remove {type}`: patched fixtures keep their channels.
