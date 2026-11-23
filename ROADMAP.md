@@ -255,7 +255,7 @@ sync.
   Snap to beat), a click on a mark jumps there, dragging a mark moves its cue, and the list moves
   a cue a beat earlier or later and says its bar and beat. Cues are placed by time or by bar and
   beat (`song.light_cue_add {bar, beat}`, `song.light_cue_move`)
-- ✅ DMX in: Settings > Lighting listens for Art-Net from a desk or another program (this
+- ✅ DMX in: Settings > Lighting listens for Art-Net and sACN (sACN universe 1 is Art-Net 0) from a desk or another program (this
   computer only, or other computers too); the DMX monitor shows each universe heard, read only
   (`dmx.input_list`, `dmx.input_get`); a channel heard there runs a command when it goes up past
   half, once, like a MIDI remote action (`dmx.trigger_add`, `dmx.trigger_remove`,
