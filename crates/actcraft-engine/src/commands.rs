@@ -523,7 +523,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Stage",
             "Lighting/Stage",
             None,
-            "none -> [{name, place: [x, y] | null, colour: #rrggbb}]",
+            "none -> [{name, place: [x, y] | null, colour: #rrggbb, beam: {direction: degrees, reach: 0-1} | null}]",
             crate::fixtures::fixture_stage,
         ),
         cmd(

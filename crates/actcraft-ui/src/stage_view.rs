@@ -2,7 +2,7 @@
 //! placed by dragging or by numbers.
 
 use actcraft_engine::Engine;
-use actcraft_engine::fixtures::shown_colour;
+use actcraft_engine::fixtures::{Attribute, beam, shown_colour, value_of};
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Ui, vec2};
 use serde_json::json;
 
@@ -64,6 +64,55 @@ impl ActCraftApp {
             t.text_dim,
         );
         let unplaced = fixtures.iter().filter(|f| f.place.is_none()).count();
+        let centre_of = |[x, y]: [f64; 2]| {
+            Pos2::new(
+                stage.left() + 20.0 + (stage.width() - 40.0) * x as f32,
+                stage.top() + 16.0 + (stage.height() - 44.0) * y as f32,
+            )
+        };
+        // Light first, under every fixture: a glow where a light shines down, and a beam out to
+        // where a moving light lands, as wide as its zoom; both as bright as the light.
+        let mut before = 0;
+        for f in &fixtures {
+            let centre = centre_of(spot(f.place, before, unplaced));
+            if f.place.is_none() {
+                before += 1;
+            }
+            let [r, g, b] = shown_colour(e, f);
+            let bright = r.max(g).max(b);
+            if bright < 0.02 {
+                continue;
+            }
+            let byte = |c: f64| (c / bright).clamp(0.0, 1.0) * 255.0;
+            let light = |alpha: f64| {
+                Color32::from_rgba_unmultiplied(
+                    byte(r) as u8,
+                    byte(g) as u8,
+                    byte(b) as u8,
+                    (alpha * bright * 255.0).round() as u8,
+                )
+            };
+            let zoom = value_of(e, f, Attribute::Zoom).unwrap_or(0.3) as f32;
+            let spot_r = 10.0 + 22.0 * zoom;
+            let end = match beam(e, f) {
+                Some(bm) => {
+                    let (s, c) = bm.direction.to_radians().sin_cos();
+                    let out = stage.height() * 0.55 * bm.reach as f32;
+                    centre + vec2(s as f32, c as f32) * out
+                }
+                None => centre,
+            };
+            // The cone ends on a chord of the spot (0.6 back, 0.8 wide lies on the circle), so the
+            // two meet without a gap and barely overlap.
+            if end.distance(centre) > spot_r + 1.0 {
+                let along = (end - centre).normalized();
+                let base = end - along * spot_r * 0.6;
+                let across = along.rot90() * spot_r * 0.8;
+                let cone = vec![centre, base + across, base - across];
+                painter.add(egui::Shape::convex_polygon(cone, light(0.22), Stroke::NONE));
+            }
+            painter.circle_filled(end, spot_r, light(0.35));
+        }
         let mut unplaced_before = 0;
         let mut moved = None;
         for (i, f) in fixtures.iter().enumerate() {
@@ -71,20 +120,25 @@ impl ActCraftApp {
             if f.place.is_none() {
                 unplaced_before += 1;
             }
-            let centre = Pos2::new(
-                stage.left() + 20.0 + (stage.width() - 40.0) * x as f32,
-                stage.top() + 16.0 + (stage.height() - 44.0) * y as f32,
-            );
+            let centre = centre_of([x, y]);
             let [r, g, b] = shown_colour(e, f);
             let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
             let fill = Color32::from_rgb(byte(r), byte(g), byte(b));
             let hit = Rect::from_center_size(centre, vec2(30.0, 30.0));
             let resp = ui.interact(hit, egui::Id::unique(("stage-fixture", f.id)), Sense::click_and_drag());
-            let name = tr("{name}: red {r} %, green {g} %, blue {b} %")
+            let mut name = tr("{name}: red {r} %, green {g} %, blue {b} %")
                 .replace("{name}", &f.name)
                 .replace("{r}", &format!("{:.0}", r * 100.0))
                 .replace("{g}", &format!("{:.0}", g * 100.0))
                 .replace("{b}", &format!("{:.0}", b * 100.0));
+            // Where a moving light points, in words too.
+            if let Some(bm) = beam(e, f) {
+                name.push_str(
+                    &tr(", aimed {angle}° from the audience, {reach} % out")
+                        .replace("{angle}", &format!("{:.0}", bm.direction))
+                        .replace("{reach}", &format!("{:.0}", bm.reach * 100.0)),
+                );
+            }
             resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
             let picked = view.picked == Some(i);
             painter.circle_filled(centre, 12.0, fill);

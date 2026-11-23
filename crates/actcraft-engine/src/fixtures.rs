@@ -331,6 +331,37 @@ pub fn shown_colour(e: &Engine, f: &Fixture) -> [f64; 3] {
     [r * intensity, g * intensity, b * intensity]
 }
 
+/// Pan and tilt ranges taken for a moving light, in degrees. Common values; fixture types don't
+/// carry their own ranges yet, so a light with other ranges points a little off in the preview.
+pub const PAN_RANGE: f64 = 540.0;
+pub const TILT_RANGE: f64 = 270.0;
+
+/// Where a moving light's beam goes, seen from above.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Beam {
+    /// Degrees from facing the audience, turning towards the right of the stage view
+    /// (-180 to 180).
+    pub direction: f64,
+    /// How far out the beam lands: 0 straight down, 1 level or above.
+    pub reach: f64,
+}
+
+/// A light's beam if it moves (has pan or tilt): pan turns it, tilt away from straight down
+/// sends it out (half way on both is straight down, facing the audience).
+pub fn beam(e: &Engine, f: &Fixture) -> Option<Beam> {
+    if !f.channels.iter().any(|a| matches!(a, A::Pan | A::Tilt)) {
+        return None;
+    }
+    let pan = value_of(e, f, A::Pan).unwrap_or(0.5);
+    let tilt = value_of(e, f, A::Tilt).unwrap_or(0.5);
+    let from_down = (tilt - 0.5) * TILT_RANGE;
+    // Tilting back points the other way.
+    let mut direction = (pan - 0.5) * PAN_RANGE + if from_down < 0.0 { 180.0 } else { 0.0 };
+    direction = (direction + 180.0).rem_euclid(360.0) - 180.0;
+    let reach = from_down.abs().min(90.0).to_radians().sin();
+    Some(Beam { direction, reach })
+}
+
 /// `fixture.place {fixture, x, y}`: where it is on the stage, each 0-1 (x left to right, y back to
 /// front, seen from the audience).
 pub fn fixture_place(e: &mut Engine, prm: &Value) -> CommandResult {
@@ -354,7 +385,9 @@ pub fn fixture_stage(e: &mut Engine, _prm: &Value) -> CommandResult {
                 let [r, g, b] = shown_colour(e, f);
                 let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
                 let colour = format!("#{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b));
-                json!({"name": f.name, "place": f.place, "colour": colour})
+                let beam = beam(e, f)
+                    .map(|b| json!({"direction": b.direction.round(), "reach": (b.reach * 100.0).round() / 100.0}));
+                json!({"name": f.name, "place": f.place, "colour": colour, "beam": beam})
             })
             .collect(),
     ))
@@ -442,6 +475,30 @@ mod tests {
         assert!(e.run("fixture.move", &json!({"fixture": 2, "universe": 1, "address": 1})).is_err(), "taken");
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.fixtures).unwrap_or_default();
         assert_eq!(back, e.show.fixtures);
+    }
+
+    #[test]
+    fn a_moving_light_points_where_pan_and_tilt_send_it() {
+        let mut e = engine();
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1}));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let aim = |e: &mut Engine, pan: f64, tilt: f64| {
+            let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"pan": pan, "tilt": tilt}}));
+            let f = e.show.fixtures[0].clone();
+            beam(e, &f).map(|b| (b.direction.round(), (b.reach * 100.0).round() / 100.0))
+        };
+        assert_eq!(aim(&mut e, 0.5, 0.5), Some((0.0, 0.0)), "straight down");
+        // Tilted 90° forward (a third of 270° past the middle): level, facing the audience.
+        assert_eq!(aim(&mut e, 0.5, 0.5 + 1.0 / 3.0), Some((0.0, 1.0)));
+        // Panned 90° (a sixth of 540°) and tilted 45° forward: to the right, half way out.
+        assert_eq!(aim(&mut e, 0.5 + 1.0 / 6.0, 0.5 + 1.0 / 6.0), Some((90.0, 0.71)));
+        // Tilted back the same amount: the other way.
+        assert_eq!(aim(&mut e, 0.5 + 1.0 / 6.0, 0.5 - 1.0 / 6.0), Some((-90.0, 0.71)));
+        let dimmer = e.show.fixtures[1].clone();
+        assert_eq!(beam(&e, &dimmer), None, "a fixed light has no beam to turn");
+        let stage = e.run("fixture.stage", &Value::Null).ok().unwrap_or_default();
+        assert_eq!(stage[0]["beam"], json!({"direction": -90.0, "reach": 0.71}));
+        assert_eq!(stage[1]["beam"], Value::Null);
     }
 
     #[test]

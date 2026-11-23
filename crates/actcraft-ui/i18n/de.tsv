@@ -1061,3 +1061,4 @@
 	Rainbow wave	Regenbogenwelle
 	`also` must be a list of attributes	`also` muss eine Liste von Attributen sein
 	an effect moves at most 8 more attributes	ein Effekt bewegt höchstens 8 weitere Attribute
+	, aimed {angle}° from the audience, {reach} % out	, {angle}° vom Publikum weg gerichtet, {reach} % weit hinaus
