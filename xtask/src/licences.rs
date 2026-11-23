@@ -46,6 +46,8 @@ const ELECTED: &[(&str, &str, &str)] = &[
     ("self_cell", "Apache-2.0 OR GPL-2.0-only", "Apache-2.0"),
     // The zip crate (through craft-zip, for show packages) needs it; used under Apache-2.0.
     ("constant_time_eq", "CC0-1.0 OR MIT-0 OR Apache-2.0", "Apache-2.0"),
+    // craft-update (checking for a newer release on request) needs it; used under Apache-2.0.
+    ("dunce", "CC0-1.0 OR MIT-0 OR Apache-2.0", "Apache-2.0"),
 ];
 
 /// Platforms we ship on (and the wasm build of the engine crates).

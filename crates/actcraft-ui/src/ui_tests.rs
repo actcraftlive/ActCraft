@@ -739,3 +739,92 @@ fn a_fixture_type_keeps_and_gains_named_ranges_in_its_editor() {
     let got: Vec<_> = ranges.iter().map(|r| (r.channel, r.from, r.to, r.name.as_str())).collect();
     assert_eq!(got, vec![(2, 0, 127, "Off"), (2, 128, 255, "Range 2")], "the old range kept, the new one after it");
 }
+
+/// The update check with a stand-in for GitHub that counts how often it is asked.
+fn counted_updater(
+    answer: Result<Option<craft_update::Release>, String>,
+) -> (craft_update::updater::Updater, Arc<std::sync::atomic::AtomicUsize>) {
+    let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = Arc::clone(&asked);
+    let source: craft_update::updater::CheckSource = Arc::new(move || {
+        count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        answer.clone()
+    });
+    (craft_update::updater::Updater::new(&crate::ACTCRAFT, env!("CARGO_PKG_VERSION")).with_source(source), asked)
+}
+
+/// A few frames until the update check's thread has answered.
+fn until_checked(h: &mut Harness<'static, ActCraftApp>) {
+    for _ in 0..100 {
+        h.step();
+        if !matches!(h.state().updater.status(), craft_update::updater::Status::Checking) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    frames(h, 2);
+}
+
+#[test]
+fn the_update_check_asks_only_when_its_button_is_pressed() {
+    let (mut h, _engine) = window(|_| {});
+    let (updater, asked) = counted_updater(Ok(None));
+    h.state_mut().updater = updater;
+    h.state_mut().show_about();
+    frames(&mut h, 5);
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0, "nothing asked by opening About");
+    h.get_by_role_and_label(Role::Button, "Check for Updates").click_accesskit();
+    until_checked(&mut h);
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1);
+    let newest = format!("ActCraft {} is the newest version available.", env!("CARGO_PKG_VERSION"));
+    assert!(h.query_by_label(&newest).is_some(), "the dialog says it is up to date");
+}
+
+#[test]
+fn a_failed_update_check_says_so() {
+    let (mut h, _engine) = window(|_| {});
+    let (updater, _) = counted_updater(Err("no network".into()));
+    h.state_mut().updater = updater;
+    h.state_mut().show_about();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Check for Updates").click_accesskit();
+    until_checked(&mut h);
+    assert!(h.query_by_label("Could not check for updates. no network").is_some());
+}
+
+#[test]
+fn a_newer_release_is_offered_and_later_does_nothing() {
+    let (mut h, _engine) = window(|_| {});
+    let release = craft_update::Release {
+        tag: "v99.0.0".into(),
+        version: craft_update::parse_version("99.0.0"),
+        name: "ActCraft 99.0.0".into(),
+        html_url: "https://github.com/actcraftlive/ActCraft/releases/tag/v99.0.0".into(),
+        repo: "actcraftlive/ActCraft".into(),
+        ..craft_update::Release::default()
+    };
+    let (updater, asked) = counted_updater(Ok(Some(release)));
+    h.state_mut().updater = updater;
+    h.state_mut().show_about();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Check for Updates").click_accesskit();
+    until_checked(&mut h);
+    for _ in 0..50 {
+        h.step();
+        if h.state().updater.prompt_open() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    frames(&mut h, 3);
+    assert!(h.state().updater.prompt_open(), "the offer asks first");
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(h.query_by_role_and_label(Role::Button, "Check for Updates").is_none(), "About made room for the offer");
+    h.get_by_role_and_label(Role::Button, "LATER").click_accesskit();
+    frames(&mut h, 3);
+    assert!(!h.state().updater.prompt_open(), "Later closes it; nothing is downloaded");
+    assert!(matches!(
+        h.state().updater.status(),
+        craft_update::updater::Status::Idle | craft_update::updater::Status::UpToDate
+    ));
+}
