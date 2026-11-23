@@ -40,7 +40,7 @@ struct Part {
 
 impl Engine {
     /// Sets one fixture attribute (by fixture id) to `value`; whether a level changed.
-    fn put(&mut self, fixture: u64, attribute: Attribute, value: f64) -> bool {
+    pub(crate) fn put(&mut self, fixture: u64, attribute: Attribute, value: f64) -> bool {
         let Some(f) = self.show.fixtures.iter().find(|f| f.id == fixture).cloned() else { return false };
         let mut changed = false;
         for (offset, level) in levels_for(&f, attribute, value) {

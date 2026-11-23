@@ -957,3 +957,33 @@
 	Track name	Spurname
 	Where playback is	Wo die Wiedergabe gerade ist
 	a song fires at most 1000 lighting cues	ein Song löst höchstens 1000 Licht-Cues aus
+	At the playing song's tempo; 0 uses the seconds	Im Tempo des laufenden Songs; 0 nimmt die Sekunden
+	Attribute	Attribut
+	Effect name	Effektname
+	Effects	Effekte
+	Effects move a group: save a group first.	Effekte bewegen eine Gruppe: erst eine Gruppe speichern.
+	Group	Gruppe
+	List effects	Effekte auflisten
+	On and off	An und aus
+	Preset name	Presetname
+	Ramp up	Rampe hoch
+	Remove an effect	Einen Effekt entfernen
+	Save effect	Effekt speichern
+	Seconds per cycle	Sekunden pro Durchlauf
+	Set an effect	Einen Effekt festlegen
+	Shape	Form
+	Smooth wave	Weiche Welle
+	Spread	Versatz
+	Start an effect	Einen Effekt starten
+	Start or stop this effect	Diesen Effekt starten oder stoppen
+	Stop Effects	Effekte stoppen
+	Stop effects	Effekte stoppen
+	Up and down	Auf und ab
+	`attribute` must be an attribute like intensity, red or pan	`attribute` muss ein Attribut wie intensity, red oder pan sein
+	`shape` must be sine, square, saw or triangle	`shape` muss sine, square, saw oder triangle sein
+	a show holds at most 256 effects	eine Show fasst höchstens 256 Effekte
+	or beats per cycle	oder Schläge pro Durchlauf
+	running	läuft
+	{n} beats	{n} Schläge
+	From value	Von Wert
+	To value	Bis Wert

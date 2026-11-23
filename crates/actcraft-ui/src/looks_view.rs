@@ -27,6 +27,20 @@ pub struct LooksDraft {
     pub light_time: f64,
     pub light_list: usize,
     pub light_cue: usize,
+    /// An effect being put together.
+    pub effect: actcraft_show::Effect,
+    pub effect_group: usize,
+}
+
+/// An effect's shape in words.
+fn shape_text(s: actcraft_engine::effects::Shape) -> &'static str {
+    use actcraft_engine::effects::Shape;
+    match s {
+        Shape::Sine => tr("Smooth wave"),
+        Shape::Square => tr("On and off"),
+        Shape::Saw => tr("Ramp up"),
+        Shape::Triangle => tr("Up and down"),
+    }
 }
 
 /// Seconds as m:ss.s.
@@ -134,6 +148,8 @@ impl ActCraftApp {
                     ui.separator();
                     self.cue_lists_ui(ui, e);
                     ui.separator();
+                    self.effects_ui(ui, e);
+                    ui.separator();
                     self.groups_ui(ui, e);
                 });
             });
@@ -185,7 +201,7 @@ impl ActCraftApp {
         }
         let mut store = false;
         ui.horizontal_wrapped(|ui| {
-            let label = ui.label(tr("Name"));
+            let label = ui.label(tr("Preset name"));
             ui.add(egui::TextEdit::singleline(&mut d.preset_name).desired_width(160.0)).labelled_by(label.id);
             let label = ui.label(tr("From"));
             let shown = d.store_from.and_then(|g| groups.get(g)).map_or(tr("Every fixture").to_owned(), Clone::clone);
@@ -299,6 +315,110 @@ impl ActCraftApp {
                 d.list_name.clear();
             }
         });
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
+        }
+    }
+
+    /// Effects: each with Start or Stop, and a new one on a group.
+    fn effects_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
+        use actcraft_engine::effects::{Shape, shape_key};
+        use actcraft_engine::fixtures::{ATTRIBUTES, attribute_key};
+        let t = self.tokens;
+        ui.label(RichText::new(tr("Effects")).strong());
+        let effects = e.show.effects.clone();
+        let running = e.running_effects();
+        let mut run: Option<(&str, Value)> = None;
+        egui::Grid::new("effects").num_columns(4).striped(true).show(ui, |ui| {
+            for (i, fx) in effects.iter().enumerate() {
+                let on = running.contains(&fx.name);
+                let words = if on { format!("{} \u{b7} {}", fx.name, tr("running")) } else { fx.name.clone() };
+                if ui.selectable_label(on, words).on_hover_text(tr("Start or stop this effect")).clicked() {
+                    run = Some(if on {
+                        ("effect.stop", json!({"effect": i}))
+                    } else {
+                        ("effect.start", json!({"effect": i}))
+                    });
+                }
+                ui.label(format!("{} \u{b7} {}", fx.group, crate::fixtures_view::attribute_text(fx.attribute)));
+                let cycle = if fx.beats > 0.0 {
+                    tr("{n} beats").replace("{n}", &format!("{}", fx.beats))
+                } else {
+                    format!("{:.1} s", fx.period)
+                };
+                ui.label(format!("{} \u{b7} {cycle}", shape_text(fx.shape)));
+                if ui.small_button(tr("Remove")).clicked() {
+                    run = Some(("effect.remove", json!({"effect": i})));
+                }
+                ui.end_row();
+            }
+        });
+        let groups: Vec<String> = e.show.groups.iter().map(|g| g.name.clone()).collect();
+        if groups.is_empty() {
+            ui.label(RichText::new(tr("Effects move a group: save a group first.")).color(t.text_dim));
+        } else {
+            let d = &mut self.looks_draft;
+            d.effect_group = d.effect_group.min(groups.len() - 1);
+            let fx = &mut d.effect;
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tr("Effect name"));
+                ui.add(egui::TextEdit::singleline(&mut fx.name).desired_width(120.0)).labelled_by(label.id);
+                let label = ui.label(tr("Group"));
+                egui::ComboBox::from_id_salt("effect-group")
+                    .selected_text(groups.get(d.effect_group).cloned().unwrap_or_default())
+                    .show_ui(ui, |ui| {
+                        for (i, g) in groups.iter().enumerate() {
+                            ui.selectable_value(&mut d.effect_group, i, g);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                let label = ui.label(tr("Attribute"));
+                egui::ComboBox::from_id_salt("effect-attribute")
+                    .selected_text(crate::fixtures_view::attribute_text(fx.attribute))
+                    .show_ui(ui, |ui| {
+                        for a in ATTRIBUTES.into_iter().filter(|a| !a.is_fine()) {
+                            ui.selectable_value(&mut fx.attribute, a, crate::fixtures_view::attribute_text(a));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                let label = ui.label(tr("Shape"));
+                egui::ComboBox::from_id_salt("effect-shape")
+                    .selected_text(shape_text(fx.shape))
+                    .show_ui(ui, |ui| {
+                        for s in [Shape::Sine, Shape::Square, Shape::Saw, Shape::Triangle] {
+                            ui.selectable_value(&mut fx.shape, s, shape_text(s));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            });
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tr("Seconds per cycle"));
+                ui.add(egui::DragValue::new(&mut fx.period).range(0.05..=600.0).speed(0.05)).labelled_by(label.id);
+                let label = ui.label(tr("or beats per cycle"));
+                ui.add(egui::DragValue::new(&mut fx.beats).range(0.0..=64.0).speed(0.25))
+                    .labelled_by(label.id)
+                    .on_hover_text(tr("At the playing song's tempo; 0 uses the seconds"));
+            });
+            ui.horizontal_wrapped(|ui| {
+                for (key, value) in
+                    [(tr("From value"), &mut fx.low), (tr("To value"), &mut fx.high), (tr("Spread"), &mut fx.spread)]
+                {
+                    let label = ui.label(key);
+                    ui.add(egui::Slider::new(value, 0.0..=1.0)).labelled_by(label.id);
+                }
+            });
+            if ui.add_enabled(!fx.name.trim().is_empty(), egui::Button::new(tr("Save effect"))).clicked() {
+                run = Some((
+                    "effect.set",
+                    json!({"name": fx.name.trim(), "group": d.effect_group, "attribute": attribute_key(fx.attribute),
+                        "shape": shape_key(fx.shape), "period": fx.period, "beats": fx.beats,
+                        "low": fx.low, "high": fx.high, "spread": fx.spread}),
+                ));
+            }
+        }
         if let Some((id, prm)) = run {
             self.run(e, id, prm);
         }

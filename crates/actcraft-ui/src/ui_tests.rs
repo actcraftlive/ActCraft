@@ -91,12 +91,12 @@ fn a_preset_name_typed_by_keyboard_enables_storing_it() {
     });
     h.state_mut().show_presets();
     frames(&mut h, 3);
-    let field = h.get_by_role_and_label(Role::TextInput, "Name");
+    let field = h.get_by_role_and_label(Role::TextInput, "Preset name");
     field.focus();
     frames(&mut h, 1);
-    h.get_by_role_and_label(Role::TextInput, "Name").type_text("Warm");
+    h.get_by_role_and_label(Role::TextInput, "Preset name").type_text("Warm");
     frames(&mut h, 3);
-    assert!(h.get_by_role_and_label(Role::TextInput, "Name").is_focused(), "focus stays in the field");
+    assert!(h.get_by_role_and_label(Role::TextInput, "Preset name").is_focused(), "focus stays in the field");
     h.get_by_role_and_label(Role::Button, "Store preset").click_accesskit();
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.show.presets.first().map(|p| p.name.clone())), Some("Warm".to_owned()));
@@ -121,4 +121,28 @@ fn a_song_gets_a_lighting_cue_from_its_lighting_tab() {
     let cues = with(&engine, |e| e.current().map(|s| s.light_cues.clone()).unwrap_or_default());
     assert_eq!(cues.iter().map(|c| (c.time, c.list.as_str(), c.cue)).collect::<Vec<_>>(), vec![(12.5, "Main", 0)]);
     assert!(h.query_by_label("0:12.5").is_some(), "the list shows its time");
+}
+
+#[test]
+fn an_effect_is_saved_and_started_from_the_presets_window() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "rgb", "universe": 1, "count": 2}));
+        let _ = e.run("group.set", &json!({"name": "Pair", "fixtures": [0, 1]}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::TextInput, "Effect name").focus();
+    frames(&mut h, 1);
+    h.get_by_role_and_label(Role::TextInput, "Effect name").type_text("Pulse");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Save effect").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(
+        with(&engine, |e| e.show.effects.first().map(|f| (f.name.clone(), f.group.clone()))),
+        Some(("Pulse".to_owned(), "Pair".to_owned()))
+    );
+    h.get_by_role_and_label(Role::Button, "Pulse").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.running_effects()), vec!["Pulse".to_owned()]);
+    assert!(h.query_by_role_and_label(Role::Button, "Pulse \u{b7} running").is_some(), "its name says it runs");
 }
