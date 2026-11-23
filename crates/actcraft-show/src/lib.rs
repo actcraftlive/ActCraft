@@ -68,6 +68,8 @@ pub mod limits {
     pub const MAX_DMX_OUTPUTS: usize = 256;
     /// DMX triggers in a show.
     pub const MAX_DMX_TRIGGERS: usize = 256;
+    /// Game controller actions in a show.
+    pub const MAX_GAMEPAD_ACTIONS: usize = 128;
     /// Fixtures in a show.
     pub const MAX_FIXTURES: usize = 1_024;
     /// Channels of one fixture.
@@ -173,6 +175,9 @@ pub struct Show {
     /// DMX heard from other gear that sets off commands.
     #[serde(default)]
     pub dmx_triggers: Vec<DmxTrigger>,
+    /// Game controller buttons that set off commands.
+    #[serde(default)]
+    pub gamepad_actions: Vec<GamepadAction>,
     /// The lights: each fixture with its channels and where it is patched.
     #[serde(default)]
     pub fixtures: Vec<Fixture>,
@@ -220,6 +225,7 @@ impl Default for Show {
             pads: Vec::new(),
             dmx_outputs: Vec::new(),
             dmx_triggers: Vec::new(),
+            gamepad_actions: Vec::new(),
             fixtures: Vec::new(),
             fixture_types: Vec::new(),
             groups: Vec::new(),
@@ -960,6 +966,41 @@ pub enum DmxProtocol {
     UsbPro,
 }
 
+/// A game controller button that sets off a command when pressed (any controller).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GamepadAction {
+    /// One of [`GamepadAction::BUTTONS`].
+    pub button: String,
+    /// A command that needs nothing more.
+    pub command: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl GamepadAction {
+    /// The buttons, by where they sit on a standard controller (south is the lowest face button).
+    pub const BUTTONS: &[&str] = &[
+        "south",
+        "east",
+        "north",
+        "west",
+        "left_bumper",
+        "left_trigger",
+        "right_bumper",
+        "right_trigger",
+        "select",
+        "start",
+        "mode",
+        "left_stick",
+        "right_stick",
+        "dpad_up",
+        "dpad_down",
+        "dpad_left",
+        "dpad_right",
+    ];
+}
+
 /// A channel of DMX heard from other gear that sets off a command when it goes up past half
 /// (a fader pushed up, a button on a desk pressed).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -1613,6 +1654,11 @@ impl Show {
                 cut(&mut c.preset, 64);
                 c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
             }
+        }
+        self.gamepad_actions.truncate(MAX_GAMEPAD_ACTIONS);
+        self.gamepad_actions.retain(|a| GamepadAction::BUTTONS.contains(&a.button.as_str()));
+        for a in &mut self.gamepad_actions {
+            cut(&mut a.command, 64);
         }
         self.dmx_triggers.truncate(MAX_DMX_TRIGGERS);
         self.dmx_triggers.retain(|t| (1..=512).contains(&t.channel) && t.universe <= DmxOutput::ARTNET_MAX);

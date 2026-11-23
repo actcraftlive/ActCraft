@@ -110,6 +110,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/pads.rs"),
             include_str!("../../actcraft-engine/src/osc.rs"),
             include_str!("../../actcraft-engine/src/dmx.rs"),
+            include_str!("../../actcraft-engine/src/gamepad.rs"),
             include_str!("../../actcraft-engine/src/fixtures.rs"),
             include_str!("../../actcraft-engine/src/fixture_library.rs"),
             include_str!("../../actcraft-engine/src/looks.rs"),

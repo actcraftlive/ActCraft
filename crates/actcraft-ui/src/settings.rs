@@ -451,6 +451,86 @@ impl ActCraftApp {
         });
         ui.add_space(12.0);
         self.remote_settings(ui, e);
+        ui.add_space(12.0);
+        ui.separator();
+        self.gamepad_settings(ui, e);
+    }
+
+    /// Game controllers: which are connected, and the buttons that set off commands.
+    fn gamepad_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        ui.label(RichText::new(tr("Game controllers")).strong());
+        let connected = if self.platform.gamepads.is_empty() {
+            tr("None connected: plug one in or pair it, and it shows here.").to_owned()
+        } else {
+            format!("{} {}", tr("Connected:"), self.platform.gamepads.join(", "))
+        };
+        ui.label(RichText::new(connected).color(t.text_dim));
+        let label_of = |id: &str| {
+            actcraft_engine::registry().get(id).map_or_else(|| id.to_owned(), |c| tr(c.spec.label).to_owned())
+        };
+        let mut run: Option<(&str, serde_json::Value)> = None;
+        egui::Grid::new("gamepad-actions").num_columns(3).striped(true).show(ui, |ui| {
+            for (i, a) in e.show.gamepad_actions.iter().enumerate() {
+                let button = button_text(&a.button);
+                ui.label(button);
+                ui.label(label_of(&a.command));
+                let r = ui.button(tr("Remove"));
+                let name = format!("{} ({button})", tr("Remove"));
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                if r.clicked() {
+                    run = Some(("gamepad.remove", serde_json::json!({"action": i})));
+                }
+                ui.end_row();
+            }
+        });
+        let mut commands: Vec<(&'static str, String)> = actcraft_engine::registry()
+            .iter()
+            .filter(|c| actcraft_engine::remote::runnable(c.spec.id))
+            .map(|c| (c.spec.id, tr(c.spec.label).to_owned()))
+            .collect();
+        commands.sort_by(|a, b| a.1.cmp(&b.1));
+        let learning = self.gamepad_learning;
+        let d = &mut self.gamepad_draft;
+        let mut learn = false;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("Button"));
+            let shown = if d.0.is_empty() { tr("Choose a button").to_owned() } else { button_text(&d.0).to_owned() };
+            egui::ComboBox::from_id_salt("gamepad-button")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for b in actcraft_engine::gamepad::GamepadAction::BUTTONS {
+                        ui.selectable_value(&mut d.0, (*b).to_owned(), button_text(b));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            let words = if learning { tr("Press a button\u{2026}") } else { tr("Learn a button") };
+            learn = ui
+                .selectable_label(learning, words)
+                .on_hover_text(tr("The next button pressed on a controller is chosen"))
+                .clicked();
+            let label = ui.label(tr("The button runs"));
+            let shown = if d.1.is_empty() { tr("Choose a command").to_owned() } else { label_of(&d.1) };
+            egui::ComboBox::from_id_salt("gamepad-command")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for (id, name) in &commands {
+                        ui.selectable_value(&mut d.1, (*id).to_owned(), name);
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if ui.add_enabled(!d.0.is_empty() && !d.1.is_empty(), egui::Button::new(tr("Add button"))).clicked() {
+                run = Some(("gamepad.add", serde_json::json!({"button": d.0, "command": d.1})));
+            }
+        });
+        if learn {
+            self.gamepad_learning = !learning;
+        }
+        if let Some((id, prm)) = run {
+            self.run(e, id, prm);
+        }
     }
 
     /// Macros: named lists of commands, called with `$NAME` at a timecoded lyrics line.
@@ -736,5 +816,29 @@ impl ActCraftApp {
             RichText::new(format!("{} \u{201c}Ana Ruiz - Night Drive.wav\u{201d}", tr("Example:")))
                 .color(self.tokens.text_dim),
         );
+    }
+}
+
+/// A controller button in words, by where it sits.
+fn button_text(button: &str) -> &'static str {
+    match button {
+        "south" => tr("Bottom face button"),
+        "east" => tr("Right face button"),
+        "north" => tr("Top face button"),
+        "west" => tr("Left face button"),
+        "left_bumper" => tr("Left shoulder button"),
+        "left_trigger" => tr("Left trigger"),
+        "right_bumper" => tr("Right shoulder button"),
+        "right_trigger" => tr("Right trigger"),
+        "select" => tr("Select"),
+        "start" => tr("Start"),
+        "mode" => tr("Home button"),
+        "left_stick" => tr("Left stick pressed"),
+        "right_stick" => tr("Right stick pressed"),
+        "dpad_up" => tr("Direction pad up"),
+        "dpad_down" => tr("Direction pad down"),
+        "dpad_left" => tr("Direction pad left"),
+        "dpad_right" => tr("Direction pad right"),
+        _ => tr("Button"),
     }
 }

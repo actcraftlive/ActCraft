@@ -412,3 +412,25 @@ fn a_dmx_trigger_is_added_and_removed_in_settings() {
     frames(&mut h, 3);
     assert!(with(&engine, |e| e.show.dmx_triggers.is_empty()));
 }
+
+#[test]
+fn a_controller_button_is_learned_and_set_to_run_a_command() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().open_settings_at("midi");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Learn a button").click_accesskit();
+    frames(&mut h, 2);
+    assert!(h.state_mut().gamepad_learning(), "waits for a button");
+    // The host hands the next press over while learning.
+    h.state_mut().gamepad_learned("start");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "The button runs").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Metronome on or off").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add button").click_accesskit();
+    frames(&mut h, 3);
+    let got = with(&engine, |e| e.show.gamepad_actions.first().map(|a| (a.button.clone(), a.command.clone())));
+    assert_eq!(got, Some(("start".to_owned(), "metronome.toggle".to_owned())));
+    assert!(h.query_by_role_and_label(Role::Button, "Remove (Start)").is_some(), "listed, named by its button");
+}

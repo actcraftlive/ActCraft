@@ -15,7 +15,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
-| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in and DMX in (Art-Net, seen in the DMX monitor) done |
+| M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in, DMX in with triggers, game controller buttons done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
 
 ## Next up
@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M8: Philips Hue lights as fixtures
+2. M8: Philips Hue lights as fixtures (needs the owner's OK: pairing stores a bridge key on this computer)
 
 ## Quality and open questions
 
@@ -246,6 +246,10 @@ sync.
   (`dmx.input_list`, `dmx.input_get`); a channel heard there runs a command when it goes up past
   half, once, like a MIDI remote action (`dmx.trigger_add`, `dmx.trigger_remove`,
   `dmx.trigger_list`; "Add trigger")
+- ✅ Game controllers: a button on any connected controller runs a command, like a MIDI remote
+  action; Settings > MIDI lists the connected controllers, learns a button by pressing it and
+  saves the buttons with the show (`gamepad.add`, `gamepad.remove`, `gamepad.list`,
+  `gamepad.press`). Sticks as faders to do
 
 Lighting lane on the song timeline driven by the song's beat grid; band network (host/client,
 remote mirroring); backup machine takeover; OSC, DMX input, joystick, Philips Hue; installers for
