@@ -155,6 +155,8 @@ pub struct Engine {
     /// A fade under way, and where each cue list stands (by list index; not saved).
     fade: Option<cues::Fade>,
     cue_at: std::collections::HashMap<usize, usize>,
+    /// Where playback was when the song's lighting cues were last looked at.
+    light_at: Option<f64>,
     /// Messages for the person, newest last.
     pub messages: VecDeque<Message>,
     audio: Option<Controller>,
@@ -234,6 +236,7 @@ impl Engine {
             dmx: dmx::Dmx::default(),
             fade: None,
             cue_at: std::collections::HashMap::new(),
+            light_at: None,
             audio: None,
             loaded_song: None,
             last_ended: 0,
@@ -296,6 +299,7 @@ impl Engine {
             self.on_song_end();
         }
         self.run_due_macros();
+        self.run_due_light_cues();
     }
 
     fn on_song_end(&mut self) {

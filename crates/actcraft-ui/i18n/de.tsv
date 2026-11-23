@@ -939,3 +939,21 @@
 	the cue list is at its first cue	die Cue-Liste ist beim ersten Cue
 	the cue list is at its last cue	die Cue-Liste ist beim letzten Cue
 	the show has no cue list	die Show hat keine Cue-Liste
+	(not there)	(nicht vorhanden)
+	Add lighting cue	Licht-Cue hinzufügen
+	At	Bei
+	Bus name	Busname
+	Cue list	Cue-Liste
+	File name format	Dateinamenformat
+	Fire a lighting cue at a song time	Einen Licht-Cue zu einer Songzeit auslösen
+	Light cues	Licht-Cues
+	Light cues •	Licht-Cues •
+	Lighting cues this song fires as it plays (a jump skips the ones in between).	Licht-Cues, die dieser Song beim Abspielen auslöst (ein Sprung überspringt die dazwischen).
+	Make a cue list with cues first (Lighting > Presets).	Erst eine Cue-Liste mit Cues anlegen (Licht > Presets).
+	Now	Jetzt
+	Region name	Name des Bereichs
+	Remove a song's lighting cue	Einen Licht-Cue des Songs entfernen
+	Spoken words	Gesprochene Worte
+	Track name	Spurname
+	Where playback is	Wo die Wiedergabe gerade ist
+	a song fires at most 1000 lighting cues	ein Song löst höchstens 1000 Licht-Cues aus

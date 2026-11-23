@@ -578,6 +578,22 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("cue.jump", "Go to a cue", "", None, "{list: index, cue: index} -> {cue, name}", crate::cues::cue_jump),
         cmd(
+            "song.light_cue_add",
+            "Fire a lighting cue at a song time",
+            "",
+            None,
+            "{song?: id (the current song without), time: seconds, list: index, cue: index} -> {light_cue: index}",
+            crate::cues::light_cue_add,
+        ),
+        cmd(
+            "song.light_cue_remove",
+            "Remove a song's lighting cue",
+            "",
+            None,
+            "{song?: id, light_cue: index}",
+            crate::cues::light_cue_remove,
+        ),
+        cmd(
             "fixture.set",
             "Set fixture attributes",
             "",

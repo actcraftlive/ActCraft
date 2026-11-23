@@ -101,3 +101,24 @@ fn a_preset_name_typed_by_keyboard_enables_storing_it() {
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.show.presets.first().map(|p| p.name.clone())), Some("Warm".to_owned()));
 }
+
+#[test]
+fn a_song_gets_a_lighting_cue_from_its_lighting_tab() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("song.add", &serde_json::Value::Null);
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("preset.store", &json!({"name": "Dark"}));
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+    });
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Light cues").click_accesskit();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::SpinButton, "At").set_value_accesskit(12.5);
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add lighting cue").click_accesskit();
+    frames(&mut h, 3);
+    let cues = with(&engine, |e| e.current().map(|s| s.light_cues.clone()).unwrap_or_default());
+    assert_eq!(cues.iter().map(|c| (c.time, c.list.as_str(), c.cue)).collect::<Vec<_>>(), vec![(12.5, "Main", 0)]);
+    assert!(h.query_by_label("0:12.5").is_some(), "the list shows its time");
+}

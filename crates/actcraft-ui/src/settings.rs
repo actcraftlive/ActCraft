@@ -281,7 +281,9 @@ impl ActCraftApp {
                 ui.label(RichText::new(tr("Mute")).strong());
                 ui.end_row();
                 for (b, bus) in e.show.buses.clone().iter().enumerate() {
-                    if let Some(name) = edit_text(ui, egui::Id::unique(("bus-name", b)), &bus.name, 140.0) {
+                    if let Some(name) =
+                        edit_text(ui, tr("Bus name"), egui::Id::unique(("bus-name", b)), &bus.name, 140.0)
+                    {
                         let _ = e.run("bus.set", &json!({"bus": b, "name": name}));
                     }
                     let pairs = (channels.max(1) / 2).max(1);
@@ -727,7 +729,7 @@ impl ActCraftApp {
         ui.label(RichText::new(tr("Song details from file names")).strong());
         ui.label(RichText::new(tr("When you add audio files, their names are read with this pattern. Use %title%, %artist%, %key%, %bpm%, %year% and %ignore%.")).color(self.tokens.text_dim));
         let current = e.filename_format.clone();
-        if let Some(v) = edit_text(ui, egui::Id::unique("filename-format"), &current, 320.0) {
+        if let Some(v) = edit_text(ui, tr("File name format"), egui::Id::unique("filename-format"), &current, 320.0) {
             let _ = e.run("library.set_filename_format", &json!({"format": v}));
         }
         ui.label(

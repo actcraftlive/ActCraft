@@ -236,6 +236,7 @@ pub enum CentreTab {
     Lyrics,
     Sheet,
     Cues,
+    Light,
 }
 
 impl ActCraftApp {
@@ -355,6 +356,11 @@ impl ActCraftApp {
     pub fn show_type_editor(&mut self) {
         self.fixtures_open = true;
         self.type_editor = Some(fixtures_view::TypeEditor::default());
+    }
+
+    /// Shows the song's Light cues tab (`--light-cues`, for screenshots).
+    pub fn show_light_cues(&mut self) {
+        self.centre_tab = CentreTab::Light;
     }
 
     /// Opens the Presets window (`--presets`, for screenshots).
@@ -981,10 +987,19 @@ impl ActCraftApp {
             let spoken = song.announce_title || song.regions.iter().any(|r| !r.voice.trim().is_empty());
             let cues_label = if spoken { tr("Spoken cues \u{2022}") } else { tr("Spoken cues") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Cues, big(cues_label));
+            let light_label = if song.light_cues.is_empty() { tr("Light cues") } else { tr("Light cues \u{2022}") };
+            ui.selectable_value(&mut self.centre_tab, CentreTab::Light, big(light_label));
         });
         self.region_bar(ui, e, &song);
         if self.centre_tab == CentreTab::Lyrics {
             self.lyrics_tab(ui, e, &song);
+            return;
+        }
+        if self.centre_tab == CentreTab::Light {
+            if self.lyrics_edit.is_some() {
+                self.finish_lyrics_edit_pub(e);
+            }
+            self.song_light_tab(ui, e, &song);
             return;
         }
         if self.centre_tab == CentreTab::Cues {
@@ -1086,15 +1101,15 @@ impl ActCraftApp {
         let id = song.id;
         ui.horizontal_wrapped(|ui| {
             ui.label(tr("Title"));
-            if let Some(v) = edit_text(ui, egui::Id::unique(("song-title", id)), &song.title, 220.0) {
+            if let Some(v) = edit_text(ui, tr("Title"), egui::Id::unique(("song-title", id)), &song.title, 220.0) {
                 self.run(e, "song.set", json!({"song": id, "title": v}));
             }
             ui.label(tr("Artist"));
-            if let Some(v) = edit_text(ui, egui::Id::unique(("song-artist", id)), &song.artist, 180.0) {
+            if let Some(v) = edit_text(ui, tr("Artist"), egui::Id::unique(("song-artist", id)), &song.artist, 180.0) {
                 self.run(e, "song.set", json!({"song": id, "artist": v}));
             }
             ui.label(tr("Key"));
-            if let Some(v) = edit_text(ui, egui::Id::unique(("song-key", id)), &song.key, 60.0) {
+            if let Some(v) = edit_text(ui, tr("Key"), egui::Id::unique(("song-key", id)), &song.key, 60.0) {
                 self.run(e, "song.set", json!({"song": id, "key": v}));
             }
         });
@@ -1153,29 +1168,37 @@ impl ActCraftApp {
             }
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label(tr("Beats per bar"));
+            let label = ui.label(tr("Beats per bar"));
             let mut bpb = u32::from(song.beats_per_bar);
-            if ui.add(egui::DragValue::new(&mut bpb).range(1..=16)).changed() {
+            if ui.add(egui::DragValue::new(&mut bpb).range(1..=16)).labelled_by(label.id).changed() {
                 self.run(e, "song.set", json!({"song": id, "beats_per_bar": bpb}));
             }
-            ui.label(tr("Count-in"));
+            let label = ui.label(tr("Count-in"));
             let mut ci = u32::from(song.count_in_bars);
             let unit = format!(" {}", if ci == 1 { tr("bar") } else { tr("bars") });
-            if ui.add(egui::DragValue::new(&mut ci).range(0..=8).suffix(unit)).changed() {
+            if ui.add(egui::DragValue::new(&mut ci).range(0..=8).suffix(unit)).labelled_by(label.id).changed() {
                 self.run(e, "song.set", json!({"song": id, "count_in_bars": ci}));
             }
-            ui.label(tr("Click"));
-            egui::ComboBox::from_id_salt(("song-click", id)).selected_text(tr(song.click.label())).show_ui(ui, |ui| {
-                for c in actcraft_show::SongClick::ALL {
-                    if ui.selectable_label(song.click == c, tr(c.label())).clicked() {
-                        self.run(e, "song.set", json!({"song": id, "click": c.key()}));
+            let label = ui.label(tr("Click"));
+            egui::ComboBox::from_id_salt(("song-click", id))
+                .selected_text(tr(song.click.label()))
+                .show_ui(ui, |ui| {
+                    for c in actcraft_show::SongClick::ALL {
+                        if ui.selectable_label(song.click == c, tr(c.label())).clicked() {
+                            self.run(e, "song.set", json!({"song": id, "click": c.key()}));
+                        }
                     }
-                }
-            });
+                })
+                .response
+                .labelled_by(label.id);
             ui.separator();
-            ui.label(tr("Fade-out"));
+            let label = ui.label(tr("Fade-out"));
             let mut fade = song.fade_out;
-            if ui.add(egui::DragValue::new(&mut fade).range(0.0..=60.0).speed(0.1).suffix(" s")).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut fade).range(0.0..=60.0).speed(0.1).suffix(" s"))
+                .labelled_by(label.id)
+                .changed()
+            {
                 self.run(e, "song.set", json!({"song": id, "fade_out": fade}));
             }
             let mut autoplay = song.autoplay;
@@ -1223,8 +1246,13 @@ impl ActCraftApp {
                         });
                     }
                 });
-                if let Some(name) = edit_text(ui, egui::Id::unique(("track-name", song, i)), &track.name, t.strip_width)
-                {
+                if let Some(name) = edit_text(
+                    ui,
+                    tr("Track name"),
+                    egui::Id::unique(("track-name", song, i)),
+                    &track.name,
+                    t.strip_width,
+                ) {
                     self.run(e, "track.set", json!({"song": song, "track": i, "name": name}));
                 }
                 let file_label = if track.file.is_empty() {
@@ -1476,11 +1504,13 @@ fn actcraft_audio_bucket() -> f64 {
 /// A one-line text field that keeps what the person types while it has focus and hands the new
 /// text back once they leave it (Enter, Tab or a click elsewhere). Returns `Some` only when the
 /// text changed.
-fn edit_text(ui: &mut Ui, id: egui::Id, current: &str, width: f32) -> Option<String> {
+fn edit_text(ui: &mut Ui, name: &str, id: egui::Id, current: &str, width: f32) -> Option<String> {
     let mut buffer: String = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.to_owned());
     // A fixed size, so grids and wrapping rows can't squeeze the field to a sliver.
     let height = ui.spacing().interact_size.y;
     let r = ui.add_sized([width, height], egui::TextEdit::singleline(&mut buffer).id(id));
+    // Its name for assistive technology: the visible label beside it, or what it holds.
+    ui.ctx().accesskit_node_builder(r.id, |node| node.set_label(name));
     if r.lost_focus() {
         ui.data_mut(|d| d.remove::<String>(id));
         return (buffer != current).then_some(buffer);

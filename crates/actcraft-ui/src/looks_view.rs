@@ -23,9 +23,100 @@ pub struct LooksDraft {
     pub list_name: String,
     pub cue_preset: usize,
     pub cue_fade: f64,
+    /// A new song lighting cue: its time, cue list and cue.
+    pub light_time: f64,
+    pub light_list: usize,
+    pub light_cue: usize,
+}
+
+/// Seconds as m:ss.s.
+fn at_text(seconds: f64) -> String {
+    let tenths = (seconds.max(0.0) * 10.0).round() as u64;
+    format!("{}:{:02}.{}", tenths / 600, (tenths / 10) % 60, tenths % 10)
 }
 
 impl ActCraftApp {
+    /// The song's Lighting tab: the cues it fires as it plays, and adding one.
+    pub(crate) fn song_light_tab(&mut self, ui: &mut Ui, e: &mut Engine, song: &actcraft_show::Song) {
+        let t = self.tokens;
+        ui.label(
+            RichText::new(tr("Lighting cues this song fires as it plays (a jump skips the ones in between)."))
+                .color(t.text_dim),
+        );
+        let mut remove = None;
+        egui::Grid::new("song-light-cues").num_columns(4).striped(true).show(ui, |ui| {
+            for (i, c) in song.light_cues.iter().enumerate() {
+                ui.label(at_text(c.time));
+                ui.label(&c.list);
+                let name = e
+                    .show
+                    .cue_lists
+                    .iter()
+                    .find(|l| l.name == c.list)
+                    .and_then(|l| l.cues.get(c.cue))
+                    .map_or_else(|| tr("(not there)").to_owned(), |cue| format!("{}. {}", c.cue + 1, cue.name));
+                ui.label(name);
+                if ui.small_button(tr("Remove")).clicked() {
+                    remove = Some(i);
+                }
+                ui.end_row();
+            }
+        });
+        if let Some(i) = remove {
+            self.run(e, "song.light_cue_remove", json!({"song": song.id, "light_cue": i}));
+        }
+        let lists = e.show.cue_lists.clone();
+        if lists.iter().all(|l| l.cues.is_empty()) {
+            ui.label(RichText::new(tr("Make a cue list with cues first (Lighting > Presets).")).color(t.text_dim));
+            return;
+        }
+        let now = e.status.time;
+        let d = &mut self.looks_draft;
+        d.light_list = d.light_list.min(lists.len().saturating_sub(1));
+        let cues = lists.get(d.light_list).map(|l| l.cues.clone()).unwrap_or_default();
+        d.light_cue = d.light_cue.min(cues.len().saturating_sub(1));
+        let mut add = false;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label(tr("At"));
+            ui.add(egui::DragValue::new(&mut d.light_time).range(0.0..=86_400.0).speed(0.1).suffix(" s"))
+                .labelled_by(label.id);
+            if ui.button(tr("Now")).on_hover_text(tr("Where playback is")).clicked() {
+                d.light_time = (now * 10.0).round() / 10.0;
+            }
+            let label = ui.label(tr("Cue list"));
+            egui::ComboBox::from_id_salt("light-list")
+                .selected_text(lists.get(d.light_list).map(|l| l.name.clone()).unwrap_or_default())
+                .show_ui(ui, |ui| {
+                    for (i, l) in lists.iter().enumerate() {
+                        ui.selectable_value(&mut d.light_list, i, &l.name);
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            let label = ui.label(tr("Cue"));
+            egui::ComboBox::from_id_salt("light-cue")
+                .selected_text(
+                    cues.get(d.light_cue).map(|c| format!("{}. {}", d.light_cue + 1, c.name)).unwrap_or_default(),
+                )
+                .show_ui(ui, |ui| {
+                    for (i, c) in cues.iter().enumerate() {
+                        ui.selectable_value(&mut d.light_cue, i, format!("{}. {}", i + 1, c.name));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            add = ui.add_enabled(!cues.is_empty(), egui::Button::new(tr("Add lighting cue"))).clicked();
+        });
+        if add {
+            let d = self.looks_draft.clone();
+            self.run(
+                e,
+                "song.light_cue_add",
+                json!({"song": song.id, "time": d.light_time, "list": d.light_list, "cue": d.light_cue}),
+            );
+        }
+    }
+
     /// The Presets window, while it is open.
     pub(crate) fn presets_window(&mut self, ctx: &egui::Context, e: &mut Engine) {
         if !self.presets_open {

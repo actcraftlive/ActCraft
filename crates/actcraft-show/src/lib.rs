@@ -79,6 +79,8 @@ pub mod limits {
     pub const MAX_CUE_LISTS: usize = 64;
     pub const MAX_CUES: usize = 1_000;
     pub const MAX_FADE_S: f64 = 600.0;
+    /// Lighting cues one song fires.
+    pub const MAX_LIGHT_CUES: usize = 1_000;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -266,6 +268,8 @@ pub struct Song {
     /// The song bar (beat grid numbering: 1 at the beat anchor, 0 and below before it) where
     /// the score's first bar plays; 0 or less for a score that starts with a pickup bar.
     pub score_first_bar: i32,
+    /// Lighting cues the song fires as it plays: at a time, a cue of a cue list.
+    pub light_cues: Vec<LightCue>,
     /// Start the next song when this one ends.
     pub autoplay: bool,
     /// Loop the whole song.
@@ -309,6 +313,7 @@ impl Default for Song {
             pdf_marks: Vec::new(),
             notation_file: None,
             score_first_bar: 1,
+            light_cues: Vec::new(),
             autoplay: false,
             loop_song: false,
             announce_title: false,
@@ -691,6 +696,20 @@ pub struct Group {
 pub struct Preset {
     pub name: String,
     pub values: Vec<PresetValue>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A lighting cue a song fires when playback passes its time.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LightCue {
+    /// Seconds into the song.
+    pub time: f64,
+    /// The cue list's name.
+    pub list: String,
+    /// The cue's place in that list, from 0.
+    pub cue: usize,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -1252,6 +1271,12 @@ impl Song {
             cut(m, MAX_TEXT);
         }
         self.score_first_bar = self.score_first_bar.clamp(MIN_SCORE_FIRST_BAR, MAX_SCORE_FIRST_BAR);
+        self.light_cues.retain(|c| c.time.is_finite() && c.time >= 0.0);
+        self.light_cues.truncate(MAX_LIGHT_CUES);
+        for c in &mut self.light_cues {
+            cut(&mut c.list, 64);
+        }
+        self.light_cues.sort_by(|a, b| a.time.total_cmp(&b.time));
         if let Some(m) = &mut self.midi_file {
             cut(m, MAX_TEXT);
         }

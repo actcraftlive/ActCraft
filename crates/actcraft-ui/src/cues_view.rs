@@ -99,7 +99,9 @@ impl ActCraftApp {
                 for (i, r) in song.regions.iter().enumerate() {
                     ui.label(&r.name);
                     ui.label(RichText::new(fmt_time(r.start)).monospace());
-                    if let Some(words) = edit_text(ui, egui::Id::unique(("cue-words", id, i)), &r.voice, 200.0) {
+                    if let Some(words) =
+                        edit_text(ui, tr("Spoken words"), egui::Id::unique(("cue-words", id, i)), &r.voice, 200.0)
+                    {
                         self.run(e, "region.set", json!({"song": id, "region": i, "voice": words}));
                     }
                     let has_words = !r.voice.trim().is_empty();
