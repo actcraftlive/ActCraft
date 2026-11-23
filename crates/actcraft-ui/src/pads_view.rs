@@ -2,6 +2,7 @@
 //! with one press (`pad.press`), and their editor.
 
 use actcraft_engine::Engine;
+use actcraft_show::limits::MAX_PAD_PAGES;
 use actcraft_show::{FaderTarget, ToggleTarget};
 use egui::{Color32, RichText, Ui, vec2};
 use serde_json::json;
@@ -76,6 +77,66 @@ fn text_on(rgb: [u8; 3]) -> Color32 {
     if on_black >= on_white { Color32::BLACK } else { Color32::WHITE }
 }
 
+/// Going through the pad pages: the page before, which page shows, the next page, and (while
+/// editing) a new page. Gives the command to run.
+fn pad_pages_ui(ui: &mut Ui, page: usize, pages: usize, editing: bool) -> Option<(&'static str, serde_json::Value)> {
+    let mut run = None;
+    if ui.add_enabled(pages > 1, egui::Button::new(tr("Page before"))).clicked() {
+        run = Some(("pad.page_before", serde_json::Value::Null));
+    }
+    let of = actcraft_engine::fill(
+        tr("Page {page} of {pages}"),
+        &[("page", &(page + 1).to_string()), ("pages", &pages.to_string())],
+    );
+    ui.label(RichText::new(of).strong());
+    if ui.add_enabled(pages > 1, egui::Button::new(tr("Next page"))).clicked() {
+        run = Some(("pad.page_next", serde_json::Value::Null));
+    }
+    if editing
+        && ui
+            .add_enabled(pages < MAX_PAD_PAGES, egui::Button::new(tr("New page")))
+            .on_hover_text(tr("An empty pad page; new pads go on the page shown"))
+            .clicked()
+    {
+        run = Some(("pad.page", json!({"page": pages})));
+    }
+    ui.separator();
+    run
+}
+
+/// A pad's buttons while editing: to another page, and remove. Their names say which pad.
+fn pad_edit_buttons(
+    ui: &mut Ui,
+    pad: &actcraft_show::Pad,
+    i: usize,
+    pages: usize,
+    remove: &mut Option<usize>,
+    move_to: &mut Option<(usize, usize)>,
+) {
+    // Its page, chosen from the pages there are and a new one after the last.
+    let page_text = |p: usize| actcraft_engine::fill(tr("Page {page}"), &[("page", &(p + 1).to_string())]);
+    let now = usize::from(pad.page);
+    let name = format!("{} ({})", tr("Page"), pad.label);
+    let r = egui::ComboBox::from_id_salt(("pad-page", i))
+        .width(80.0)
+        .selected_text(page_text(now))
+        .show_ui(ui, |ui| {
+            for p in 0..(pages + 1).min(MAX_PAD_PAGES) {
+                if ui.selectable_label(p == now, page_text(p)).clicked() && p != now {
+                    *move_to = Some((i, p));
+                }
+            }
+        })
+        .response;
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, &name));
+    let name = format!("{} ({})", tr("Remove"), pad.label);
+    let r = ui.small_button(tr("Remove"));
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+    if r.clicked() {
+        *remove = Some(i);
+    }
+}
+
 impl ActCraftApp {
     /// The pads, and the editor while it is open.
     pub(crate) fn pads_bar(&mut self, ui: &mut Ui, e: &mut Engine) {
@@ -83,8 +144,15 @@ impl ActCraftApp {
         let mut press = None;
         let mut remove = None;
         let mut moved: Option<(FaderTarget, f64)> = None;
+        let mut page_run: Option<(&str, serde_json::Value)> = None;
+        let mut move_to: Option<(usize, usize)> = None;
+        let (page, pages) = (e.pad_page(), e.pad_pages());
         ui.horizontal_wrapped(|ui| {
-            for (i, pad) in pads.iter().enumerate() {
+            if pages > 1 || self.pads_editing {
+                page_run = pad_pages_ui(ui, page, pages, self.pads_editing);
+            }
+            for i in e.shown_pads() {
+                let Some(pad) = pads.get(i) else { continue };
                 if let Some(target) = pad.fader {
                     // A fader: its label and the volume it moves, in dB.
                     let label = ui.label(RichText::new(&pad.label).strong());
@@ -97,8 +165,8 @@ impl ActCraftApp {
                     {
                         moved = Some((target, db));
                     }
-                    if self.pads_editing && ui.small_button(tr("Remove")).clicked() {
-                        remove = Some(i);
+                    if self.pads_editing {
+                        pad_edit_buttons(ui, pad, i, pages, &mut remove, &mut move_to);
                     }
                     continue;
                 }
@@ -118,8 +186,8 @@ impl ActCraftApp {
                     if r.clicked() {
                         press = Some(i);
                     }
-                    if self.pads_editing && ui.small_button(tr("Remove")).clicked() {
-                        remove = Some(i);
+                    if self.pads_editing {
+                        pad_edit_buttons(ui, pad, i, pages, &mut remove, &mut move_to);
                     }
                     continue;
                 }
@@ -138,8 +206,8 @@ impl ActCraftApp {
                 if ui.add(button).on_hover_text(hint).clicked() {
                     press = Some(i);
                 }
-                if self.pads_editing && ui.small_button(tr("Remove")).clicked() {
-                    remove = Some(i);
+                if self.pads_editing {
+                    pad_edit_buttons(ui, pad, i, pages, &mut remove, &mut move_to);
                 }
             }
             let edit = if self.pads_editing {
@@ -167,6 +235,12 @@ impl ActCraftApp {
         }
         if let Some(i) = remove {
             self.run(e, "pad.remove", json!({"pad": i}));
+        }
+        if let Some((pad, page)) = move_to {
+            self.run(e, "pad.move", json!({"pad": pad, "page": page}));
+        }
+        if let Some((id, prm)) = page_run {
+            self.run(e, id, prm);
         }
         if self.pads_editing {
             self.pad_editor(ui, e);

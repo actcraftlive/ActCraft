@@ -3,7 +3,7 @@
 //!
 //! - `/actcraft/<command id>` runs a command that needs nothing more (`/actcraft/transport.toggle`);
 //! - `/actcraft/macro/<NAME>` runs a macro;
-//! - `/actcraft/pad/<n>` presses pad n (from 1).
+//! - `/actcraft/pad/<n>` presses pad n (from 1) of the pad page shown.
 //!
 //! A message whose first value is 0 or less (a button let go) does nothing, so buttons that send
 //! on press and release act once. The platform layer receives the messages; this only decides.
@@ -34,6 +34,7 @@ impl Engine {
         }
         if let Some(n) = rest.strip_prefix("pad/") {
             let Some(i) = n.parse::<usize>().ok().and_then(|n| n.checked_sub(1)) else { return 0 };
+            let Some(i) = self.shown_pads().get(i).copied() else { return 0 };
             return match self.run("pad.press", &json!({"pad": i})) {
                 Ok(v) => v["ran"].as_u64().map_or(1, |n| n as usize),
                 Err(_) => 0,
