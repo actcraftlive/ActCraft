@@ -80,13 +80,80 @@ fn kind_text(key: &str) -> &'static str {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeEditor {
     pub name: String,
-    pub modes: Vec<(String, Vec<Attribute>)>,
+    pub modes: Vec<ModeDraft>,
     pub mode: usize,
+    /// The channel (from 0) whose named ranges are shown for changing.
+    pub ranges_of: Option<usize>,
+}
+
+/// A mode being made: its name, what each channel does and the named ranges of its channels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModeDraft {
+    pub name: String,
+    pub channels: Vec<Attribute>,
+    pub ranges: Vec<RangeDraft>,
+}
+
+/// A named range of one channel's levels; `channel` counts from 0.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeDraft {
+    pub channel: usize,
+    pub from: u8,
+    pub to: u8,
+    pub name: String,
+}
+
+impl ModeDraft {
+    fn new(channels: Vec<Attribute>) -> Self {
+        Self { name: String::new(), channels, ranges: Vec::new() }
+    }
+
+    /// Swaps channels `a` and `b`, their ranges going along.
+    fn swap(&mut self, a: usize, b: usize) {
+        if a >= self.channels.len() || b >= self.channels.len() {
+            return;
+        }
+        self.channels.swap(a, b);
+        for r in &mut self.ranges {
+            if r.channel == a {
+                r.channel = b;
+            } else if r.channel == b {
+                r.channel = a;
+            }
+        }
+    }
+
+    /// Removes channel `i` and its ranges; the ranges of later channels move up with them.
+    fn remove(&mut self, i: usize) {
+        if i >= self.channels.len() {
+            return;
+        }
+        self.channels.remove(i);
+        self.ranges.retain(|r| r.channel != i);
+        for r in &mut self.ranges {
+            if r.channel > i {
+                r.channel -= 1;
+            }
+        }
+    }
+
+    /// What `fixture_type.set` takes for this mode.
+    fn to_json(&self) -> serde_json::Value {
+        let channels: Vec<&str> = self.channels.iter().map(|a| attribute_key(*a)).collect();
+        let ranges: Vec<serde_json::Value> = self
+            .ranges
+            .iter()
+            .map(|r| {
+                json!({"channel": r.channel + 1, "from": r.from.min(r.to), "to": r.from.max(r.to), "name": r.name.trim()})
+            })
+            .collect();
+        json!({"name": self.name.trim(), "channels": channels, "ranges": ranges})
+    }
 }
 
 impl Default for TypeEditor {
     fn default() -> Self {
-        Self { name: String::new(), modes: vec![(String::new(), vec![Attribute::Intensity])], mode: 0 }
+        Self { name: String::new(), modes: vec![ModeDraft::new(vec![Attribute::Intensity])], mode: 0, ranges_of: None }
     }
 }
 
@@ -104,8 +171,26 @@ impl ActCraftApp {
                 if let Some(ty) = &chosen
                     && ui.button(tr("Change this fixture type")).clicked()
                 {
-                    let modes = ty.modes.iter().map(|m| (m.name.clone(), m.channels.clone())).collect();
-                    self.type_editor = Some(TypeEditor { name: ty.name.clone(), modes, mode: 0 });
+                    // Its named ranges come along, so saving keeps them.
+                    let modes = ty
+                        .modes
+                        .iter()
+                        .map(|m| ModeDraft {
+                            name: m.name.clone(),
+                            channels: m.channels.clone(),
+                            ranges: m
+                                .ranges
+                                .iter()
+                                .map(|r| RangeDraft {
+                                    channel: usize::from(r.channel.max(1)) - 1,
+                                    from: r.from,
+                                    to: r.to,
+                                    name: r.name.clone(),
+                                })
+                                .collect(),
+                        })
+                        .collect();
+                    self.type_editor = Some(TypeEditor { name: ty.name.clone(), modes, mode: 0, ranges_of: None });
                 }
             });
             return;
@@ -122,46 +207,69 @@ impl ActCraftApp {
             // The modes, one shown at a time.
             ui.horizontal_wrapped(|ui| {
                 ui.label(tr("Modes"));
-                for (i, (name, channels)) in ed.modes.iter().enumerate() {
-                    let words = if name.trim().is_empty() { format!("{} ch", channels.len()) } else { name.clone() };
+                for (i, mode) in ed.modes.iter().enumerate() {
+                    let words = if mode.name.trim().is_empty() {
+                        format!("{} ch", mode.channels.len())
+                    } else {
+                        mode.name.clone()
+                    };
                     if ui.selectable_label(ed.mode == i, words).clicked() {
                         ed.mode = i;
+                        ed.ranges_of = None;
                     }
                 }
                 if ed.modes.len() < 32 && ui.button(tr("Add mode")).clicked() {
-                    ed.modes.push((String::new(), vec![Attribute::Intensity]));
+                    ed.modes.push(ModeDraft::new(vec![Attribute::Intensity]));
                     ed.mode = ed.modes.len() - 1;
+                    ed.ranges_of = None;
                 }
                 if ed.modes.len() > 1 && ui.button(tr("Remove this mode")).clicked() {
                     ed.modes.remove(ed.mode.min(ed.modes.len() - 1));
                     ed.mode = ed.mode.saturating_sub(1);
+                    ed.ranges_of = None;
                 }
             });
             ed.mode = ed.mode.min(ed.modes.len().saturating_sub(1));
-            let Some((mode_name, channels)) = ed.modes.get_mut(ed.mode) else { return };
+            let ranges_of = &mut ed.ranges_of;
+            let Some(mode) = ed.modes.get_mut(ed.mode) else { return };
             ui.horizontal(|ui| {
                 let label = ui.label(tr("Mode name"));
                 ui.add(
-                    egui::TextEdit::singleline(mode_name).hint_text(tr("Like its channel count")).desired_width(180.0),
+                    egui::TextEdit::singleline(&mut mode.name)
+                        .hint_text(tr("Like its channel count"))
+                        .desired_width(180.0),
                 )
                 .labelled_by(label.id);
             });
             let mut action = None;
             egui::Grid::new("type-channels").num_columns(2).show(ui, |ui| {
-                let count = channels.len();
-                for (i, a) in channels.iter_mut().enumerate() {
-                    let label = ui.label(tr("Channel {n}").replace("{n}", &(i + 1).to_string()));
+                let count = mode.channels.len();
+                for i in 0..count {
+                    let n = (i + 1).to_string();
+                    let label = ui.label(tr("Channel {n}").replace("{n}", &n));
+                    let in_use = mode.ranges.iter().filter(|r| r.channel == i).count();
                     ui.horizontal(|ui| {
-                        egui::ComboBox::from_id_salt(("type-channel", i))
-                            .width(160.0)
-                            .selected_text(channel_text(*a))
-                            .show_ui(ui, |ui| {
-                                for choice in ATTRIBUTES {
-                                    ui.selectable_value(a, choice, channel_text(choice));
-                                }
-                            })
-                            .response
-                            .labelled_by(label.id);
+                        if let Some(a) = mode.channels.get_mut(i) {
+                            egui::ComboBox::from_id_salt(("type-channel", i))
+                                .width(160.0)
+                                .selected_text(channel_text(*a))
+                                .show_ui(ui, |ui| {
+                                    for choice in ATTRIBUTES {
+                                        ui.selectable_value(a, choice, channel_text(choice));
+                                    }
+                                })
+                                .response
+                                .labelled_by(label.id);
+                        }
+                        // The named ranges of this channel (off, dimmer, strobe): shown under the list.
+                        let words = tr("Ranges ({n})").replace("{n}", &in_use.to_string());
+                        let open = *ranges_of == Some(i);
+                        let r = ui.selectable_label(open, &words);
+                        let name = format!("{words}, {}", tr("Channel {n}").replace("{n}", &n));
+                        r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, open, &name));
+                        if r.clicked() {
+                            *ranges_of = if open { None } else { Some(i) };
+                        }
                         if i > 0 && ui.small_button(tr("Up")).clicked() {
                             action = Some((i, -1));
                         }
@@ -177,14 +285,40 @@ impl ActCraftApp {
             });
             match action {
                 Some((i, 0)) => {
-                    channels.remove(i);
+                    mode.remove(i);
+                    *ranges_of = None;
                 }
-                Some((i, -1)) => channels.swap(i, i - 1),
-                Some((i, _)) => channels.swap(i, i + 1),
+                Some((i, -1)) => {
+                    mode.swap(i, i - 1);
+                    *ranges_of = ranges_of.map(|c| {
+                        if c == i {
+                            i - 1
+                        } else if c == i - 1 {
+                            i
+                        } else {
+                            c
+                        }
+                    });
+                }
+                Some((i, _)) => {
+                    mode.swap(i, i + 1);
+                    *ranges_of = ranges_of.map(|c| {
+                        if c == i {
+                            i + 1
+                        } else if c == i + 1 {
+                            i
+                        } else {
+                            c
+                        }
+                    });
+                }
                 None => {}
             }
-            if channels.len() < 64 && ui.button(tr("Add channel")).clicked() {
-                channels.push(Attribute::Other);
+            if mode.channels.len() < 64 && ui.button(tr("Add channel")).clicked() {
+                mode.channels.push(Attribute::Other);
+            }
+            if let Some(c) = *ranges_of {
+                ranges_ui(ui, mode, c);
             }
             ui.horizontal(|ui| {
                 save = ui.add_enabled(!ed.name.trim().is_empty(), egui::Button::new(tr("Save fixture type"))).clicked();
@@ -193,14 +327,7 @@ impl ActCraftApp {
             ui.label(RichText::new(tr("Saving under a name that is there replaces that type.")).color(t.text_dim));
         });
         if save && let Some(ed) = self.type_editor.clone() {
-            let modes: Vec<serde_json::Value> = ed
-                .modes
-                .iter()
-                .map(|(name, channels)| {
-                    let channels: Vec<&str> = channels.iter().map(|a| attribute_key(*a)).collect();
-                    json!({"name": name.trim(), "channels": channels})
-                })
-                .collect();
+            let modes: Vec<serde_json::Value> = ed.modes.iter().map(ModeDraft::to_json).collect();
             if let Ok(v) = e.run("fixture_type.set", &json!({"name": ed.name.trim(), "modes": modes})) {
                 let i = v["type"].as_u64().and_then(|i| usize::try_from(i).ok()).unwrap_or(0);
                 self.fixture_draft.kind = KINDS.len() + i;
@@ -500,5 +627,72 @@ impl ActCraftApp {
         if let Some((id, prm)) = run {
             self.run(e, id, prm);
         }
+    }
+}
+
+/// The named ranges of channel `c` (from 0) of a mode being made: from, to and name of each,
+/// removing one, adding one after the last.
+fn ranges_ui(ui: &mut Ui, mode: &mut ModeDraft, c: usize) {
+    let n = (c + 1).to_string();
+    ui.group(|ui| {
+        ui.label(RichText::new(tr("Ranges of channel {n}").replace("{n}", &n)).strong());
+        let mut remove = None;
+        let mut k = 0;
+        for (i, r) in mode.ranges.iter_mut().enumerate().filter(|(_, r)| r.channel == c) {
+            k += 1;
+            let which = format!("{} {k}", tr("Range"));
+            ui.horizontal(|ui| {
+                ui.label(&which);
+                let named = |ui: &Ui, id: egui::Id, words: &str| {
+                    let name = format!("{words}, {which}");
+                    ui.ctx().accesskit_node_builder(id, |node| node.set_label(name));
+                };
+                ui.label(tr("From"));
+                let from = ui.add(egui::DragValue::new(&mut r.from).range(0..=255));
+                named(ui, from.id, tr("From"));
+                ui.label(tr("To"));
+                let to = ui.add(egui::DragValue::new(&mut r.to).range(0..=255));
+                named(ui, to.id, tr("To"));
+                ui.label(tr("Name"));
+                let text = ui.add(egui::TextEdit::singleline(&mut r.name).desired_width(200.0));
+                named(ui, text.id, tr("Name"));
+                let gone = ui.small_button(tr("Remove"));
+                let name = format!("{} ({which})", tr("Remove"));
+                gone.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                if gone.clicked() {
+                    remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove {
+            mode.ranges.remove(i);
+        }
+        if mode.ranges.len() < 256 && ui.button(tr("Add range")).clicked() {
+            // It starts above the channel's last range and has a name, so it can be saved at once.
+            let from = mode.ranges.iter().filter(|r| r.channel == c).map(|r| r.to.saturating_add(1)).max().unwrap_or(0);
+            let name = format!("{} {}", tr("Range"), k + 1);
+            mode.ranges.push(RangeDraft { channel: c, from, to: 255, name });
+        }
+    });
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::*;
+
+    #[test]
+    fn ranges_go_along_when_channels_move_or_go() {
+        let range = |channel: usize, name: &str| RangeDraft { channel, from: 0, to: 9, name: name.into() };
+        let mut m = ModeDraft::new(vec![Attribute::Pan, Attribute::Other, Attribute::Red, Attribute::Other]);
+        m.ranges = vec![range(1, "a"), range(3, "b")];
+        m.swap(1, 2);
+        assert_eq!(m.channels[2], Attribute::Other);
+        assert_eq!(m.ranges.iter().map(|r| r.channel).collect::<Vec<_>>(), vec![2, 3]);
+        m.remove(0);
+        assert_eq!(m.ranges.iter().map(|r| r.channel).collect::<Vec<_>>(), vec![1, 2]);
+        m.remove(1);
+        assert_eq!(m.ranges.iter().map(|r| (r.channel, r.name.as_str())).collect::<Vec<_>>(), vec![(1, "b")]);
+        let json = m.to_json();
+        assert_eq!(json["ranges"][0]["channel"], json!(2), "counted from 1 for the command");
     }
 }

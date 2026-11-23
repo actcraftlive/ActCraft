@@ -712,3 +712,30 @@ fn a_setlist_note_is_written_before_a_song_of_a_set() {
     assert!(h.query_by_label("Acoustic guitar").is_some(), "the note shows above the song");
     assert!(h.query_by_role_and_label(Role::TextInput, "Note before (B)").is_none(), "the field closes");
 }
+
+#[test]
+fn a_fixture_type_keeps_and_gains_named_ranges_in_its_editor() {
+    let (mut h, engine) = window(|e| {
+        let mode = json!({"name": "3ch", "channels": ["intensity", "other", "red"],
+            "ranges": [{"channel": 2, "from": 0, "to": 127, "name": "Off"}]});
+        let _ = e.run("fixture_type.set", &json!({"name": "Spot", "modes": [mode]}));
+    });
+    h.state_mut().show_fixtures();
+    h.state_mut().fixture_draft.kind = actcraft_engine::fixtures::KINDS.len();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Change this fixture type").click_accesskit();
+    frames(&mut h, 3);
+    // Channel 2 says it has one range; its button opens them.
+    h.get_by_role_and_label(Role::Button, "Ranges (1), Channel 2").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Ranges of channel 2").is_some());
+    assert!(h.query_by_role_and_label(Role::TextInput, "Name, Range 1").is_some());
+    h.get_by_role_and_label(Role::Button, "Add range").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::Button, "Remove (Range 2)").is_some(), "rows are named apart");
+    h.get_by_role_and_label(Role::Button, "Save fixture type").click_accesskit();
+    frames(&mut h, 3);
+    let ranges = with(&engine, |e| e.show.fixture_types[0].modes[0].ranges.clone());
+    let got: Vec<_> = ranges.iter().map(|r| (r.channel, r.from, r.to, r.name.as_str())).collect();
+    assert_eq!(got, vec![(2, 0, 127, "Off"), (2, 128, 255, "Range 2")], "the old range kept, the new one after it");
+}

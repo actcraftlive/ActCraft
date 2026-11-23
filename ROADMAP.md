@@ -239,6 +239,10 @@ Planned with the owner on 2026-11-23, to do later, in this order (details under 
   to where pan and tilt send it, as wide as its zoom and as bright as the light; its name says
   where it points (`fixture.stage` gives `beam`). Pan 540° and tilt 270° are taken for every
   moving light until fixture types carry their ranges
+- ✅ Named ranges on fixture channels (one channel doing several things: off, dimmer, strobe):
+  set by picking a range and a level in the Fixtures window (`fixture.range`), kept by fixture
+  types and set in the fixture type editor (Ranges beside each channel: from, to, name); `.r20`
+  fixture files can be imported (`fixture_type.import`) and their ranges added there
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
