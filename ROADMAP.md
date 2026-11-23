@@ -209,9 +209,9 @@ details are in the milestone sections further down.
   circle, red, green and blue a rainbow; `effect.set {also}`, "Move another attribute too"). An
   effect counted in beats locks to the playing song's beat grid, so its pulses land on the beat
   wherever it was started
-- ✅ Ready-made effects: eighteen to start from (breathe, pulse on the beat, chase, wave, build
-  over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom, circles,
-  rainbows); none flashes
+- ✅ Ready-made effects: thirty-nine to start from (breathe, pulses and waves on the beat or over a
+  bar, chases, builds, bounce, every other light, colour pulses, drifts and chases, red and blue,
+  warm and cool, embers, ocean, sweeps, fans, nods, circles, rainbows, zooms); none flashes
   more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the
   effect form)
 - ✅ Blackout, master and freeze: blackout takes every fixture dark at the output and a master

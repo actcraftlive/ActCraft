@@ -55,6 +55,27 @@ fn template_text(key: &str) -> &'static str {
         "circle_wave" => tr("Circles one after another"),
         "rainbow" => tr("Rainbow"),
         "rainbow_wave" => tr("Rainbow wave"),
+        "slow_wave" => tr("Slow wave"),
+        "pulse_two_beats" => tr("Pulse every other beat"),
+        "breathe_bar" => tr("Breathe over a bar"),
+        "build_two_bars" => tr("Build over two bars"),
+        "every_other" => tr("Every other light"),
+        "slow_chase" => tr("Slow chase"),
+        "wave_on_the_bar" => tr("Wave over a bar"),
+        "green_pulse" => tr("Green pulse"),
+        "white_wave" => tr("White wave"),
+        "uv_glow" => tr("UV glow"),
+        "amber_chase" => tr("Amber chase"),
+        "red_and_blue" => tr("Red and blue"),
+        "warm_and_cool" => tr("Warm and cool"),
+        "embers" => tr("Embers"),
+        "ocean" => tr("Ocean"),
+        "colour_chase" => tr("Colour chase"),
+        "pan_wave_beat" => tr("Pan wave on the beat"),
+        "nod_beat" => tr("Nod on the beat"),
+        "sweep_room" => tr("Sweep the room"),
+        "circle_bar" => tr("Circle over a bar"),
+        "zoom_beat" => tr("Zoom on the beat"),
         _ => tr("Effect"),
     }
 }
@@ -793,5 +814,17 @@ impl ActCraftApp {
                 self.looks_draft.picked.clear();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn every_ready_made_effect_has_a_name_in_the_window() {
+        for t in actcraft_engine::effects::TEMPLATES {
+            assert_ne!(super::template_text(t.key), super::tr("Effect"), "{} has no name", t.key);
+            assert_eq!(super::template_text(t.key), t.name, "{}: the window says what the engine says", t.key);
+        }
+        assert!(actcraft_engine::effects::TEMPLATES.len() >= 39);
     }
 }
