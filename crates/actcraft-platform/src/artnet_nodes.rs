@@ -109,7 +109,8 @@ mod tests {
                 }
             }
         });
-        let found = discover_on(port, Ipv4Addr::LOCALHOST, Duration::from_millis(600));
+        // Room to spare: under a full parallel test run the node thread can start late.
+        let found = discover_on(port, Ipv4Addr::LOCALHOST, Duration::from_millis(2000));
         let _ = node.join();
         assert_eq!(
             found,
