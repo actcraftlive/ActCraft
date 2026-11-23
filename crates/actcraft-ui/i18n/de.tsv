@@ -1067,7 +1067,7 @@
 	Find USB interfaces	USB-Interfaces suchen
 	For USB interfaces that speak the DMX USB Pro serial protocol	Für USB-Interfaces, die das serielle DMX-USB-Pro-Protokoll sprechen
 	No serial ports found: is the interface plugged in?	Keine seriellen Ports gefunden: Ist das Interface angesteckt?
-	`protocol` must be artnet, sacn or usb_pro	`protocol` muss artnet, sacn oder usb_pro sein
+	`protocol` must be artnet, sacn, usb_pro or usb_cable	`protocol` muss artnet, sacn, usb_pro oder usb_cable sein
 	`address` must name the serial port, like COM3 or /dev/ttyUSB0	`address` muss den seriellen Port nennen, etwa COM3 oder /dev/ttyUSB0
 	DMX in: listening on {address}	DMX-Eingang: horcht auf {address}
 	Could not listen for DMX: {error}	Konnte nicht auf DMX horchen: {error}
@@ -1238,3 +1238,5 @@
 	Move picked down	Ausgewählte nach unten
 	Remove picked	Ausgewählte entfernen
 	Clear picks	Auswahl aufheben
+	USB cable	USB-Kabel
+	For a plain USB-to-DMX cable (an FTDI chip, no processor of its own); ActCraft makes the DMX signal	Für ein einfaches USB-DMX-Kabel (FTDI-Chip, ohne eigenen Prozessor); ActCraft erzeugt das DMX-Signal

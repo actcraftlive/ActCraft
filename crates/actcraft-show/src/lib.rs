@@ -976,6 +976,16 @@ pub enum DmxProtocol {
     /// A USB interface speaking the DMX USB Pro serial protocol (its published API), on a serial
     /// port; `address` names the port.
     UsbPro,
+    /// A plain USB-to-RS-485 cable (an FTDI chip and a line driver) on a serial port; the
+    /// computer makes the DMX signal itself. `address` names the port.
+    UsbCable,
+}
+
+impl DmxProtocol {
+    /// Whether it goes to a USB device on a serial port (its `address` names the port).
+    pub fn is_usb(self) -> bool {
+        matches!(self, DmxProtocol::UsbPro | DmxProtocol::UsbCable)
+    }
 }
 
 /// A game controller button that sets off a command when pressed (any controller).
@@ -1078,7 +1088,7 @@ impl DmxOutput {
         match protocol {
             DmxProtocol::ArtNet => n.min(Self::ARTNET_MAX),
             DmxProtocol::Sacn => n.clamp(Self::SACN_MIN, Self::SACN_MAX),
-            DmxProtocol::UsbPro => 0,
+            DmxProtocol::UsbPro | DmxProtocol::UsbCable => 0,
         }
     }
 
@@ -1714,11 +1724,7 @@ impl Show {
             o.network_universe = DmxOutput::clamp_network_universe(o.protocol, o.network_universe);
             o.priority = o.priority.min(DmxOutput::PRIORITY_MAX);
             cut(&mut o.address, 64);
-            let fits = if o.protocol == DmxProtocol::UsbPro {
-                DmxOutput::valid_port_name(&o.address)
-            } else {
-                o.target().is_some()
-            };
+            let fits = if o.protocol.is_usb() { DmxOutput::valid_port_name(&o.address) } else { o.target().is_some() };
             if !fits {
                 o.address.clear();
             }

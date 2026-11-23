@@ -382,12 +382,13 @@ pub fn dmx_output_add(e: &mut Engine, prm: &Value) -> CommandResult {
         "artnet" => DmxProtocol::ArtNet,
         "sacn" => DmxProtocol::Sacn,
         "usb_pro" => DmxProtocol::UsbPro,
-        _ => return Err(invalid("`protocol` must be artnet, sacn or usb_pro")),
+        "usb_cable" => DmxProtocol::UsbCable,
+        _ => return Err(invalid("`protocol` must be artnet, sacn, usb_pro or usb_cable")),
     };
     let (low, high) = match protocol {
         DmxProtocol::ArtNet => (0, DmxOutput::ARTNET_MAX),
         DmxProtocol::Sacn => (DmxOutput::SACN_MIN, DmxOutput::SACN_MAX),
-        DmxProtocol::UsbPro => (0, 0),
+        DmxProtocol::UsbPro | DmxProtocol::UsbCable => (0, 0),
     };
     let network_universe = match p::opt_i64_in(prm, "network_universe", i64::from(low), i64::from(high))? {
         Some(n) => u16::try_from(n).unwrap_or(low),
@@ -395,11 +396,11 @@ pub fn dmx_output_add(e: &mut Engine, prm: &Value) -> CommandResult {
             DmxProtocol::ArtNet => universe - 1,
             DmxProtocol::Sacn => universe,
             // A USB interface sends the one universe it is given.
-            DmxProtocol::UsbPro => 0,
+            DmxProtocol::UsbPro | DmxProtocol::UsbCable => 0,
         },
     };
     let address = p::opt_str_max(prm, "address", 64)?.unwrap_or_default().trim().to_owned();
-    if protocol == DmxProtocol::UsbPro {
+    if protocol.is_usb() {
         if !DmxOutput::valid_port_name(&address) {
             return Err(invalid("`address` must name the serial port, like COM3 or /dev/ttyUSB0"));
         }
@@ -441,6 +442,7 @@ pub fn dmx_output_list(e: &mut Engine, _prm: &Value) -> CommandResult {
                     DmxProtocol::ArtNet => "artnet",
                     DmxProtocol::Sacn => "sacn",
                     DmxProtocol::UsbPro => "usb_pro",
+                    DmxProtocol::UsbCable => "usb_cable",
                 };
                 json!({"universe": o.universe, "protocol": protocol, "network_universe": o.network_universe, "address": o.address, "priority": o.priority})
             })
@@ -546,6 +548,9 @@ mod tests {
         assert_eq!(list[0]["protocol"], json!("usb_pro"));
         assert_eq!(list[1]["address"], json!("/dev/ttyUSB0"));
         assert_eq!(list[0]["network_universe"], json!(0));
+        // A plain cable is named by its port the same way.
+        assert!(e.run("dmx.output_add", &json!({"universe": 3, "protocol": "usb_cable", "address": "COM5"})).is_ok());
+        assert!(e.run("dmx.output_add", &json!({"universe": 3, "protocol": "usb_cable", "address": ""})).is_err());
         // Saved and loaded; a file with a bad port name loses it.
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.dmx_outputs).unwrap_or_default();
         assert_eq!(back, e.show.dmx_outputs);
