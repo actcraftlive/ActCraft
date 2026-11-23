@@ -1028,8 +1028,13 @@ impl ActCraftApp {
         }
         ui.separator();
         let Some(doc) = self.notation.as_ref() else { return };
-        let view =
-            ScoreView { look: self.notation_look, follow: self.sheet_view.follow, keyboard: true, salt: "notation" };
+        let view = ScoreView {
+            look: self.notation_look,
+            follow: self.sheet_view.follow,
+            keyboard: true,
+            salt: "notation",
+            start_line: None,
+        };
         let out = score_canvas(ui, t, doc, song, (e.status.time, e.status.playing), view);
         self.notation_look.cursor = out.cursor;
         if let Some(at) = out.seek {
@@ -1068,6 +1073,8 @@ pub(crate) struct ScoreView {
     pub keyboard: bool,
     /// Tells this view's scroll position apart from another one's.
     pub salt: &'static str,
+    /// Shows from this line down, without the playing bar marked (a still picture of the score).
+    pub start_line: Option<usize>,
 }
 
 /// What a score view did: where the keyboard's bar is now, and a time to play from.
@@ -1105,8 +1112,14 @@ pub(crate) fn score_canvas(
     let played = playing_bar(song, time, order.len());
     // The written bar that plays.
     let playing = played.and_then(|(k, frac)| order.get(k).map(|&b| (b, frac)));
+    let playing = playing.filter(|_| view.start_line.is_none());
     let ink = Ink { paper: t.surface, ink: t.text, line: t.text_dim, mark: t.accent };
     let mut area = egui::ScrollArea::vertical().id_salt((view.salt, song.id)).auto_shrink([false, false]);
+    if let Some(line) = view.start_line {
+        area = area
+            .vertical_scroll_offset(line as f32 * line_h)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+    }
     if view.follow && playing_now {
         if let Some((bar, _)) = playing
             && let Some(line) = systems.iter().position(|s| bar >= s.first && bar < s.first + s.widths.len())
@@ -1661,6 +1674,58 @@ fn move_cursor(cursor: usize, key: Key, systems: &[System], bars: usize) -> usiz
     }
 }
 
+/// A still picture of a score for the browser view: part `part` of `score`, `width` points wide,
+/// `lines` lines from the one holding the bar that plays at `time` (or the first). Returns that
+/// line and the picture as SVG, black on white. The window's own drawing makes it, so it looks
+/// like the Sheet music tab.
+pub fn score_svg(
+    score: &Score,
+    part: usize,
+    song: &Song,
+    time: f64,
+    width: f32,
+    lines: usize,
+) -> Option<(usize, String)> {
+    let p = score.parts.get(part)?;
+    if p.bars.is_empty() {
+        return None;
+    }
+    let look = NotationLook { part, ..NotationLook::default() };
+    let m = Metrics::new(look.zoom);
+    let rows = Rows::of(p, look.show);
+    let (_, _, line_h) = rows.layout(m);
+    let margin = 8.0;
+    let inner = (width - 2.0 * margin).max(200.0);
+    let systems = break_lines(p, &rows, inner, m);
+    let orders: Vec<Vec<usize>> = score.parts.iter().map(|q| actcraft_engine::notation::play_order(&q.bars)).collect();
+    let order = orders.get(part).map(Vec::as_slice).unwrap_or_default();
+    let bar = playing_bar(song, time, order.len()).and_then(|(k, _)| order.get(k).copied()).unwrap_or(0);
+    let line = line_of(&systems, bar).unwrap_or(0).min(systems.len().saturating_sub(1));
+    let shown = lines.clamp(1, 8).min(systems.len() - line);
+    let height = shown as f32 * line_h + 2.0 * margin;
+    let doc = NotationDoc { path: String::new(), score: score.clone(), orders };
+    let mut t = crate::theme::DARK;
+    t.surface = egui::Color32::WHITE;
+    t.text = egui::Color32::BLACK;
+    t.text_dim = egui::Color32::from_gray(90);
+    t.accent = egui::Color32::from_rgb(0x1f, 0x5f, 0xb0);
+    let view = ScoreView { look, follow: false, keyboard: false, salt: "browser", start_line: Some(line) };
+    let screen = Rect::from_min_size(egui::Pos2::ZERO, vec2(width, height));
+    let ctx = egui::Context::default();
+    let mut shapes = Vec::new();
+    // Twice: the first pass loads the fonts and settles the scroll offset.
+    for _ in 0..2 {
+        let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            let _ = score_canvas(ui, t, &doc, song, (time, false), view);
+        });
+        // No screen takes the font texture: let it go as handled.
+        out.textures_delta.clear();
+        shapes = out.shapes;
+    }
+    Some((line, crate::svg::shapes_to_svg(&shapes, screen)))
+}
+
 /// Where a point lands: the bar index under it, for tests of the layout.
 #[cfg(test)]
 fn bar_at(systems: &[System], line_h: f32, header_x: f32, p: egui::Pos2) -> Option<usize> {
@@ -2017,5 +2082,68 @@ mod tests {
         assert_eq!(playing_bar(&song, 1.0, 10), Some((0, 0.0)), "the pickup bar");
         assert_eq!(playing_bar(&song, 3.0, 10), Some((1, 0.0)), "score bar 2 starts on beat one");
         assert!((bar_time(&song, 0) - 1.0).abs() < 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod browser_tests {
+    use super::*;
+
+    /// A one-part score of `bars` bars of four quarter notes.
+    fn score(bars: usize) -> Score {
+        let bar = |i: usize| Bar {
+            number: (i + 1).to_string(),
+            beats: 4,
+            beat_type: 4,
+            fifths: 1,
+            tempo: None,
+            length: 3840,
+            notes: (0..4)
+                .map(|k| Note {
+                    start: k * 960,
+                    length: 960,
+                    pitch: Some(actcraft_engine::notation::Pitch { step: (k % 7) as u8, alter: 0, octave: 4 }),
+                    value: NoteValue::Quarter,
+                    dots: 0,
+                    string: None,
+                    fret: None,
+                    tied: false,
+                    tie_start: false,
+                    slurs: Vec::new(),
+                    tuplet: Default::default(),
+                    technique: Default::default(),
+                    lyrics: Vec::new(),
+                    voice: 1,
+                    staff: 1,
+                })
+                .collect(),
+            flow: Default::default(),
+            chords: Vec::new(),
+        };
+        let part = Part {
+            name: "Lead".into(),
+            bars: (0..bars).map(bar).collect(),
+            clefs: vec![Clef::TREBLE],
+            ..Part::default()
+        };
+        Score { title: "T".into(), composer: String::new(), parts: vec![part] }
+    }
+
+    #[test]
+    fn a_score_is_drawn_as_svg_from_the_line_that_plays() {
+        let song = Song { bpm: 120.0, beats_per_bar: 4, beat_anchor: 0.0, ..Song::default() };
+        let s = score(40);
+        let first = score_svg(&s, 0, &song, 0.0, 600.0, 2);
+        let Some((line, svg)) = first else { panic!("no picture") };
+        assert_eq!(line, 0);
+        assert!(
+            svg.starts_with("<svg") && svg.contains("<line") && svg.contains("<ellipse"),
+            "staff lines and noteheads"
+        );
+        // Bar 30 plays a minute in: a later line.
+        let later = score_svg(&s, 0, &song, 60.0, 600.0, 2).map(|(l, _)| l).unwrap_or(0);
+        assert!(later > 0, "{later}");
+        assert!(score_svg(&s, 3, &song, 0.0, 600.0, 2).is_none(), "no such part");
+        std::fs::write("C:/Users/seipt/AppData/Local/Temp/claude/8c9c67f4bc90a763/74ddcdea-7fe1-4062-bd6a-b9427fea30e8/scratchpad/score.svg", svg).ok();
     }
 }

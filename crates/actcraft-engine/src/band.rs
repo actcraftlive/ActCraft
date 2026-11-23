@@ -35,7 +35,7 @@ impl Engine {
                 let sheet = song.and_then(|s| {
                     let i = crate::sheet_commands::sheet_for(s, name)?;
                     let sheet = s.sheets.get(i)?;
-                    Some(json!({"song": s.id, "index": i, "name": sheet.name, "pdf_file": sheet.pdf_file,
+                    Some(json!({"song": s.id, "index": i, "name": sheet.name, "pdf_file": sheet.pdf_file, "part": sheet.part,
                         "notation_file": sheet.notation_file}))
                 });
                 json!({"name": name, "sheet": sheet})
