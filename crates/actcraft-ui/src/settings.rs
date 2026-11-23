@@ -17,6 +17,7 @@ pub(crate) enum Tab {
     Voice,
     Playback,
     Midi,
+    Macros,
     Library,
 }
 
@@ -29,6 +30,7 @@ impl Tab {
             "voice" => Tab::Voice,
             "playback" => Tab::Playback,
             "midi" => Tab::Midi,
+            "macros" => Tab::Macros,
             "library" => Tab::Library,
             _ => return None,
         })
@@ -118,6 +120,7 @@ impl ActCraftApp {
                         (Tab::Voice, tr("Spoken cues")),
                         (Tab::Playback, tr("Playback")),
                         (Tab::Midi, tr("MIDI")),
+                        (Tab::Macros, tr("Macros")),
                         (Tab::Library, tr("Library")),
                     ] {
                         ui.selectable_value(&mut self.settings_tab, tab, label);
@@ -130,6 +133,7 @@ impl ActCraftApp {
                     Tab::Voice => self.voice_settings(ui, e),
                     Tab::Playback => self.playback_settings(ui, e),
                     Tab::Midi => self.midi_settings(ui, e),
+                    Tab::Macros => self.macro_settings(ui, e),
                     Tab::Library => self.library_settings(ui, e),
                 }
             });
@@ -441,6 +445,95 @@ impl ActCraftApp {
         });
         ui.add_space(12.0);
         self.remote_settings(ui, e);
+    }
+
+    /// Macros: named lists of commands, called with `$NAME` at a timecoded lyrics line.
+    fn macro_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
+        let t = self.tokens;
+        ui.label(
+            RichText::new(tr(
+                "Write $NAME at a timecoded line of a song's lyrics, and the macro NAME runs when playback gets there.",
+            ))
+            .color(t.text_dim),
+        );
+        let label_of = |id: &str| tr(actcraft_engine::registry().get(id).map_or(id, |c| c.spec.label)).to_owned();
+        let macros = e.show.macros.clone();
+        let (mut run, mut remove, mut edit) = (None, None, None);
+        egui::Grid::new("macros").num_columns(4).striped(true).show(ui, |ui| {
+            for m in &macros {
+                ui.label(RichText::new(format!("${}", m.name)).strong());
+                let steps: Vec<String> = m.commands.iter().map(|c| label_of(c)).collect();
+                ui.label(steps.join(" \u{b7} "));
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Run")).clicked() {
+                        run = Some(m.name.clone());
+                    }
+                    if ui.button(tr("Change")).clicked() {
+                        edit = Some((m.name.clone(), m.commands.clone()));
+                    }
+                    if ui.button(tr("Remove")).clicked() {
+                        remove = Some(m.name.clone());
+                    }
+                });
+                ui.end_row();
+            }
+        });
+        if let Some(name) = run {
+            self.run(e, "macro.run", json!({"name": name}));
+        }
+        if let Some(name) = remove {
+            self.run(e, "macro.remove", json!({"name": name}));
+        }
+        if let Some(draft) = edit {
+            self.macro_draft = draft;
+        }
+        ui.add_space(8.0);
+        ui.label(RichText::new(tr("New or changed macro")).strong());
+        let (name, commands) = &mut self.macro_draft;
+        ui.horizontal(|ui| {
+            let label = ui.label(tr("Name"));
+            ui.add(egui::TextEdit::singleline(name).desired_width(160.0).hint_text("LIGHTS_UP")).labelled_by(label.id);
+            *name =
+                name.to_ascii_uppercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').take(32).collect();
+        });
+        let mut drop_step = None;
+        for (i, c) in commands.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(format!("{}. {}", i + 1, label_of(c)));
+                if ui.small_button(tr("Remove")).clicked() {
+                    drop_step = Some(i);
+                }
+            });
+        }
+        if let Some(i) = drop_step {
+            commands.remove(i);
+        }
+        ui.horizontal(|ui| {
+            let label = ui.label(tr("Add a command"));
+            let mut choices: Vec<(&'static str, &'static str)> = actcraft_engine::registry()
+                .iter()
+                .filter(|c| actcraft_engine::remote::runnable(c.spec.id))
+                .map(|c| (c.spec.id, tr(c.spec.label)))
+                .collect();
+            choices.sort_by(|a, b| a.1.cmp(b.1));
+            egui::ComboBox::from_id_salt("macro-command")
+                .width(260.0)
+                .selected_text(tr("Choose a command"))
+                .show_ui(ui, |ui| {
+                    for (id, label) in &choices {
+                        if ui.selectable_label(false, *label).clicked() && commands.len() < 32 {
+                            commands.push((*id).to_owned());
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+        });
+        let ready = actcraft_show::Macro::valid_name(&self.macro_draft.0);
+        if ui.add_enabled(ready, egui::Button::new(tr("Save macro"))).clicked() {
+            let (name, commands) = std::mem::take(&mut self.macro_draft);
+            self.run(e, "macro.set", json!({"name": name, "commands": commands}));
+        }
     }
 
     /// Remote actions: the MIDI input a controller is on, and what its messages set off.

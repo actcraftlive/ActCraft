@@ -26,6 +26,7 @@ use serde_json::Value;
 
 pub mod commands;
 pub mod error_text;
+pub mod macros;
 pub mod midi_file;
 pub mod midi_sync;
 pub mod notation_commands;
@@ -126,6 +127,11 @@ pub struct Engine {
     /// Last value of each MIDI controller (channel, number) seen, so a foot switch sets off its
     /// remote action once per press.
     remote_cc: std::collections::HashMap<(u8, u8), u8>,
+    /// Changes made to the show so far (lyrics read again for macro calls after one).
+    edits: usize,
+    /// Song time macros were last looked at, while playing; and the playing song's macro calls.
+    macro_at: Option<f64>,
+    macro_cues: Option<((u64, usize), macros::MacroCues)>,
     pub queue: Queue,
     pub double_tap: DoubleTap,
     /// Last search and its results.
@@ -202,6 +208,9 @@ impl Engine {
             current_song: None,
             current_playlist: None,
             remote_cc: std::collections::HashMap::new(),
+            edits: 0,
+            macro_at: None,
+            macro_cues: None,
             queue: Queue::new(),
             double_tap: DoubleTap::default(),
             search_query: String::new(),
@@ -267,6 +276,7 @@ impl Engine {
             self.last_ended = self.status.ended_count;
             self.on_song_end();
         }
+        self.run_due_macros();
     }
 
     fn on_song_end(&mut self) {
@@ -808,6 +818,7 @@ impl Engine {
 
     pub(crate) fn mark_changed(&mut self) {
         self.dirty = true;
+        self.edits = self.edits.wrapping_add(1);
     }
 
     pub(crate) fn loaded_song(&self) -> Option<u64> {

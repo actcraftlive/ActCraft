@@ -433,6 +433,17 @@ pub fn all() -> Vec<Command<Engine>> {
             "{kind: note|cc|program, channel?: 1-16, number: 0-127, value?: 0-127} (as if the MIDI message came in) -> {ran}",
             crate::remote::remote_trigger,
         ),
+        cmd(
+            "macro.set",
+            "Set macro",
+            "",
+            None,
+            "{name: capitals, digits and _ ($NAME in lyrics calls it), commands: [id] (ones that need nothing more)} -> {name}",
+            crate::macros::macro_set,
+        ),
+        cmd("macro.remove", "Remove macro", "", None, "{name: text}", crate::macros::macro_remove),
+        cmd("macro.list", "List macros", "", None, "none", crate::macros::macro_list),
+        cmd("macro.run", "Run macro", "", None, "{name: text}", crate::macros::macro_run),
         cmd("voice.prepare", "Speak cues now", "", None, "{song?: id}", crate::voice::voice_prepare),
         with_song(cmd(
             "metronome.count_in",

@@ -706,3 +706,21 @@
 	`kind` must be note, cc or program	`kind` muss note, cc oder program sein
 	a remote action runs a command that needs nothing more	eine Fernaktion führt einen Befehl aus, der nichts weiter braucht
 	a show holds at most 256 remote actions	eine Show hat höchstens 256 Fernaktionen
+	Add a command	Einen Befehl hinzufügen
+	Change	Ändern
+	List macros	Makros auflisten
+	Macros	Makros
+	New or changed macro	Neues oder geändertes Makro
+	Remove macro	Makro entfernen
+	Run	Ausführen
+	Run macro	Makro ausführen
+	Save macro	Makro speichern
+	Set macro	Makro festlegen
+	Write $NAME at a timecoded line of a song's lyrics, and the macro NAME runs when playback gets there.	$NAME an eine Zeile mit Zeitstempel im Songtext schreiben, dann läuft das Makro NAME, wenn die Wiedergabe dort ankommt.
+	`commands` must be a list	`commands` muss eine Liste sein
+	`commands` must be command ids	`commands` müssen Befehls-IDs sein
+	a macro holds at most 32 commands	ein Makro hat höchstens 32 Befehle
+	a macro runs commands that need nothing more	ein Makro führt Befehle aus, die nichts weiter brauchen
+	a macro's name is capitals, digits and _, starting with a capital	der Name eines Makros besteht aus Großbuchstaben, Ziffern und _ und beginnt mit einem Großbuchstaben
+	a show holds at most 128 macros	eine Show hat höchstens 128 Makros
+	no macro named {name}	kein Makro namens {name}

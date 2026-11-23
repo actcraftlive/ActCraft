@@ -101,7 +101,31 @@ impl CommandSpec {
             return true;
         }
         let Some(fields) = self.params.strip_prefix('{').and_then(|d| d.split('}').next()) else { return false };
-        fields.match_indices(':').all(|(i, _)| fields.get(..i).is_some_and(|before| before.ends_with('?')))
+        // Every field named before a colon must be optional (`song?:`), and so must a field
+        // written without a type (`{name}` is required).
+        let typed = fields.match_indices(':').all(|(i, _)| fields.get(..i).is_some_and(|before| before.ends_with('?')));
+        let bare = fields.split(',').map(str::trim).filter(|f| !f.is_empty() && !f.contains(':'));
+        typed && bare.into_iter().all(|f| f.ends_with('?'))
+    }
+}
+
+#[cfg(test)]
+mod spec_tests {
+    use super::*;
+
+    fn spec(params: &'static str) -> CommandSpec {
+        CommandSpec { id: "a.b", label: "", menu: "", shortcut: None, params }
+    }
+
+    #[test]
+    fn only_optional_params_let_a_command_run_as_it_is() {
+        assert!(spec("none").runs_without_params());
+        assert!(spec("{song?: id, path?: text}").runs_without_params());
+        assert!(spec("{}").runs_without_params());
+        assert!(!spec("{song: id}").runs_without_params());
+        assert!(!spec("{name}").runs_without_params(), "a field without a type is required");
+        assert!(spec("{name?}").runs_without_params());
+        assert!(!spec("path text").runs_without_params());
     }
 }
 

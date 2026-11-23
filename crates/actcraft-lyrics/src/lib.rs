@@ -81,6 +81,9 @@ pub struct Line {
     pub spans: Vec<Span>,
     /// Inside `{start_of_chorus}` … `{end_of_chorus}`.
     pub chorus: bool,
+    /// Macros the line sets off when playback reaches it (`$INTRO`, `$LIGHTS_UP`), taken out of
+    /// its words.
+    pub macros: Vec<String>,
 }
 
 impl Line {
@@ -322,7 +325,7 @@ pub fn parse(source: &str) -> Lyrics {
             };
             let spans =
                 if kind == LineKind::Comment { vec![Span { text: value, ..Span::default() }] } else { Vec::new() };
-            out.lines.push(Line { kind, time: None, spans, chorus });
+            out.lines.push(Line { kind, time: None, spans, chorus, macros: Vec::new() });
             continue;
         }
         let (time, body) = match raw.strip_prefix('[').and_then(|r| r.find(']').map(|e| (r, e))) {
@@ -332,6 +335,7 @@ pub fn parse(source: &str) -> Lyrics {
             },
             None => (None, raw.clone()),
         };
+        let (body, macros) = take_macros(&body);
         let trimmed = body.trim_start();
         let (kind, content) = if let Some(rest) = trimmed.strip_prefix("### ") {
             (LineKind::Heading(3), rest.to_owned())
@@ -345,9 +349,49 @@ pub fn parse(source: &str) -> Lyrics {
             (LineKind::Text, body.clone())
         };
         let spans = parse_spans(&content, &mut tags, &mut inline);
-        out.lines.push(Line { kind, time, spans, chorus });
+        out.lines.push(Line { kind, time, spans, chorus, macros });
     }
     out
+}
+
+/// Macros a line holds, at most this many.
+const MAX_LINE_MACROS: usize = 8;
+/// Longest macro name.
+pub const MAX_MACRO_NAME: usize = 32;
+
+/// Takes `$NAME` macro calls out of a line: a `$`, a capital letter, then capitals, digits and
+/// `_`. Other `$` signs (`$5`, `$money`) stay words. Returns the line without them (and the one
+/// space each leaves) and the names.
+pub fn take_macros(line: &str) -> (String, Vec<String>) {
+    if !line.contains('$') {
+        return (line.to_owned(), Vec::new());
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut names = Vec::new();
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '$' && chars.peek().is_some_and(char::is_ascii_uppercase) {
+            let mut name = String::new();
+            while let Some(&n) = chars.peek() {
+                if (n.is_ascii_uppercase() || n.is_ascii_digit() || n == '_') && name.len() < MAX_MACRO_NAME {
+                    name.push(n);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if names.len() < MAX_LINE_MACROS {
+                names.push(name);
+            }
+            // One space goes with the call, so words don't run together or apart.
+            if (out.ends_with(' ') || out.is_empty()) && chars.peek() == Some(&' ') {
+                chars.next();
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    (out, names)
 }
 
 /// Splits one line into spans at chords and style changes.
@@ -450,6 +494,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn macro_calls_are_taken_out_of_the_words() {
+        assert_eq!(take_macros("$INTRO The road is long"), ("The road is long".to_owned(), vec!["INTRO".to_owned()]));
+        assert_eq!(
+            take_macros("long $LIGHTS_UP $FOG2 road"),
+            ("long road".to_owned(), vec!["LIGHTS_UP".to_owned(), "FOG2".to_owned()])
+        );
+        assert_eq!(take_macros("It cost $5, $money"), ("It cost $5, $money".to_owned(), vec![]), "not macros");
+        let l = parse("[00:12.50]$CHORUS Here [G]we go\nno time $NOPE");
+        assert_eq!(l.lines[0].macros, vec!["CHORUS".to_owned()]);
+        assert_eq!(l.lines[0].plain_text(), "Here we go");
+        assert_eq!(l.lines[1].macros, vec!["NOPE".to_owned()], "a line without a time keeps them too");
+        let long = format!("${}", "A".repeat(80));
+        assert_eq!(take_macros(&long).1[0].len(), MAX_MACRO_NAME);
+    }
+
+    #[test]
     fn chords_timecodes_headings_and_styles() {
         let src = "{title: Night Drive}\r\n# Verse\r\n[00:12.50]The [Am]road is [F]long\n**loud** *soft* __under__\n{c: slowly}\n{soc}\nLa la\n{eoc}\n";
         let l = parse(src);
@@ -460,6 +520,7 @@ mod tests {
             time: None,
             spans: vec![],
             chorus: false,
+            macros: vec![],
         });
         assert_eq!(line.time, Some(12.5));
         assert_eq!(line.plain_text(), "The road is long");
