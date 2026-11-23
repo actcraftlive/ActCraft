@@ -724,7 +724,9 @@ impl ActCraftApp {
                 if let Some(m) = e.messages.back() {
                     let colour = if m.error { t.danger } else { t.text };
                     let text = message_text(m);
-                    let label = ui.label(RichText::new(&text).color(colour));
+                    // Cut to the room left (the whole text on hover and for screen readers), so a
+                    // long message never runs over the notes to its left.
+                    let label = ui.add(egui::Label::new(RichText::new(&text).color(colour)).truncate());
                     // New messages are announced to screen readers.
                     if e.messages.len() != self.last_announced {
                         self.last_announced = e.messages.len();
