@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: ready-made effect templates; M6: control pages, blind and freeze
+2. M5: ready-made effect templates; M6: control pages and blind
 
 ## Quality and open questions
 
@@ -198,7 +198,12 @@ details are in the milestone sections further down.
   values, seconds or beats per cycle at the song tempo, spread over the group; started and
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
   Ready-made effect templates, colour and movement effects across several attributes, control
-  pages, blind and freeze to do
+  pages and blind to do
+- ✅ Blackout, master and freeze: blackout takes every fixture dark at the output and a master
+  scales how bright they are, by their intensity (or colour) channels only, so positions and the
+  stored levels stay (`dmx.blackout`, `dmx.master`); freeze holds fades and effects and lets them
+  go on from there (`lighting.freeze`). In the Presets window, the Lighting menu and as toggle
+  pads
 - ✅ 2D stage preview: Lighting > Stage shows the fixtures from above in the colour they show now;
   placed by dragging or by numbers (`fixture.place`; `fixture.stage` lists places and colours).
   Beams and moving-head direction to do

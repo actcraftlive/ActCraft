@@ -163,3 +163,17 @@ fn a_fixture_is_picked_and_placed_on_the_stage_by_numbers() {
     let place = with(&engine, |e| e.show.fixtures.first().and_then(|f| f.place));
     assert!(place.is_some_and(|[x, _]| (x - 0.2).abs() < 1e-6), "{place:?}");
 }
+
+#[test]
+fn blackout_is_switched_from_the_presets_window_and_says_its_state() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Blackout \u{b7} off").click_accesskit();
+    frames(&mut h, 3);
+    assert!(with(&engine, |e| e.dmx.blackout));
+    assert!(h.query_by_role_and_label(Role::Button, "Blackout \u{b7} on").is_some());
+    h.get_by_role_and_label(Role::Slider, "Master").set_value_accesskit(0.25);
+    frames(&mut h, 3);
+    assert!(with(&engine, |e| (e.dmx.master - 0.25).abs() < 1e-9));
+}

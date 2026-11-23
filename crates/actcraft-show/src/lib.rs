@@ -538,6 +538,10 @@ pub enum ToggleTarget {
     LoopSong,
     /// The next song starts when the playing one ends.
     Autoplay,
+    /// Every fixture dark at the output.
+    Blackout,
+    /// Fades and effects held.
+    Freeze,
 }
 
 /// The volume a fader pad moves.

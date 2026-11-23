@@ -367,6 +367,12 @@ impl ActCraftApp {
         self.centre_tab = CentreTab::Light;
     }
 
+    /// Lets the window close without asking about unsaved changes (after `--screenshot`, which
+    /// must end even when the show was changed while it ran).
+    pub fn close_without_asking(&mut self) {
+        self.allow_close = true;
+    }
+
     /// Opens the Stage window (`--stage-view`, for screenshots).
     pub fn show_stage_view(&mut self) {
         self.stage_view = Some(self.stage_view.unwrap_or_default());

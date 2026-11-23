@@ -14,16 +14,21 @@ pub const UNIVERSES: usize = actcraft_show::limits::DMX_UNIVERSES;
 pub const CHANNELS: usize = 512;
 
 /// The levels of every universe.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Dmx {
     universes: Vec<[u8; CHANNELS]>,
-    /// Goes up with every change, for outputs to see that something changed.
+    /// Goes up with every change (also of blackout and master), for outputs to see that
+    /// something changed.
     pub version: u64,
+    /// Every fixture dark at the output; the levels stay as they are.
+    pub blackout: bool,
+    /// How bright fixtures are at the output, 0-1 (1 as set).
+    pub master: f64,
 }
 
 impl Default for Dmx {
     fn default() -> Self {
-        Self { universes: vec![[0; CHANNELS]; UNIVERSES], version: 0 }
+        Self { universes: vec![[0; CHANNELS]; UNIVERSES], version: 0, blackout: false, master: 1.0 }
     }
 }
 
@@ -101,6 +106,104 @@ pub fn dmx_clear(e: &mut Engine, prm: &Value) -> CommandResult {
     let which = if prm.get("universe").is_some() { Some(universe(prm)?) } else { None };
     e.dmx.clear(which);
     Ok(Value::Null)
+}
+
+impl Engine {
+    /// What a universe sends: its levels, with every fixture's brightness scaled by the master
+    /// and taken to 0 in a blackout. A fixture's brightness is its intensity channel (with its
+    /// fine channel), or its colour channels when it has no intensity; pan, tilt and the rest
+    /// stay as they are, so moving lights don't move.
+    pub fn output_universe(&self, universe: usize) -> Option<[u8; CHANNELS]> {
+        let mut out = *self.dmx.universe(universe)?;
+        let scale = if self.dmx.blackout { 0.0 } else { self.dmx.master.clamp(0.0, 1.0) };
+        if scale >= 1.0 {
+            return Some(out);
+        }
+        use actcraft_show::Attribute as A;
+        for f in self.show.fixtures.iter().filter(|f| usize::from(f.universe) == universe) {
+            let at = |offset: usize| usize::from(f.address).saturating_sub(1) + offset;
+            let has_intensity = f.channels.contains(&A::Intensity);
+            let coarse = f.channels.iter().position(|a| *a == A::Intensity);
+            let fine = f.channels.iter().position(|a| *a == A::IntensityFine);
+            match (coarse, fine) {
+                (Some(c), Some(fi)) => {
+                    let (Some(&hi), Some(&lo)) = (out.get(at(c)), out.get(at(fi))) else { continue };
+                    let v = (f64::from(u16::from_be_bytes([hi, lo])) * scale).round() as u16;
+                    let [hi, lo] = v.to_be_bytes();
+                    if let Some(slot) = out.get_mut(at(c)) {
+                        *slot = hi;
+                    }
+                    if let Some(slot) = out.get_mut(at(fi)) {
+                        *slot = lo;
+                    }
+                }
+                _ => {
+                    for (offset, a) in f.channels.iter().enumerate() {
+                        let dims = if has_intensity {
+                            *a == A::Intensity
+                        } else {
+                            matches!(a, A::Red | A::Green | A::Blue | A::White | A::Amber | A::Uv)
+                        };
+                        if dims && let Some(slot) = out.get_mut(at(offset)) {
+                            *slot = (f64::from(*slot) * scale).round() as u8;
+                        }
+                    }
+                }
+            }
+        }
+        Some(out)
+    }
+
+    /// Holds fades and effects where they are (`true`) or lets them go on from there.
+    pub(crate) fn set_frozen(&mut self, on: bool) {
+        let now = self.services().now();
+        match (self.frozen_at, on) {
+            (None, true) => self.frozen_at = Some(now),
+            (Some(since), false) => {
+                // Pick up where they were held: their clocks move on by the time held.
+                let held = now - since;
+                if let Some(fade) = &mut self.fade {
+                    fade.shift(held);
+                }
+                for (_, started) in &mut self.running_effects {
+                    *started += held;
+                }
+                self.frozen_at = None;
+            }
+            _ => {}
+        }
+    }
+
+    /// Whether fades and effects are held.
+    pub fn frozen(&self) -> bool {
+        self.frozen_at.is_some()
+    }
+}
+
+fn opt_on(prm: &Value, now: bool) -> Result<bool, CommandError> {
+    Ok(p::opt_bool(prm, "on")?.unwrap_or(!now))
+}
+
+/// `dmx.blackout {on?}`: every fixture dark at the output (switches without `on`).
+pub fn dmx_blackout(e: &mut Engine, prm: &Value) -> CommandResult {
+    let on = opt_on(prm, e.dmx.blackout)?;
+    e.dmx.blackout = on;
+    e.dmx.version += 1;
+    Ok(json!({"on": on}))
+}
+
+/// `dmx.master {level}`: how bright fixtures are at the output, 0-1.
+pub fn dmx_master(e: &mut Engine, prm: &Value) -> CommandResult {
+    e.dmx.master = p::f64_in(prm, "level", 0.0, 1.0)?;
+    e.dmx.version += 1;
+    Ok(Value::Null)
+}
+
+/// `lighting.freeze {on?}`: holds fades and effects (switches without `on`).
+pub fn lighting_freeze(e: &mut Engine, prm: &Value) -> CommandResult {
+    let on = opt_on(prm, e.frozen())?;
+    e.set_frozen(on);
+    Ok(json!({"on": on}))
 }
 
 /// `dmx.get {universe}`: the levels of one universe, channel 1 first.
@@ -207,6 +310,50 @@ mod tests {
         assert_eq!(back, e.show.dmx_outputs);
         assert!(e.run("dmx.output_remove", &json!({"output": 0})).is_ok());
         assert_eq!(e.show.dmx_outputs.len(), 1);
+    }
+
+    #[test]
+    fn blackout_and_master_dim_fixtures_at_the_output_only() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        // A moving head (16-bit intensity: no, 8-bit with pan) and an RGB light without a dimmer.
+        let _ = e.run("fixture.add", &json!({"channels": ["pan", "intensity", "intensity_fine"], "universe": 1}));
+        let _ = e.run("fixture.add", &json!({"kind": "rgb", "universe": 1}));
+        let _ =
+            e.run("fixture.set", &json!({"fixtures": [0, 1], "values": {"pan": 0.5, "intensity": 1.0, "red": 1.0}}));
+        let out = |e: &Engine| e.output_universe(1).unwrap_or([0; CHANNELS]);
+        assert_eq!(out(&e)[..6], [128, 255, 255, 255, 0, 0], "as set");
+        let before = e.dmx.version;
+        assert_eq!(e.run("dmx.blackout", &Value::Null).ok(), Some(json!({"on": true})));
+        assert!(e.dmx.version > before, "the output sends again");
+        assert_eq!(out(&e)[..6], [128, 0, 0, 0, 0, 0], "dark, but the head keeps its pan");
+        assert_eq!(e.dmx.universe(1).map(|u| u[1]), Some(255), "the levels stay");
+        assert_eq!(e.run("dmx.blackout", &Value::Null).ok(), Some(json!({"on": false})));
+        assert!(e.run("dmx.master", &json!({"level": 0.5})).is_ok());
+        let half = out(&e);
+        assert_eq!(half[0], 128, "pan kept");
+        assert!((127..=128).contains(&half[1]) && (127..=128).contains(&half[3]), "intensity and red halved: {half:?}");
+        assert!(e.run("dmx.master", &json!({"level": 1.5})).is_err());
+    }
+
+    #[test]
+    fn freeze_holds_a_fade_and_goes_on_from_there() {
+        use chrono::TimeDelta;
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Full"}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.0}}));
+        let start = e.services().now();
+        let _ = e.run("preset.recall", &json!({"preset": 0, "fade": 2.0}));
+        e.step_fade(start + TimeDelta::milliseconds(1000));
+        let held = e.dmx.universe(1).map_or(0, |u| u[0]);
+        assert_eq!(e.run("lighting.freeze", &Value::Null).ok(), Some(json!({"on": true})));
+        assert!(e.frozen());
+        // While frozen the tick leaves the fade alone.
+        e.tick();
+        assert_eq!(e.dmx.universe(1).map_or(0, |u| u[0]), held);
+        assert!(e.run("lighting.freeze", &json!({"on": false})).is_ok());
+        assert!(!e.frozen() && e.fading(), "the fade goes on");
     }
 
     #[test]

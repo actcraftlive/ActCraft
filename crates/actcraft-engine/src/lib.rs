@@ -160,6 +160,8 @@ pub struct Engine {
     light_at: Option<f64>,
     /// Effects running now (by name) and when each started.
     running_effects: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
+    /// Since when fades and effects are held (lighting freeze).
+    frozen_at: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// Messages for the person, newest last.
     pub messages: VecDeque<Message>,
     audio: Option<Controller>,
@@ -241,6 +243,7 @@ impl Engine {
             cue_at: std::collections::HashMap::new(),
             light_at: None,
             running_effects: Vec::new(),
+            frozen_at: None,
             audio: None,
             loaded_song: None,
             last_ended: 0,
@@ -292,11 +295,11 @@ impl Engine {
     pub fn tick(&mut self) {
         self.drain_loads();
         self.drain_voices();
-        if self.fade.is_some() {
+        if self.fade.is_some() && self.frozen_at.is_none() {
             let now = self.services.now();
             self.step_fade(now);
         }
-        if !self.running_effects.is_empty() {
+        if !self.running_effects.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();
             self.step_effects(now);
         }
