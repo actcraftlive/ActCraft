@@ -12,7 +12,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ✅ |
-| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, sequences (cues that go on by themselves), effects, stage preview with beams done; more ready-made effects to do |
+| M5 | 2D stage preview, programming, presets, sequences, effects engine | ✅ |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in, DMX in with triggers, game controller buttons done |
@@ -209,7 +209,7 @@ details are in the milestone sections further down.
   circle, red, green and blue a rainbow; `effect.set {also}`, "Move another attribute too"). An
   effect counted in beats locks to the playing song's beat grid, so its pulses land on the beat
   wherever it was started
-- ✅ Ready-made effects: thirty-nine to start from (breathe, pulses and waves on the beat or over a
+- ✅ Ready-made effects: seventy to start from (breathe, pulses and waves on the beat or over a
   bar, chases, builds, bounce, every other light, colour pulses, drifts and chases, red and blue,
   warm and cool, embers, ocean, sweeps, fans, nods, circles, rainbows, zooms); none flashes
   more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the
