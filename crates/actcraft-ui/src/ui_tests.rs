@@ -177,3 +177,24 @@ fn blackout_is_switched_from_the_presets_window_and_says_its_state() {
     frames(&mut h, 3);
     assert!(with(&engine, |e| (e.dmx.master - 0.25).abs() < 1e-9));
 }
+
+#[test]
+fn a_ready_made_effect_fills_the_effect_form() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "moving_head", "universe": 1, "count": 2}));
+        let _ = e.run("group.set", &json!({"name": "Heads", "fixtures": [0, 1]}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Start from").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Fan out").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Save effect").click_accesskit();
+    frames(&mut h, 3);
+    let fx = with(&engine, |e| e.show.effects.first().cloned());
+    assert_eq!(
+        fx.map(|f| (f.name, f.attribute)),
+        Some(("Fan out".to_owned(), actcraft_engine::fixtures::Attribute::Pan))
+    );
+}
