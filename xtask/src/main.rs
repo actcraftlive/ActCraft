@@ -61,7 +61,8 @@ fn main() {
 
 /// `cargo xtask icon [SOURCE]`: makes the logo files the app and docs use from a large source
 /// picture: `assets/logo/actcraft-logo.png` (512 px) and `assets/logo/actcraft-icon-256.png`
-/// (the window icon, embedded in the binary).
+/// (the window icon, embedded in the binary) and `assets/logo/actcraft.ico` (the Windows program
+/// icon).
 fn icon(root: &Path, source: Option<&str>) -> Result<(), String> {
     let dir = root.join("assets").join("logo");
     let src = source.map_or_else(|| dir.join("actcraft-logo.png"), PathBuf::from);
@@ -73,7 +74,49 @@ fn icon(root: &Path, source: Option<&str>) -> Result<(), String> {
         out.save(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         println!("wrote {}", path.display());
     }
+    // The Windows program icon: every size Explorer, the taskbar and shortcuts ask for, each a
+    // PNG inside the .ico (Windows Vista and later read those).
+    let mut pngs = Vec::new();
+    for size in [16u32, 20, 24, 32, 40, 48, 64, 128, 256] {
+        let out = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
+        let mut png = Vec::new();
+        image::ImageEncoder::write_image(
+            image::codecs::png::PngEncoder::new(&mut png),
+            out.as_raw(),
+            size,
+            size,
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| e.to_string())?;
+        pngs.push((size, png));
+    }
+    let path = dir.join("actcraft.ico");
+    std::fs::write(&path, ico(&pngs)?).map_err(|e| format!("{}: {e}", path.display()))?;
+    println!("wrote {}", path.display());
     Ok(())
+}
+
+/// An .ico file holding these PNG pictures (size in pixels, PNG bytes).
+fn ico(pngs: &[(u32, Vec<u8>)]) -> Result<Vec<u8>, String> {
+    let count = u16::try_from(pngs.len()).map_err(|_| "too many icon sizes".to_owned())?;
+    let mut out = vec![0, 0, 1, 0];
+    out.extend_from_slice(&count.to_le_bytes());
+    let mut offset = 6 + 16 * u32::from(count);
+    for (size, png) in pngs {
+        // 0 stands for 256 in the one-byte width and height.
+        let side = u8::try_from(*size).unwrap_or(0);
+        let len = u32::try_from(png.len()).map_err(|_| "icon picture too large".to_owned())?;
+        out.extend_from_slice(&[side, side, 0, 0]);
+        out.extend_from_slice(&1u16.to_le_bytes());
+        out.extend_from_slice(&32u16.to_le_bytes());
+        out.extend_from_slice(&len.to_le_bytes());
+        out.extend_from_slice(&offset.to_le_bytes());
+        offset += len;
+    }
+    for (_, png) in pngs {
+        out.extend_from_slice(png);
+    }
+    Ok(out)
 }
 
 /// `cargo xtask package`: a portable, unsigned archive of the app for this computer's system, in

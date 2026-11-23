@@ -28,5 +28,9 @@ craft-settings = { workspace = true }
 serde = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
+[build-dependencies]
+# Puts the program icon into the Windows executable (build.rs), as AdminCraft does.
+embed-resource = "3.0.12"
+
 [lints]
 workspace = true
