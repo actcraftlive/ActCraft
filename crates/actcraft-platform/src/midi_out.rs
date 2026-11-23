@@ -3,12 +3,13 @@
 //! ([`actcraft_engine::midi_sync`]); this only follows the playback position between the audio
 //! callback's updates and puts the messages on the wire.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use actcraft_audio::{Status, StatusReader};
+use actcraft_engine::midi_file::{MidiFilePlayer, MidiPart};
 use actcraft_engine::midi_sync::{Position, SyncConfig, SyncSender};
 
 /// The name ActCraft gives itself to the MIDI system.
@@ -24,11 +25,15 @@ pub fn output_ports() -> Vec<String> {
     out.ports().iter().filter_map(|p| out.port_name(p).ok()).collect()
 }
 
-/// Sends MIDI time to one output while it lives; dropping it sends Stop if a song was playing
-/// and closes the port.
+/// The song's MIDI file the thread plays, swapped when the song changes.
+type PartCell = Arc<Mutex<Option<Arc<MidiPart>>>>;
+
+/// Sends MIDI time, and the song's MIDI file, to one output while it lives; dropping it sends
+/// Stop (and releases held notes) if a song was playing and closes the port.
 pub struct MidiTimeOut {
     port: String,
     config: Arc<AtomicU32>,
+    part: PartCell,
     quit: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
@@ -44,12 +49,15 @@ impl MidiTimeOut {
             .ok_or_else(|| format!("{port} is not connected"))?;
         let mut conn = out.connect(&found, "ActCraft time").map_err(|e| e.to_string())?;
         let config = Arc::new(AtomicU32::new(encode(cfg)));
+        let part: PartCell = Arc::new(Mutex::new(None));
         let quit = Arc::new(AtomicBool::new(false));
-        let (cfg_cell, quit_flag) = (Arc::clone(&config), Arc::clone(&quit));
+        let (cfg_cell, part_cell, quit_flag) = (Arc::clone(&config), Arc::clone(&part), Arc::clone(&quit));
         let thread = std::thread::Builder::new()
             .name("actcraft-midi-time".into())
             .spawn(move || {
                 let mut sender = SyncSender::default();
+                let mut player = MidiFilePlayer::default();
+                let mut playing_part: Option<Arc<MidiPart>> = None;
                 let mut follow = Follow::default();
                 loop {
                     let stop = quit_flag.load(Ordering::Relaxed);
@@ -64,6 +72,28 @@ impl MidiTimeOut {
                     for msg in sender.step(decode(cfg_cell.load(Ordering::Relaxed)), at) {
                         let _ = conn.send(&msg);
                     }
+                    // Another song's file: release what the last one held and start afresh.
+                    let current = part_cell.lock().ok().and_then(|p| p.clone());
+                    let same = match (&current, &playing_part) {
+                        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    };
+                    if !same {
+                        if let Some(old) = &playing_part {
+                            let off = Position { playing: false, ..at };
+                            for msg in player.step(old, off) {
+                                let _ = conn.send(&msg);
+                            }
+                        }
+                        player = MidiFilePlayer::default();
+                        playing_part = current;
+                    }
+                    if let Some(p) = &playing_part {
+                        for msg in player.step(p, at) {
+                            let _ = conn.send(&msg);
+                        }
+                    }
                     if stop {
                         break;
                     }
@@ -72,7 +102,7 @@ impl MidiTimeOut {
                 conn.close();
             })
             .map_err(|e| e.to_string())?;
-        Ok(Self { port: port.to_owned(), config, quit, thread: Some(thread) })
+        Ok(Self { port: port.to_owned(), config, part, quit, thread: Some(thread) })
     }
 
     /// The output's name.
@@ -83,6 +113,13 @@ impl MidiTimeOut {
     /// What to send from now on.
     pub fn set(&self, cfg: SyncConfig) {
         self.config.store(encode(cfg), Ordering::Relaxed);
+    }
+
+    /// The song's MIDI file to play from now on (`None`: none).
+    pub fn set_part(&self, part: Option<Arc<MidiPart>>) {
+        if let Ok(mut cell) = self.part.lock() {
+            *cell = part;
+        }
     }
 }
 

@@ -42,6 +42,9 @@ struct Host {
     /// Where MIDI time goes while it plays, and the playback position it follows.
     midi: Option<MidiTimeOut>,
     status: Option<StatusReader>,
+    /// The song, MIDI file and latency offset the MIDI output plays now (loaded again when one
+    /// changes).
+    midi_part: Option<(u64, Option<String>, u64)>,
 }
 
 /// Turns the window's request into a native file picker.
@@ -89,6 +92,7 @@ impl eframe::App for Host {
         if let Some(midi) = &self.midi {
             midi.set(SyncConfig::from(&self.app.engine().show.midi));
         }
+        self.follow_midi_file();
         if let Some(language) = self.app.take_language_request() {
             self.prefs.update(|pr| pr.window.language = language);
         }
@@ -126,10 +130,39 @@ impl eframe::App for Host {
 }
 
 impl Host {
+    /// Hands the current song's MIDI file to the MIDI output when the song, its file or the
+    /// MIDI latency offset changed since the last look.
+    fn follow_midi_file(&mut self) {
+        let Some(midi) = &self.midi else { return };
+        let (key, part) = {
+            let e = self.app.engine();
+            let key = e.current_song.map(|id| {
+                let file = e.show.song(id).and_then(|s| s.midi_file.clone());
+                (id, file, e.show.mixer.midi_latency_offset_ms.to_bits())
+            });
+            if key == self.midi_part {
+                return;
+            }
+            let part = match key.as_ref().map(|k| actcraft_engine::midi_file::song_part(&e, k.0)) {
+                Some(Ok(part)) => part,
+                Some(Err(err)) => {
+                    drop(e);
+                    self.app.engine().say_error(err.message());
+                    None
+                }
+                None => None,
+            };
+            (key, part)
+        };
+        midi.set_part(part.map(Arc::new));
+        self.midi_part = key;
+    }
+
     /// Closes the MIDI time output and opens `port` (none for `None`), following the playback
     /// position of the running audio output. Remembered on this computer.
     fn switch_midi(&mut self, port: Option<String>) {
         self.midi = None;
+        self.midi_part = None;
         self.app.platform.midi_port = None;
         let name = port.clone().unwrap_or_default();
         self.prefs.update(|pr| pr.audio.midi_output = name);
@@ -335,7 +368,7 @@ fn main() {
             if about {
                 app.show_about();
             }
-            let mut host = Host { app, _audio: audio, screenshot, dialogs, prefs, midi: None, status };
+            let mut host = Host { app, _audio: audio, screenshot, dialogs, prefs, midi: None, status, midi_part: None };
             // The MIDI output chosen last time, if it is still there.
             host.app.platform.midi_ports = actcraft_platform::midi_output_ports();
             let saved = host.prefs.get().audio.midi_output.clone();
