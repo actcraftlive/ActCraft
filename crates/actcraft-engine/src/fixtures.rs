@@ -306,6 +306,51 @@ pub fn value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
     }
 }
 
+/// What a fixture shows now as a colour (red, green, blue, each 0-1, its intensity applied), for
+/// a preview: white, amber and UV lighten the channels they look like; a fixture without colour
+/// channels shows white.
+pub fn shown_colour(e: &Engine, f: &Fixture) -> [f64; 3] {
+    let v = |a| value_of(e, f, a).unwrap_or(0.0);
+    let intensity = value_of(e, f, A::Intensity).unwrap_or(1.0);
+    let coloured = f.channels.iter().any(|a| matches!(a, A::Red | A::Green | A::Blue | A::White | A::Amber | A::Uv));
+    let [r, g, b] = if coloured {
+        let (w, amber, uv) = (v(A::White), v(A::Amber), v(A::Uv));
+        [v(A::Red).max(w).max(amber), v(A::Green).max(w).max(amber * 0.6), v(A::Blue).max(w).max(uv * 0.6)]
+    } else {
+        [1.0, 1.0, 1.0]
+    };
+    [r * intensity, g * intensity, b * intensity]
+}
+
+/// `fixture.place {fixture, x, y}`: where it is on the stage, each 0-1 (x left to right, y back to
+/// front, seen from the audience).
+pub fn fixture_place(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "fixture", e.show.fixtures.len())?;
+    let x = p::f64_in(prm, "x", 0.0, 1.0)?;
+    let y = p::f64_in(prm, "y", 0.0, 1.0)?;
+    if let Some(f) = e.show.fixtures.get_mut(i) {
+        f.place = Some([x, y]);
+    }
+    e.mark_changed();
+    Ok(Value::Null)
+}
+
+/// `fixture.stage`: every fixture's place (or none) and the colour it shows now, as `#rrggbb`.
+pub fn fixture_stage(e: &mut Engine, _prm: &Value) -> CommandResult {
+    Ok(Value::Array(
+        e.show
+            .fixtures
+            .iter()
+            .map(|f| {
+                let [r, g, b] = shown_colour(e, f);
+                let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+                let colour = format!("#{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b));
+                json!({"name": f.name, "place": f.place, "colour": colour})
+            })
+            .collect(),
+    ))
+}
+
 /// The fixtures a command acts on, as indexes: `fixture`, `fixtures` or a `group`.
 pub(crate) fn targets(e: &Engine, prm: &Value) -> Result<Vec<usize>, CommandError> {
     let len = e.show.fixtures.len();
@@ -388,6 +433,21 @@ mod tests {
         assert!(e.run("fixture.move", &json!({"fixture": 2, "universe": 1, "address": 1})).is_err(), "taken");
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.fixtures).unwrap_or_default();
         assert_eq!(back, e.show.fixtures);
+    }
+
+    #[test]
+    fn fixtures_are_placed_and_show_their_colour() {
+        let mut e = engine();
+        let _ = e.run("fixture.add", &json!({"kind": "rgb_dimmer", "universe": 1}));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        assert!(e.run("fixture.place", &json!({"fixture": 0, "x": 0.25, "y": 0.5})).is_ok());
+        assert_eq!(e.show.fixtures[0].place, Some([0.25, 0.5]));
+        assert!(e.run("fixture.place", &json!({"fixture": 0, "x": 1.5, "y": 0.5})).is_err());
+        let _ = e.run("fixture.set", &json!({"fixtures": [0, 1], "values": {"intensity": 0.5, "red": 1.0}}));
+        let [r, g, b] = shown_colour(&e, &e.show.fixtures[0].clone());
+        assert!((r - 0.5).abs() < 0.01 && g == 0.0 && b == 0.0, "red at half: {r} {g} {b}");
+        let dimmer = shown_colour(&e, &e.show.fixtures[1].clone());
+        assert!(dimmer.iter().all(|c| (c - 0.5).abs() < 0.01), "a dimmer shows white: {dimmer:?}");
     }
 
     #[test]

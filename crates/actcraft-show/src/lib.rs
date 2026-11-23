@@ -864,6 +864,9 @@ pub struct Fixture {
     pub universe: u16,
     /// Its first DMX channel, from 1.
     pub address: u16,
+    /// Where it is on the stage seen from the audience: x left to right, y back to front, each
+    /// 0-1; `None` until placed.
+    pub place: Option<[f64; 2]>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -877,6 +880,7 @@ impl Default for Fixture {
             channels: Vec::new(),
             universe: 1,
             address: 1,
+            place: None,
             extra: Map::new(),
         }
     }
@@ -1480,6 +1484,9 @@ impl Show {
             cut(&mut f.name, 64);
             cut(&mut f.kind, 64);
             f.channels.truncate(MAX_FIXTURE_CHANNELS);
+            if let Some([x, y]) = f.place {
+                f.place = (x.is_finite() && y.is_finite()).then(|| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)]);
+            }
         }
         // A fixture must fit in its universe.
         self.fixtures.retain(|f| {

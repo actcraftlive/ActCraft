@@ -486,6 +486,22 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("fixture.remove", "Remove a fixture", "", None, "{fixture: index}", crate::fixtures::fixture_remove),
         cmd(
+            "fixture.place",
+            "Place a fixture on the stage",
+            "",
+            None,
+            "{fixture: index, x: 0-1 left to right, y: 0-1 back to front}",
+            crate::fixtures::fixture_place,
+        ),
+        cmd(
+            "fixture.stage",
+            "Stage",
+            "Lighting/Stage",
+            None,
+            "none -> [{name, place: [x, y] | null, colour: #rrggbb}]",
+            crate::fixtures::fixture_stage,
+        ),
+        cmd(
             "fixture.move",
             "Patch a fixture elsewhere",
             "",

@@ -31,6 +31,7 @@ mod regions_view;
 mod settings;
 mod sheet_view;
 pub mod shortcuts;
+mod stage_view;
 mod text_history;
 pub mod theme;
 #[cfg(test)]
@@ -191,6 +192,8 @@ pub struct ActCraftApp {
     type_editor: Option<fixtures_view::TypeEditor>,
     /// The Presets window, and what is being put together there.
     presets_open: bool,
+    /// The Stage window, while open.
+    stage_view: Option<stage_view::StageView>,
     looks_draft: looks_view::LooksDraft,
     /// The pads' editor is open, and the pad being put together.
     pads_editing: bool,
@@ -276,6 +279,7 @@ impl ActCraftApp {
             fixture_draft: fixtures_view::FixtureDraft::default(),
             type_editor: None,
             presets_open: false,
+            stage_view: None,
             looks_draft: looks_view::LooksDraft::default(),
             pads_editing: false,
             pad_draft: pads_view::PadDraft::default(),
@@ -361,6 +365,11 @@ impl ActCraftApp {
     /// Shows the song's Light cues tab (`--light-cues`, for screenshots).
     pub fn show_light_cues(&mut self) {
         self.centre_tab = CentreTab::Light;
+    }
+
+    /// Opens the Stage window (`--stage-view`, for screenshots).
+    pub fn show_stage_view(&mut self) {
+        self.stage_view = Some(self.stage_view.unwrap_or_default());
     }
 
     /// Opens the Presets window (`--presets`, for screenshots).
@@ -481,6 +490,7 @@ impl ActCraftApp {
         self.dmx_window(&ctx, e);
         self.fixtures_window(&ctx, e);
         self.presets_window(&ctx, e);
+        self.stage_view_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);
