@@ -16,6 +16,7 @@ pub mod files;
 pub mod midi_in;
 pub mod midi_out;
 pub mod osc_in;
+pub mod serial;
 pub mod speech;
 
 pub use actcraft_audio::StatusReader;
@@ -26,3 +27,4 @@ pub use files::{NativeServices, RootedServices};
 pub use midi_in::{MidiIn, MidiQueue, input_ports as midi_input_ports};
 pub use midi_out::{MidiTimeOut, output_ports as midi_output_ports};
 pub use osc_in::{OscIn, OscQueue};
+pub use serial::ports as serial_ports;

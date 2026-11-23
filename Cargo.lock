@@ -202,8 +202,10 @@ dependencies = [
  "cpal",
  "craft-atomic",
  "midir",
+ "nix",
  "rosc",
  "sacn",
+ "windows-registry",
 ]
 
 [[package]]
