@@ -81,6 +81,8 @@ pub mod limits {
     pub const MAX_FADE_S: f64 = 600.0;
     /// Lighting cues one song fires.
     pub const MAX_LIGHT_CUES: usize = 1_000;
+    /// Effects in a show.
+    pub const MAX_EFFECTS: usize = 256;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -177,6 +179,9 @@ pub struct Show {
     /// Lists of cues gone through one by one during a show.
     #[serde(default)]
     pub cue_lists: Vec<CueList>,
+    /// Effects that move fixture attributes on their own (a pulse, a chase, a sweep).
+    #[serde(default)]
+    pub effects: Vec<Effect>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -210,6 +215,7 @@ impl Default for Show {
             groups: Vec::new(),
             presets: Vec::new(),
             cue_lists: Vec::new(),
+            effects: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -698,6 +704,80 @@ pub struct Preset {
     pub values: Vec<PresetValue>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// The wave an effect follows over one cycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Shape {
+    /// Smooth up and down.
+    #[default]
+    Sine,
+    /// High for the first half, low for the second.
+    Square,
+    /// Up evenly, then back to low at once.
+    Saw,
+    /// Up evenly and down evenly.
+    Triangle,
+}
+
+/// An effect: a group's attribute moved between two values in a wave, each fixture a little
+/// later than the one before (spread).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Effect {
+    pub name: String,
+    /// The group's name.
+    pub group: String,
+    pub attribute: Attribute,
+    pub shape: Shape,
+    /// Seconds per cycle when `beats` is 0.
+    pub period: f64,
+    /// Beats per cycle at the playing song's tempo; 0 to use `period`.
+    pub beats: f64,
+    /// The values it moves between, 0-1.
+    pub low: f64,
+    pub high: f64,
+    /// How far apart in the cycle the group's fixtures are, 0 (together) to 1 (spread over it).
+    pub spread: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for Effect {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            group: String::new(),
+            attribute: Attribute::Intensity,
+            shape: Shape::Sine,
+            period: 2.0,
+            beats: 0.0,
+            low: 0.0,
+            high: 1.0,
+            spread: 0.0,
+            extra: Map::new(),
+        }
+    }
+}
+
+impl Shape {
+    /// The wave's value (0-1) at `phase` (0-1) of the cycle.
+    pub fn at(self, phase: f64) -> f64 {
+        let p = phase.rem_euclid(1.0);
+        match self {
+            Shape::Sine => 0.5 - 0.5 * (p * std::f64::consts::TAU).cos(),
+            Shape::Square => {
+                if p < 0.5 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Shape::Saw => p,
+            Shape::Triangle => 1.0 - (2.0 * p - 1.0).abs(),
+        }
+    }
 }
 
 /// A lighting cue a song fires when playback passes its time.
@@ -1432,6 +1512,16 @@ impl Show {
             for v in &mut p.values {
                 v.value = v.value.clamp(0.0, 1.0);
             }
+        }
+        self.effects.truncate(MAX_EFFECTS);
+        for fx in &mut self.effects {
+            cut(&mut fx.name, 64);
+            cut(&mut fx.group, 64);
+            fx.period = clamp_f(fx.period, 0.05, 600.0, 2.0);
+            fx.beats = clamp_f(fx.beats, 0.0, 64.0, 0.0);
+            fx.low = clamp_f(fx.low, 0.0, 1.0, 0.0);
+            fx.high = clamp_f(fx.high, 0.0, 1.0, 1.0);
+            fx.spread = clamp_f(fx.spread, 0.0, 1.0, 0.0);
         }
         self.cue_lists.truncate(MAX_CUE_LISTS);
         for l in &mut self.cue_lists {

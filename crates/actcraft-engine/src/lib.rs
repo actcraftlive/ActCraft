@@ -27,6 +27,7 @@ use serde_json::Value;
 pub mod commands;
 pub mod cues;
 pub mod dmx;
+pub mod effects;
 pub mod error_text;
 pub mod fixture_library;
 pub mod fixtures;
@@ -157,6 +158,8 @@ pub struct Engine {
     cue_at: std::collections::HashMap<usize, usize>,
     /// Where playback was when the song's lighting cues were last looked at.
     light_at: Option<f64>,
+    /// Effects running now (by name) and when each started.
+    running_effects: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
     /// Messages for the person, newest last.
     pub messages: VecDeque<Message>,
     audio: Option<Controller>,
@@ -237,6 +240,7 @@ impl Engine {
             fade: None,
             cue_at: std::collections::HashMap::new(),
             light_at: None,
+            running_effects: Vec::new(),
             audio: None,
             loaded_song: None,
             last_ended: 0,
@@ -291,6 +295,10 @@ impl Engine {
         if self.fade.is_some() {
             let now = self.services.now();
             self.step_fade(now);
+        }
+        if !self.running_effects.is_empty() {
+            let now = self.services.now();
+            self.step_effects(now);
         }
         let Some(audio) = &mut self.audio else { return };
         self.status = audio.poll();

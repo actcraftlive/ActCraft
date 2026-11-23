@@ -31,7 +31,7 @@ impl Default for FixtureDraft {
 }
 
 /// An attribute in words.
-fn attribute_text(a: Attribute) -> &'static str {
+pub(crate) fn attribute_text(a: Attribute) -> &'static str {
     match a {
         Attribute::Intensity | Attribute::IntensityFine => tr("Intensity"),
         Attribute::Red => tr("Red"),
