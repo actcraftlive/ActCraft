@@ -854,3 +854,11 @@
 	that fixture file is too large	diese Gerätedatei ist zu groß
 	that fixture type has no such mode	dieser Gerätetyp hat keinen solchen Modus
 	that fixture has no mode ActCraft can patch	dieses Gerät hat keinen Modus, den ActCraft patchen kann
+	Art-Net node	Art-Net-Node
+	Asks everyone on the network which Art-Net nodes are there (2 seconds)	Fragt alle im Netzwerk, welche Art-Net-Nodes da sind (2 Sekunden)
+	Could not look for Art-Net nodes:	Suche nach Art-Net-Nodes nicht möglich:
+	Find Art-Net nodes	Art-Net-Nodes suchen
+	Looking for Art-Net nodes…	Suche Art-Net-Nodes …
+	No Art-Net node answered.	Kein Art-Net-Node hat geantwortet.
+	Universes	Universen
+	Use for the next output	Für den nächsten Ausgang nehmen

@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M4: a fixture type editor, Art-Net node discovery; then M5 programming (presets, cues)
+2. M4: a fixture type editor; then M5 programming (presets, cues)
 
 ## Quality and open questions
 
@@ -170,7 +170,8 @@ details are in the milestone sections further down.
 - ✅ DMX output: Settings > Lighting sends a universe over Art-Net (a port address, broadcast or
   to one address) or sACN (a universe and priority, multicast or to one address), when it
   changes and again every 0.8 s (`dmx.output_add`, `dmx.output_remove`, `dmx.output_list`).
-  Art-Net node discovery and USB interfaces to do
+  "Find Art-Net nodes" asks the network (ArtPoll) and lists who answered with their universes;
+  one click uses a node for the next output. USB interfaces to do
 - ✅ Fixtures and patch: Lighting > Fixtures patches lights by kind (dimmer, RGB, RGBW, RGBAW+UV,
   a moving head with 16-bit pan and tilt) or channel by channel into a universe, one or a row of
   them, at an address or the first free one, refusing overlaps; each fixture's attributes are set
