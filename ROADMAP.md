@@ -12,7 +12,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M2 | Regions, lyrics and chords, sheet music (PDF, MusicXML notes and tab), lyrics editor, second screen | 🔶 in progress |
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | ✅ |
-| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
+| M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, sequences (cues that go on by themselves), effects, stage preview with beams done; more ready-made effects to do |
 | M6 | Cues, cue lists, control pages, blind and freeze, beat sync | ✅ |
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in and DMX in (Art-Net, seen in the DMX monitor) done |
@@ -196,7 +196,9 @@ details are in the milestone sections further down.
   so groups and presets follow them
 - ✅ Fades and cue lists: a preset fades in over seconds (`preset.recall {fade}`); cue lists go
   through presets with Go and Back (`cue.go`, `cue.back`, `cue.jump`; Lighting > Next Cue and Cue
-  Before, so pads, keys, MIDI and OSC can run them)
+  Before, so pads, keys, MIDI and OSC can run them); a cue can go on to the next by itself after
+  some seconds, and after the last back to the first, so a cue list runs as a sequence or chase
+  (`cue.add {follow}`, "Then on after")
 - ✅ Light cues per song: a song fires cues of a cue list at its times as it plays, like its
   macros (a jump skips what it passes; `song.light_cue_add`, `song.light_cue_remove`; the song's
   Light cues tab with "Now")

@@ -127,11 +127,35 @@ impl Engine {
         let Some(preset) = preset else { return Err(failed("that cue's preset is not in the show")) };
         self.fade_to(&preset, c.fade);
         self.cue_at.insert(list, cue);
+        let now = self.services().now();
+        self.cue_went.insert(list, now);
         Ok(json!({"cue": cue, "name": c.name}))
     }
 }
 
 impl Engine {
+    /// Moves on every cue list whose cue goes on by itself and whose time is up: to the next cue,
+    /// or after the last back to the first (a chase).
+    pub fn step_follow(&mut self, now: DateTime<FixedOffset>) {
+        let due: Vec<(usize, usize)> = self
+            .cue_at
+            .iter()
+            .filter_map(|(&list, &cue)| {
+                let l = self.show.cue_lists.get(list)?;
+                let follow = l.cues.get(cue)?.follow;
+                let went = self.cue_went.get(&list)?;
+                let waited = (now - *went).num_milliseconds() as f64 / 1000.0;
+                (follow > 0.0 && waited >= follow).then_some((list, (cue + 1) % l.cues.len().max(1)))
+            })
+            .collect();
+        for (list, next) in due {
+            if self.go_to(list, next).is_err() {
+                // A cue whose preset is gone: stop going on rather than trying every frame.
+                self.cue_went.remove(&list);
+            }
+        }
+    }
+
     /// Fires the playing song's lighting cues whose time playback has just passed (as the
     /// song's macros: a jump does not fire what it skipped).
     pub(crate) fn run_due_light_cues(&mut self) {
@@ -267,6 +291,7 @@ pub fn cue_list_remove(e: &mut Engine, prm: &Value) -> CommandResult {
     e.show.cue_lists.remove(i);
     // Positions belong to list indexes, which have moved.
     e.cue_at.clear();
+    e.cue_went.clear();
     e.mark_changed();
     Ok(Value::Null)
 }
@@ -292,6 +317,7 @@ pub fn cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let list = p::index(prm, "list", e.show.cue_lists.len())?;
     let preset = p::index(prm, "preset", e.show.presets.len())?;
     let fade = p::opt_f64_in(prm, "fade", 0.0, MAX_FADE_S)?.unwrap_or(0.0);
+    let follow = p::opt_f64_in(prm, "follow", 0.0, MAX_FADE_S)?.unwrap_or(0.0);
     let preset_name = e.show.presets.get(preset).map(|p| p.name.clone()).unwrap_or_default();
     let name =
         p::opt_str_max(prm, "name", 64)?.map(str::trim).filter(|n| !n.is_empty()).unwrap_or(&preset_name).to_owned();
@@ -299,7 +325,7 @@ pub fn cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
     if l.cues.len() >= MAX_CUES {
         return Err(failed("a cue list holds at most 1000 cues"));
     }
-    l.cues.push(Cue { name, preset: preset_name, fade, ..Cue::default() });
+    l.cues.push(Cue { name, preset: preset_name, fade, follow, ..Cue::default() });
     let cue = l.cues.len() - 1;
     e.mark_changed();
     Ok(json!({"cue": cue}))
@@ -314,6 +340,7 @@ pub fn cue_remove(e: &mut Engine, prm: &Value) -> CommandResult {
         l.cues.remove(cue);
     }
     e.cue_at.remove(&list);
+    e.cue_went.remove(&list);
     e.mark_changed();
     Ok(Value::Null)
 }
@@ -444,6 +471,32 @@ mod tests {
             Some(json!({"light_cue": 0}))
         );
         assert!(e.run("song.light_cue_move", &json!({"light_cue": 2, "time": 1.0})).is_err());
+    }
+
+    #[test]
+    fn cues_that_follow_go_on_by_themselves_and_round_again() {
+        let mut e = engine();
+        let _ = e.run("cue_list.add", &json!({"name": "Chase"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 0.5}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1, "follow": 0.5}));
+        assert!(e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 601.0})).is_err());
+        let start = e.services().now();
+        assert!(e.run("cue.go", &Value::Null).is_ok());
+        assert_eq!((e.cue_position(0), level(&e)), (Some(0), 255));
+        e.step_follow(start + TimeDelta::milliseconds(400));
+        assert_eq!(e.cue_position(0), Some(0), "not yet");
+        // The clock in tests stands still, so "when it went" is `start`; half a second on, it goes.
+        e.step_follow(start + TimeDelta::milliseconds(600));
+        assert_eq!((e.cue_position(0), level(&e)), (Some(1), 0), "the next cue by itself");
+        e.step_follow(start + TimeDelta::milliseconds(1200));
+        assert_eq!(e.cue_position(0), Some(0), "after the last, back to the first");
+        // A cue without follow waits for Go.
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1}));
+        assert!(e.run("cue.jump", &json!({"list": 0, "cue": 2})).is_ok());
+        e.step_follow(start + TimeDelta::milliseconds(9000));
+        assert_eq!(e.cue_position(0), Some(2));
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.cue_lists).unwrap_or_default();
+        assert_eq!(back, e.show.cue_lists);
     }
 
     #[test]
