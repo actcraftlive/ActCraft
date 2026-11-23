@@ -1094,11 +1094,9 @@
 	List DMX triggers	DMX-Auslöser auflisten
 	a trigger runs a command that needs nothing more	ein Auslöser führt einen Befehl aus, der nichts weiter braucht
 	a show holds at most 256 DMX triggers	eine Show hat höchstens 256 DMX-Auslöser
-<<<<<<< Updated upstream
 	Then on after	Dann weiter nach
 	The next cue comes by itself after this long (after the last, the first); 0 waits for Go	Der nächste Cue kommt nach dieser Zeit von selbst (nach dem letzten der erste); 0 wartet auf Go
 	then on after {s} s	dann weiter nach {s} s
-=======
 	Slow wave	Langsame Welle
 	Pulse every other beat	Puls auf jedem zweiten Schlag
 	Breathe over a bar	Atmen über einen Takt
@@ -1120,4 +1118,3 @@
 	Sweep the room	Den Raum abfahren
 	Circle over a bar	Kreis über einen Takt
 	Zoom on the beat	Zoom im Takt
->>>>>>> Stashed changes
