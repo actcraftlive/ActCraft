@@ -564,3 +564,38 @@ fn a_tracks_colour_and_remove_buttons_say_which_track() {
         assert!(h.query_by_role_and_label(Role::Button, &format!("Mute group 1 ({name})")).is_some(), "{name}");
     }
 }
+
+#[test]
+fn picked_songs_in_a_set_move_up_together() {
+    let (mut h, engine) = window(|e| {
+        for t in ["A", "B", "C"] {
+            let _ = e.run("song.add", &json!({"title": t}));
+        }
+        let ids: Vec<u64> =
+            ["A", "B", "C"].iter().filter_map(|t| e.show.songs.iter().find(|s| s.title == *t).map(|s| s.id)).collect();
+        let _ = e.run("playlist.create", &json!({"name": "Gig"}));
+        let _ = e.run("playlist.add_songs", &json!({"playlist": 0, "songs": ids}));
+    });
+    frames(&mut h, 3);
+    // The playlist's songs show once it is opened.
+    if let Some(n) = h.query_by_label_contains("Gig") {
+        n.click_accesskit();
+    }
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::CheckBox, "Pick (2. B)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::CheckBox, "Pick (3. C)").click_accesskit();
+    frames(&mut h, 2);
+    assert!(h.query_by_label("2 picked:").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Up (2. B)").is_some(), "row buttons say which song");
+    h.get_by_role_and_label(Role::Button, "Move picked up").click_accesskit();
+    frames(&mut h, 3);
+    let order = with(&engine, |e| {
+        e.show.playlists[0].sets[0]
+            .songs
+            .iter()
+            .filter_map(|id| e.show.song(*id).map(|s| s.title.clone()))
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(order, vec!["B", "C", "A"]);
+}

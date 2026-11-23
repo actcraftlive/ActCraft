@@ -1232,3 +1232,9 @@
 	The host plays “{song}”, which this computer does not have.	Der Host spielt „{song}“, den dieser Computer nicht hat.
 	That is not an address like 192.168.1.20.	Das ist keine Adresse wie 192.168.1.20.
 	Output bus	Ausgangsbus
+	Pick	Auswählen
+	{n} picked:	{n} ausgewählt:
+	Move picked up	Ausgewählte nach oben
+	Move picked down	Ausgewählte nach unten
+	Remove picked	Ausgewählte entfernen
+	Clear picks	Auswahl aufheben
