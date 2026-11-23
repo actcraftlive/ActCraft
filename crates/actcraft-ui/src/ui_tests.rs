@@ -828,3 +828,25 @@ fn a_newer_release_is_offered_and_later_does_nothing() {
         craft_update::updater::Status::Idle | craft_update::updater::Status::UpToDate
     ));
 }
+
+#[test]
+fn the_moving_head_comes_from_the_library_with_its_ranges() {
+    let (mut h, engine) = window(|_| {});
+    h.state_mut().show_fixtures();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Kind").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Betopper LM70SR (library)").click_accesskit();
+    frames(&mut h, 3);
+    let ty = with(&engine, |e| e.show.fixture_types.first().cloned());
+    let Some(ty) = ty else { panic!("the type came in") };
+    assert_eq!(ty.name, "Betopper LM70SR");
+    assert_eq!(ty.modes[0].channels.len(), 14);
+    assert!(ty.modes[0].ranges.iter().any(|r| r.channel == 6 && r.name == "Strobe, slow to fast"));
+    // It is chosen for patching, and can be written out.
+    assert!(h.query_by_role_and_label(Role::Button, "Export fixture type…").is_some());
+    h.get_by_role_and_label(Role::Button, "Patch").click_accesskit();
+    frames(&mut h, 3);
+    let fixture = with(&engine, |e| e.show.fixtures.first().cloned());
+    assert_eq!(fixture.map(|f| (f.channels.len(), f.ranges.len())), Some((14, 15)), "14 channels, all ranges");
+}

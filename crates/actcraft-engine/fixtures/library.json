@@ -1,0 +1,43 @@
+[
+  {
+    "format": "actcraft-fixture-type",
+    "version": 1,
+    "name": "Betopper LM70SR",
+    "modes": [
+      {
+        "name": "14 channels",
+        "channels": ["pan", "pan_fine", "tilt", "tilt_fine", "other", "other", "red", "green", "blue", "white", "other", "other", "other", "other"],
+        "ranges": [
+          {"channel": 6, "from": 0, "to": 7, "name": "Off"},
+          {"channel": 6, "from": 8, "to": 134, "name": "Master dimmer"},
+          {"channel": 6, "from": 135, "to": 239, "name": "Strobe, slow to fast"},
+          {"channel": 6, "from": 240, "to": 255, "name": "Open"},
+          {"channel": 11, "from": 0, "to": 7, "name": "Colour mix from channels 7 to 10"},
+          {"channel": 11, "from": 8, "to": 231, "name": "Colour macro"},
+          {"channel": 11, "from": 232, "to": 255, "name": "Colour jump"},
+          {"channel": 13, "from": 0, "to": 7, "name": "DMX control (channels 1 to 12)"},
+          {"channel": 13, "from": 8, "to": 63, "name": "Fast run"},
+          {"channel": 13, "from": 64, "to": 127, "name": "Slow run"},
+          {"channel": 13, "from": 128, "to": 191, "name": "Sound 1"},
+          {"channel": 13, "from": 192, "to": 255, "name": "Sound 2"},
+          {"channel": 14, "from": 0, "to": 149, "name": "Nothing"},
+          {"channel": 14, "from": 150, "to": 200, "name": "Reset"},
+          {"channel": 14, "from": 201, "to": 255, "name": "Nothing"}
+        ]
+      },
+      {
+        "name": "9 channels",
+        "channels": ["pan", "tilt", "other", "red", "green", "blue", "white", "other", "other"],
+        "ranges": [
+          {"channel": 3, "from": 0, "to": 7, "name": "Off"},
+          {"channel": 3, "from": 8, "to": 134, "name": "Master dimmer"},
+          {"channel": 3, "from": 135, "to": 239, "name": "Strobe, slow to fast"},
+          {"channel": 3, "from": 240, "to": 255, "name": "Open"},
+          {"channel": 9, "from": 0, "to": 149, "name": "Nothing"},
+          {"channel": 9, "from": 150, "to": 200, "name": "Reset"},
+          {"channel": 9, "from": 201, "to": 255, "name": "Nothing"}
+        ]
+      }
+    ]
+  }
+]

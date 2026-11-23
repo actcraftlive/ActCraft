@@ -64,6 +64,10 @@ pub enum FileAsk {
     OpenPackage,
     /// An Open Fixture Library fixture to bring in as a fixture type.
     ImportFixtureType,
+    /// Where a fixture type of the show is written as a file.
+    ExportFixtureType {
+        fixture_type: usize,
+    },
 }
 
 /// What happens once a save finishes.
@@ -128,7 +132,7 @@ fn has_ext(path: &Path, exts: &[&str]) -> bool {
 }
 
 /// A title as a file name: characters no file name can hold become `_`.
-fn safe_file_name(name: &str) -> String {
+pub(crate) fn safe_file_name(name: &str) -> String {
     name.chars().map(|c| if r#"/\:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect()
 }
 
@@ -243,6 +247,13 @@ impl ActCraftApp {
                 if e.run("lyrics.import", &json!({"song": song, "path": path_string(&first)})).is_ok() {
                     self.centre_tab = crate::CentreTab::Lyrics;
                 }
+            }
+            FileAsk::ExportFixtureType { fixture_type } => {
+                let mut path = first;
+                if !has_ext(&path, &["json"]) {
+                    path.set_extension("json");
+                }
+                let _ = e.run("fixture_type.export", &json!({"type": fixture_type, "path": path_string(&path)}));
             }
             FileAsk::ImportFixtureType => {
                 if let Ok(v) = e.run("fixture_type.import", &json!({"path": path_string(&first)})) {

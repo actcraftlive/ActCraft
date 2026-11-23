@@ -43,6 +43,7 @@ pub const TEMPLATES: &[&str] = &[
     "a song holds at most {max} tracks",
     "a song's PDF holds at most {max} marks",
     "a song holds at most {max} further sheets",
+    "the library has no fixture type called `{name}`",
     "a show holds at most {max} musicians",
     "no musician called `{name}`; add them first (musician.add)",
     "there is already a musician called `{name}`",
