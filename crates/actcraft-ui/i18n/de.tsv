@@ -1310,5 +1310,9 @@
 	Who are you?	Wer bist du?
 	{sheet}, page {page} of {pages}	{sheet}, Seite {page} von {pages}
 	this computer's address	die Adresse dieses Computers
+	Add range	Bereich hinzufügen
+	Range	Bereich
+	Ranges ({n})	Bereiche ({n})
+	Ranges of channel {n}	Bereiche von Kanal {n}
 	{sheet}, the lines playing now	{sheet}, die Zeilen, die gerade laufen
 	The score is being drawn.	Die Partitur wird gezeichnet.
