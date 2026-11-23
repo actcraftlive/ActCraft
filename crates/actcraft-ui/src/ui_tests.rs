@@ -327,6 +327,24 @@ fn a_moving_light_on_the_stage_says_where_it_points() {
 }
 
 #[test]
+fn a_long_message_in_the_status_line_stays_clear_of_the_notes_beside_it() {
+    let long = "Could not send DMX: USB DMX on COM250: the system cannot find the file specified (os error 2), \
+                so nothing goes to the lights on this output until the interface is plugged in again";
+    let (mut h, _engine) = window(|e| {
+        let _ = e.run("song.add", &serde_json::Value::Null);
+        e.say_error(long);
+    });
+    // As on a real machine: an audio device and the remote control address take room on the left.
+    h.state_mut().platform.audio_device = Some("OUT 1-8 (a long audio interface name)".to_owned());
+    h.state_mut().platform.sample_rate = 48_000;
+    h.state_mut().platform.control_address = Some("127.0.0.1:47380".to_owned());
+    frames(&mut h, 3);
+    let note = h.get_by_label("Unsaved changes").rect();
+    let message = h.get_by_label(long).rect();
+    assert!(message.left() >= note.right(), "message {message:?} runs over the note {note:?}");
+}
+
+#[test]
 fn a_usb_output_is_added_by_picking_its_port() {
     let (mut h, engine) = window(|_| {});
     h.state_mut().open_settings_at("lighting");
