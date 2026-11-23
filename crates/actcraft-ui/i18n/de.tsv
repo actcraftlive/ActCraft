@@ -1167,3 +1167,34 @@
 	`axis` must be left_trigger, right_trigger, left_x, left_y, right_x or right_y	`axis` muss left_trigger, right_trigger, left_x, left_y, right_x oder right_y sein
 	`fader` must be master, song, bus or lighting	`fader` muss master, song, bus oder lighting sein
 	a show holds at most 128 controller faders	eine Show hat höchstens 128 Controller-Fader
+	Slow rise	Langsames Ansteigen
+	Half wave	Halbe Welle
+	Soft chase	Weiches Lauflicht
+	Chase over a bar	Lauflicht über einen Takt
+	Ramp wave	Rampenwelle
+	Breathe over two bars	Atmen über zwei Takte
+	Slow bounce	Langsames Hüpfen
+	Halves in turn	Hälften im Wechsel
+	Cyan wave	Cyan-Welle
+	Magenta pulse	Magenta-Puls
+	Yellow drift	Gelbes Treiben
+	Sunset	Sonnenuntergang
+	Aurora	Polarlicht
+	Red and white	Rot und Weiß
+	Blue and white	Blau und Weiß
+	UV wave	UV-Welle
+	White on the beat	Weiß im Takt
+	Rainbow on the beat	Regenbogen im Takt
+	Amber breathe	Bernstein-Atmen
+	Green chase	Grünes Lauflicht
+	Slow sweep	Langsames Schwenken
+	Tilt sweep	Tilt-Schwenk
+	Fan over a bar	Fächer über einen Takt
+	Tilt fan	Tilt-Fächer
+	Crossing	Kreuzen
+	Slow circle	Langsamer Kreis
+	Circles on the beat	Kreise im Takt
+	Sway	Wiegen
+	Tilt bounce on the beat	Tilt-Hüpfen im Takt
+	Zoom wave	Zoom-Welle
+	Zoom build over a bar	Zoom-Aufbau über einen Takt

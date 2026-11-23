@@ -76,6 +76,37 @@ fn template_text(key: &str) -> &'static str {
         "sweep_room" => tr("Sweep the room"),
         "circle_bar" => tr("Circle over a bar"),
         "zoom_beat" => tr("Zoom on the beat"),
+        "slow_rise" => tr("Slow rise"),
+        "half_wave" => tr("Half wave"),
+        "soft_chase" => tr("Soft chase"),
+        "bar_chase" => tr("Chase over a bar"),
+        "ramp_wave" => tr("Ramp wave"),
+        "breathe_two_bars" => tr("Breathe over two bars"),
+        "slow_bounce" => tr("Slow bounce"),
+        "halves" => tr("Halves in turn"),
+        "cyan_wave" => tr("Cyan wave"),
+        "magenta_pulse" => tr("Magenta pulse"),
+        "yellow_drift" => tr("Yellow drift"),
+        "sunset" => tr("Sunset"),
+        "aurora" => tr("Aurora"),
+        "red_and_white" => tr("Red and white"),
+        "blue_and_white" => tr("Blue and white"),
+        "uv_wave" => tr("UV wave"),
+        "white_beat" => tr("White on the beat"),
+        "rainbow_beat" => tr("Rainbow on the beat"),
+        "amber_breathe" => tr("Amber breathe"),
+        "green_chase" => tr("Green chase"),
+        "slow_sweep" => tr("Slow sweep"),
+        "tilt_sweep" => tr("Tilt sweep"),
+        "fan_bar" => tr("Fan over a bar"),
+        "tilt_fan" => tr("Tilt fan"),
+        "crossing" => tr("Crossing"),
+        "slow_circle" => tr("Slow circle"),
+        "circles_beat" => tr("Circles on the beat"),
+        "sway" => tr("Sway"),
+        "tilt_bounce_beat" => tr("Tilt bounce on the beat"),
+        "zoom_wave" => tr("Zoom wave"),
+        "zoom_build" => tr("Zoom build over a bar"),
         _ => tr("Effect"),
     }
 }
@@ -825,6 +856,6 @@ mod tests {
             assert_ne!(super::template_text(t.key), super::tr("Effect"), "{} has no name", t.key);
             assert_eq!(super::template_text(t.key), t.name, "{}: the window says what the engine says", t.key);
         }
-        assert!(actcraft_engine::effects::TEMPLATES.len() >= 39);
+        assert!(actcraft_engine::effects::TEMPLATES.len() >= 70);
     }
 }
