@@ -225,6 +225,9 @@ impl Engine {
                 for (_, started) in &mut self.running_effects {
                     *started += held;
                 }
+                for went in self.cue_went.values_mut() {
+                    *went += held;
+                }
                 self.frozen_at = None;
             }
             _ => {}

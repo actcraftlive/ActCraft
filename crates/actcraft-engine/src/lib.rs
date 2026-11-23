@@ -157,6 +157,8 @@ pub struct Engine {
     /// A fade under way, and where each cue list stands (by list index; not saved).
     fade: Option<cues::Fade>,
     cue_at: std::collections::HashMap<usize, usize>,
+    /// When each cue list last went to a cue (for cues that go on by themselves).
+    cue_went: std::collections::HashMap<usize, chrono::DateTime<chrono::FixedOffset>>,
     /// The pad page the bar shows (not saved).
     pad_page: usize,
     /// Where playback was when the song's lighting cues were last looked at.
@@ -244,6 +246,7 @@ impl Engine {
             dmx: dmx::Dmx::default(),
             fade: None,
             cue_at: std::collections::HashMap::new(),
+            cue_went: std::collections::HashMap::new(),
             pad_page: 0,
             light_at: None,
             running_effects: Vec::new(),
@@ -306,6 +309,10 @@ impl Engine {
         if !self.running_effects.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();
             self.step_effects(now);
+        }
+        if !self.cue_went.is_empty() && self.frozen_at.is_none() {
+            let now = self.services.now();
+            self.step_follow(now);
         }
         let Some(audio) = &mut self.audio else { return };
         self.status = audio.poll();

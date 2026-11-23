@@ -1127,3 +1127,6 @@
 	a show holds at most 128 controller buttons	eine Show hat höchstens 128 Controller-Tasten
 	Learn a button	Taste lernen
 	The button runs	Die Taste führt aus
+	Then on after	Dann weiter nach
+	The next cue comes by itself after this long (after the last, the first); 0 waits for Go	Der nächste Cue kommt nach dieser Zeit von selbst (nach dem letzten der erste); 0 wartet auf Go
+	then on after {s} s	dann weiter nach {s} s

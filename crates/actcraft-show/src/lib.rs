@@ -861,6 +861,9 @@ pub struct Cue {
     pub preset: String,
     /// Seconds to fade in; 0 for at once.
     pub fade: f64,
+    /// Seconds after this cue before the list goes on to the next by itself (after the last, back
+    /// to the first); 0 waits for Go.
+    pub follow: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -1653,6 +1656,7 @@ impl Show {
                 cut(&mut c.name, 64);
                 cut(&mut c.preset, 64);
                 c.fade = clamp_f(c.fade, 0.0, MAX_FADE_S, 0.0);
+                c.follow = clamp_f(c.follow, 0.0, MAX_FADE_S, 0.0);
             }
         }
         self.gamepad_actions.truncate(MAX_GAMEPAD_ACTIONS);
