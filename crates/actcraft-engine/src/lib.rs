@@ -29,6 +29,7 @@ pub mod dmx;
 pub mod error_text;
 pub mod fixture_library;
 pub mod fixtures;
+pub mod looks;
 pub mod macros;
 pub mod midi_file;
 pub mod midi_sync;

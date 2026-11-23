@@ -178,6 +178,7 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
     }
     let mut added = Vec::new();
     let mut fixtures = e.show.fixtures.clone();
+    let first_id = fixtures.iter().map(|f| f.id).max().unwrap_or(0) + 1;
     let mut at = address;
     for n in 0..count {
         let start = match at {
@@ -186,6 +187,7 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
                 .ok_or_else(|| failed("there is no room left in that universe"))?,
         };
         let fixture = Fixture {
+            id: first_id + u64::try_from(n).unwrap_or(0),
             name: if count > 1 { format!("{name} {}", n + 1) } else { name.clone() },
             kind: kind_name.clone(),
             channels: channels.clone(),
@@ -212,7 +214,14 @@ pub fn fixture_add(e: &mut Engine, prm: &Value) -> CommandResult {
 /// `fixture.remove {fixture}`.
 pub fn fixture_remove(e: &mut Engine, prm: &Value) -> CommandResult {
     let i = p::index(prm, "fixture", e.show.fixtures.len())?;
-    e.show.fixtures.remove(i);
+    let gone = e.show.fixtures.remove(i).id;
+    // Groups and presets forget it too.
+    for g in &mut e.show.groups {
+        g.fixtures.retain(|id| *id != gone);
+    }
+    for p in &mut e.show.presets {
+        p.values.retain(|v| v.fixture != gone);
+    }
     e.mark_changed();
     Ok(Value::Null)
 }
@@ -297,15 +306,25 @@ pub fn value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
     }
 }
 
-/// `fixture.set {fixture | fixtures, values: {attribute: 0-1, ...}}`: sets attributes of one or
+/// The fixtures a command acts on, as indexes: `fixture`, `fixtures` or a `group`.
+pub(crate) fn targets(e: &Engine, prm: &Value) -> Result<Vec<usize>, CommandError> {
+    let len = e.show.fixtures.len();
+    match (prm.get("fixture"), prm.get("fixtures"), prm.get("group")) {
+        (Some(_), None, None) => Ok(vec![p::index(prm, "fixture", len)?]),
+        (None, Some(_), None) => p::index_list(prm, "fixtures", len, MAX_FIXTURES),
+        (None, None, Some(_)) => {
+            let g = p::index(prm, "group", e.show.groups.len())?;
+            let ids = e.show.groups.get(g).map(|g| g.fixtures.clone()).unwrap_or_default();
+            Ok(ids.iter().filter_map(|id| e.show.fixtures.iter().position(|f| f.id == *id)).collect())
+        }
+        _ => Err(invalid("give `fixture`, `fixtures` or `group`")),
+    }
+}
+
+/// `fixture.set {fixture | fixtures | group, values: {attribute: 0-1, ...}}`: sets attributes of one or
 /// more fixtures; an attribute a fixture lacks is left alone.
 pub fn fixture_set(e: &mut Engine, prm: &Value) -> CommandResult {
-    let len = e.show.fixtures.len();
-    let targets = match (prm.get("fixture"), prm.get("fixtures")) {
-        (Some(_), None) => vec![p::index(prm, "fixture", len)?],
-        (None, Some(_)) => p::index_list(prm, "fixtures", len, MAX_FIXTURES)?,
-        _ => return Err(invalid("give `fixture` or `fixtures`")),
-    };
+    let targets = targets(e, prm)?;
     let values: &Map<String, Value> =
         prm.get("values").and_then(Value::as_object).ok_or_else(|| invalid("`values` must map attributes to 0-1"))?;
     let mut wanted = Vec::new();

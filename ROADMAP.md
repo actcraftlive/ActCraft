@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M5: programming: groups, presets and cues for the patched fixtures
+2. M5: cues and cue lists with fades, run from songs and pads
 
 ## Quality and open questions
 
@@ -183,6 +183,10 @@ details are in the milestone sections further down.
   `fixture_type.remove`, `fixture.add {type, mode}`)
 - ✅ Fixture type editor: a new type, or a change to the chosen one, with its modes and each
   channel's attribute, moved up and down or removed (`fixture_type.set`)
+- ✅ Groups and presets: fixtures picked together by name (`group.set`), set as one
+  (`fixture.set {group}`); presets keep what fixtures show (every fixture or a group) and bring
+  it back with one press (`preset.store`, `preset.recall`); Lighting > Presets. Fixtures have ids
+  so groups and presets follow them. Fades, cues and cue lists to do
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX
