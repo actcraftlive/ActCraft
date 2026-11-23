@@ -23,6 +23,7 @@ mod dmx_view;
 mod fixtures_view;
 pub mod flows;
 pub mod i18n;
+mod looks_view;
 mod lyrics_view;
 mod notation_view;
 mod pads_view;
@@ -186,6 +187,9 @@ pub struct ActCraftApp {
     fixture_draft: fixtures_view::FixtureDraft,
     /// A fixture type being made or changed by hand.
     type_editor: Option<fixtures_view::TypeEditor>,
+    /// The Presets window, and what is being put together there.
+    presets_open: bool,
+    looks_draft: looks_view::LooksDraft,
     /// The pads' editor is open, and the pad being put together.
     pads_editing: bool,
     pad_draft: pads_view::PadDraft,
@@ -268,6 +272,8 @@ impl ActCraftApp {
             fixtures_open: false,
             fixture_draft: fixtures_view::FixtureDraft::default(),
             type_editor: None,
+            presets_open: false,
+            looks_draft: looks_view::LooksDraft::default(),
             pads_editing: false,
             pad_draft: pads_view::PadDraft::default(),
             language_request: None,
@@ -347,6 +353,11 @@ impl ActCraftApp {
     pub fn show_type_editor(&mut self) {
         self.fixtures_open = true;
         self.type_editor = Some(fixtures_view::TypeEditor::default());
+    }
+
+    /// Opens the Presets window (`--presets`, for screenshots).
+    pub fn show_presets(&mut self) {
+        self.presets_open = true;
     }
 
     /// Shows the Spoken cues tab (`--cues`, for screenshots).
@@ -461,6 +472,7 @@ impl ActCraftApp {
         self.stage_window(&ctx, e);
         self.dmx_window(&ctx, e);
         self.fixtures_window(&ctx, e);
+        self.presets_window(&ctx, e);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);

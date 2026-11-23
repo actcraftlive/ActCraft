@@ -71,6 +71,10 @@ pub mod limits {
     /// Fixture types in a show, and modes of one.
     pub const MAX_FIXTURE_TYPES: usize = 256;
     pub const MAX_FIXTURE_MODES: usize = 32;
+    /// Groups and presets in a show, and values in one preset.
+    pub const MAX_GROUPS: usize = 256;
+    pub const MAX_PRESETS: usize = 1_024;
+    pub const MAX_PRESET_VALUES: usize = 16_384;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -158,6 +162,12 @@ pub struct Show {
     /// Kinds of fixtures brought in from fixture library files.
     #[serde(default)]
     pub fixture_types: Vec<FixtureType>,
+    /// Fixtures picked together by name ("Front wash").
+    #[serde(default)]
+    pub groups: Vec<Group>,
+    /// Stored looks: attribute values of fixtures, recalled at once.
+    #[serde(default)]
+    pub presets: Vec<Preset>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -188,6 +198,8 @@ impl Default for Show {
             dmx_outputs: Vec::new(),
             fixtures: Vec::new(),
             fixture_types: Vec::new(),
+            groups: Vec::new(),
+            presets: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -654,6 +666,37 @@ impl Attribute {
     }
 }
 
+/// Fixtures picked together by name.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Group {
+    pub name: String,
+    /// Fixture ids, in the order they were picked.
+    pub fixtures: Vec<u64>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A stored look: attribute values of fixtures.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Preset {
+    pub name: String,
+    pub values: Vec<PresetValue>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// One fixture's attribute in a preset.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PresetValue {
+    /// The fixture's id.
+    pub fixture: u64,
+    pub attribute: Attribute,
+    /// 0-1.
+    pub value: f64,
+}
+
 /// A kind of fixture brought into the show (from a fixture library file), with its modes.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -678,6 +721,9 @@ pub struct FixtureMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Fixture {
+    /// Stays the same while the fixture is in the show (groups and presets refer to it); 0 in an
+    /// older file, given one on load.
+    pub id: u64,
     /// What the person calls it ("Front left").
     pub name: String,
     /// The kind of fixture it is, in words ("RGB wash"); for the person, not used to drive it.
@@ -695,6 +741,7 @@ pub struct Fixture {
 impl Default for Fixture {
     fn default() -> Self {
         Self {
+            id: 0,
             name: String::new(),
             kind: String::new(),
             channels: Vec::new(),
@@ -1305,6 +1352,31 @@ impl Show {
                 && *f.footprint().end() <= 512
                 && !f.channels.is_empty()
         });
+        // Every fixture its own id; groups and presets only name fixtures that are there.
+        let mut seen = std::collections::HashSet::new();
+        let mut next = self.fixtures.iter().map(|f| f.id).max().unwrap_or(0);
+        for f in &mut self.fixtures {
+            if f.id == 0 || !seen.insert(f.id) {
+                next += 1;
+                f.id = next;
+                seen.insert(next);
+            }
+        }
+        self.groups.truncate(MAX_GROUPS);
+        for g in &mut self.groups {
+            cut(&mut g.name, 64);
+            g.fixtures.retain(|id| seen.contains(id));
+            g.fixtures.truncate(MAX_FIXTURES);
+        }
+        self.presets.truncate(MAX_PRESETS);
+        for p in &mut self.presets {
+            cut(&mut p.name, 64);
+            p.values.retain(|v| seen.contains(&v.fixture) && v.value.is_finite());
+            p.values.truncate(MAX_PRESET_VALUES);
+            for v in &mut p.values {
+                v.value = v.value.clamp(0.0, 1.0);
+            }
+        }
         self.dmx_outputs.truncate(MAX_DMX_OUTPUTS);
         self.dmx_outputs.retain(|o| (1..=DMX_UNIVERSES).contains(&usize::from(o.universe)));
         for o in &mut self.dmx_outputs {

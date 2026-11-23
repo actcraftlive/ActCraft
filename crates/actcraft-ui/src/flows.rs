@@ -151,6 +151,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "show.open_package"
             | "dmx.get"
             | "fixture.list"
+            | "preset.list"
     )
 }
 
@@ -498,6 +499,7 @@ impl ActCraftApp {
             }
             "dmx.get" => self.dmx_monitor = Some(self.dmx_monitor.unwrap_or_default()),
             "fixture.list" => self.fixtures_open = true,
+            "preset.list" => self.presets_open = true,
             "app.commands" => {
                 let lines = registry()
                     .iter()

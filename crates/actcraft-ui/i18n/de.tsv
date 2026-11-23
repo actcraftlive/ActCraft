@@ -832,7 +832,6 @@
 	`values` must map attributes to 0-1	`values` muss Attributen Werte 0-1 zuordnen
 	a fixture has 1 to 64 channels	ein Gerät hat 1 bis 64 Kanäle
 	a show holds at most 1024 fixtures	eine Show fasst höchstens 1024 Geräte
-	give `fixture` or `fixtures`	`fixture` oder `fixtures` angeben
 	no such fixture	kein solches Gerät
 	no such kind of fixture	keine solche Geräteart
 	that address is taken by another fixture	diese Adresse belegt schon ein anderes Gerät
@@ -882,3 +881,27 @@
 	a fixture type has 1 to 32 modes	ein Gerätetyp hat 1 bis 32 Modi
 	a fixture type needs a name	ein Gerätetyp braucht einen Namen
 	each mode needs `channels`	jeder Modus braucht `channels`
+	Every fixture	Alle Geräte
+	From	Aus
+	Group name	Gruppenname
+	Groups	Gruppen
+	Keeps what the fixtures show now; a preset of that name is replaced	Behält, was die Geräte jetzt zeigen; ein Preset gleichen Namens wird ersetzt
+	List groups	Gruppen auflisten
+	No presets yet: set the fixtures, then store what they show.	Noch keine Presets: Geräte einstellen, dann speichern, was sie zeigen.
+	Patch fixtures first (Lighting > Fixtures).	Erst Geräte patchen (Licht > Geräte).
+	Presets	Presets
+	Recall a preset	Ein Preset abrufen
+	Recall this preset	Dieses Preset abrufen
+	Remove a group	Eine Gruppe entfernen
+	Remove a preset	Ein Preset entfernen
+	Save group	Gruppe speichern
+	Set a group	Eine Gruppe festlegen
+	Store a preset	Ein Preset speichern
+	Store preset	Preset speichern
+	a show holds at most 1024 presets	eine Show fasst höchstens 1024 Presets
+	a show holds at most 256 groups	eine Show fasst höchstens 256 Gruppen
+	give `fixture`, `fixtures` or `group`	`fixture`, `fixtures` oder `group` angeben
+	give it a name	bitte einen Namen geben
+	no such preset	kein solches Preset
+	that preset would hold too many values	dieses Preset hätte zu viele Werte
+	{n} values	{n} Werte
