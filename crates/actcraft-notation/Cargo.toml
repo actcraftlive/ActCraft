@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 craft-xml = { workspace = true }
 craft-zip = { workspace = true }
+craft-midi = { workspace = true }
 
 [lints]
 workspace = true

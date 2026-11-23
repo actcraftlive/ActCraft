@@ -190,6 +190,7 @@ version = "0.1.0"
 name = "actcraft-notation"
 version = "0.1.0"
 dependencies = [
+ "craft-midi",
  "craft-xml",
  "craft-zip",
 ]

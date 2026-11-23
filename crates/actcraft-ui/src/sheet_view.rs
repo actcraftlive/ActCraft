@@ -363,17 +363,27 @@ impl ActCraftApp {
                 if score { tr("Choose another score\u{2026}") } else { tr("Attach notation\u{2026}") };
             if ui
                 .button(attach)
-                .on_hover_text(tr("Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl); notation and tab editors can export it"))
+                .on_hover_text(tr("Notes and tablature as a MusicXML file (.musicxml, .xml or .mxl), which notation and tab editors export, or notes written out from a MIDI file (.mid)"))
                 .clicked()
             {
                 self.ask_file(FileRequest {
                     ask: FileAsk::AttachNotation { song: song.id, sheet: pick },
                     kind: FileKind::Open,
                     title: tr("Attach notation"),
-                    filters: vec![(tr("MusicXML score"), crate::notation_view::NOTATION_EXTENSIONS)],
+                    filters: vec![(tr("MusicXML score or MIDI file"), crate::notation_view::NOTATION_EXTENSIONS)],
                     file_name: None,
                     directory: None,
                 });
+            }
+            // The song's own MIDI file, written out as notes.
+            if let Some(midi) = song.midi_file.clone().filter(|m| song.notation_file.as_deref() != Some(m.as_str()))
+                && ui
+                    .button(tr("Notes from the MIDI file"))
+                    .on_hover_text(tr("Write the song's MIDI file out as notes; each MIDI track becomes a part"))
+                    .clicked()
+            {
+                self.run(e, "notation.attach", json!({"song": song.id, "sheet": pick, "path": midi}));
+                self.sheet_source = SheetSource::Notation;
             }
             if score && ui.button(tr("Remove notation")).clicked() {
                 self.run(e, "sheet.set", json!({"song": song.id, "sheet": pick, "notation_file": null}));

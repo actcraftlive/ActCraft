@@ -1307,7 +1307,7 @@ fn apply_song_fields(s: &mut Song, prm: &Value) -> Result<(), CommandError> {
         next.notation_file = None;
     } else if let Some(v) = p::opt_str_max(prm, "notation_file", MAX_TEXT)? {
         if !crate::notation_commands::is_notation_path(v) {
-            return Err(invalid("`notation_file` must be a .musicxml, .xml or .mxl file"));
+            return Err(invalid("`notation_file` must be a .musicxml, .xml, .mxl or .mid file"));
         }
         next.notation_file = Some(v.to_owned());
     }

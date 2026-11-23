@@ -17,7 +17,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M7 | One show: lighting lane on the song timeline, shared clock | ✅ lighting lane; light cues, beat effects and MIDI clock all follow the song |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | ✅ band link with pairing code (a follower keeps playing when the host goes), OSC in, DMX in with triggers, game controllers, Hue |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) done; installers and CI artifacts to do |
-| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician and setlist PDF done; browser view and MIDI to notes to do |
+| M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | 🔶 sheets per musician, setlist PDF and MIDI to notes done; the browser view to do |
 
 ## Next up
 
@@ -30,8 +30,7 @@ details are in the milestone sections further down.
 
 Planned with the owner on 2026-11-23, to do later, in this order (details under M10):
 
-3. M10: notes from MIDI files
-4. M10: musicians follow their sheets in a browser on the local network
+3. M10: musicians follow their sheets in a browser on the local network
 
 ## Quality and open questions
 
@@ -298,11 +297,13 @@ Planned with the owner on 2026-11-23. Each item is its own pull request.
   (egui compiled to WebAssembly, house rule 4: no handwritten JavaScript); signing in reuses the
   band link's pairing code and its local-network-only rule; check what `craft-libs` already
   serves (`web-host`) before writing a server (house rule 16)
-- ⬜ Notes from MIDI files: a song's MIDI file (or one brought in for it) becomes a score; each
-  MIDI track is assigned to a musician and shown as staves, drums by the General MIDI drum map,
-  guitar and bass also as tab (using the fret placement the MusicXML reader has). Needs
-  quantising to note values, key and enharmonic spelling, voices and the piano's two hands; works
-  best with MIDI written in a notation program, roughly with played-in MIDI
+- ✅ Notes from MIDI files: a MIDI file (.mid) is read as a score like MusicXML ("Attach notation…",
+  or "Notes from the MIDI file" for the song's own MIDI file); each track, and each channel of a
+  track, becomes a part a sheet can show for its musician. Onsets and ends go to a sixteenth grid,
+  notes struck together form chords, odd lengths and bar lines are tied, sharps or flats follow
+  the key; drums are written by the General MIDI drum map, a piano on two staves split at middle
+  C, guitars and basses (by program or name) also as tab. Works best with MIDI written in a
+  notation program, roughly with played-in MIDI; voices within one staff are not separated
 - ✅ Setlist as a PDF for the stage floor (Playlist > Print Setlist as PDF…): the open playlist on
   A4 with the band's logo (Playlist > Band Logo…) and the concert's name (the playlist's) at the
   top, then each set with its time, each song's number, title and length, and the time of all;
