@@ -60,6 +60,8 @@ pub mod limits {
     pub const MAX_MACRO_COMMANDS: usize = 32;
     /// Pads in one show.
     pub const MAX_PADS: usize = 64;
+    /// Pad pages.
+    pub const MAX_PAD_PAGES: usize = 8;
     /// DMX universes the show drives, numbered from 1.
     pub const DMX_UNIVERSES: usize = 64;
     /// DMX outputs in a show.
@@ -574,6 +576,8 @@ pub struct Pad {
     pub fader: Option<FaderTarget>,
     /// A toggle instead of a button: what it switches, showing whether it is on.
     pub toggle: Option<ToggleTarget>,
+    /// The pad page it is on (from 0); the bar shows one page at a time.
+    pub page: u8,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -587,6 +591,7 @@ impl Default for Pad {
             macro_name: String::new(),
             fader: None,
             toggle: None,
+            page: 0,
             extra: Map::new(),
         }
     }
@@ -1468,6 +1473,7 @@ impl Show {
             fix_colour(&mut pad.colour, "#4f9cf0");
             cut(&mut pad.command, 64);
             cut(&mut pad.macro_name, 32);
+            pad.page = pad.page.min(u8::try_from(MAX_PAD_PAGES - 1).unwrap_or(0));
             if let Some(FaderTarget::Bus(b)) = pad.fader
                 && usize::from(b) >= BUSES
             {

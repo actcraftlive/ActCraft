@@ -13,7 +13,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M3 | MIDI in/out/sync, macros, remote actions, assignable on-screen controls | ✅ |
 | M4 | DMX output (Art-Net, sACN, USB), fixtures and patch, fixture library, DMX monitor | 🔶 USB to do |
 | M5 | 2D stage preview, programming, presets, sequences, effects engine | 🔶 presets, effects, stage preview done |
-| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists, fades, blind and freeze done |
+| M6 | Cues, cue lists, control pages, blind and freeze, beat sync | 🔶 cues, cue lists, fades, blind, freeze and pad pages done; beat sync to do |
 | M7 | One show: lighting lane on the song timeline, shared clock | ⬜ |
 | M8 | Band network, backup machine, OSC, DMX input, joystick, Hue | 🔶 OSC in done |
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | ⬜ |
@@ -25,7 +25,7 @@ details are in the milestone sections further down.
 
 1. Lyrics from audio tags; markers from other formats than WAV (M2; the readers are proposed to
    the shared audio library first, see below)
-2. M6: control pages (blind is done)
+2. M7: lighting lane on the song timeline
 
 ## Quality and open questions
 
@@ -160,6 +160,10 @@ details are in the milestone sections further down.
   in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads); faders for
   the master, the song or a bus volume (`pad.add {fader}`); toggles that switch the click,
   looping the song or playing the next song and show whether they are on (`pad.add {toggle}`)
+- ✅ Pad pages (control pages): pads sit on up to eight pages and the bar shows one at a time;
+  Page before and Next page in the bar and in the Pads menu (so keys, MIDI and OSC turn pages),
+  a pad moved to another page while editing; OSC pad numbers count on the page shown
+  (`pad.page`, `pad.page_next`, `pad.page_before`, `pad.move`, `pad.add {page}`)
 - ✅ Clock modes (click the big clock): elapsed, remaining, until the queue ends, time of day and
   show time (from the first Play, pauses included; its menu starts it again)
 
@@ -197,8 +201,7 @@ details are in the milestone sections further down.
 - ✅ Effects: a group's attribute moved in a wave (smooth, on and off, ramp, up and down) between two
   values, seconds or beats per cycle at the song tempo, spread over the group; started and
   stopped by name (`effect.set`, `effect.start`, `effect.stop`; Lighting > Stop Effects).
-  Ready-made effect templates, colour and movement effects across several attributes, control
-  pages to do
+  Colour and movement effects across several attributes to do
 - ✅ Ready-made effects: fourteen to start from (breathe, pulse on the beat, chase, wave, build
   over a bar, bounce, colour pulses and drifts, sweep, fan out, nod, tilt wave, zoom); none flashes
   more than three times a second (`effect.templates`, `effect.from_template`; "Start from" in the

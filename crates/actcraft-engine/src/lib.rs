@@ -156,6 +156,8 @@ pub struct Engine {
     /// A fade under way, and where each cue list stands (by list index; not saved).
     fade: Option<cues::Fade>,
     cue_at: std::collections::HashMap<usize, usize>,
+    /// The pad page the bar shows (not saved).
+    pad_page: usize,
     /// Where playback was when the song's lighting cues were last looked at.
     light_at: Option<f64>,
     /// Effects running now (by name) and when each started.
@@ -241,6 +243,7 @@ impl Engine {
             dmx: dmx::Dmx::default(),
             fade: None,
             cue_at: std::collections::HashMap::new(),
+            pad_page: 0,
             light_at: None,
             running_effects: Vec::new(),
             frozen_at: None,

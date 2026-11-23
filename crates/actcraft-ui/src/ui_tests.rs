@@ -220,3 +220,33 @@ fn blind_is_switched_on_says_so_where_fixtures_change_and_is_left_from_there() {
     assert!(!with(&engine, |e| e.dmx.blind()));
     assert!(h.query_by_label_contains("Blind is on").is_none());
 }
+
+#[test]
+fn pad_pages_are_gone_through_and_a_pad_is_moved_to_another_page() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("pad.add", &json!({"label": "Intro", "command": "metronome.toggle"}));
+        let _ = e.run("pad.add", &json!({"label": "Outro", "command": "metronome.toggle", "page": 1}));
+    });
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Page 1 of 2").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Intro").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Outro").is_none(), "on the other page");
+    h.get_by_role_and_label(Role::Button, "Next page").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.pad_page()), 1);
+    assert!(h.query_by_role_and_label(Role::Button, "Outro").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Intro").is_none());
+    // Editing: the pad's own buttons say which pad they act on.
+    h.get_by_role_and_label(Role::Button, "Edit pads").click_accesskit();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::ComboBox, "Page (Outro)").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Page 1").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.show.pads.iter().map(|p| p.page).collect::<Vec<_>>()), vec![0, 0]);
+    h.get_by_role_and_label(Role::Button, "Page before").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.pad_page()), 0);
+    assert!(h.query_by_role_and_label(Role::Button, "Outro").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Remove (Outro)").is_some());
+}

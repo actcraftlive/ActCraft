@@ -1026,3 +1026,18 @@
 	Fixture changes and recalled presets stay off the lights	Geräteänderungen und abgerufene Presets erreichen die Lampen nicht
 	Blind is on: changes here stay off the lights; store them as presets.	Blind ist an: Änderungen hier erreichen die Lampen nicht; als Presets speichern.
 	Leave blind	Blind verlassen
+	Page before	Seite davor
+	Next page	Nächste Seite
+	Page {page} of {pages}	Seite {page} von {pages}
+	New page	Neue Seite
+	An empty pad page; new pads go on the page shown	Eine leere Pad-Seite; neue Pads kommen auf die gezeigte Seite
+	Pads	Pads
+	Next Page	Nächste Seite
+	Page Before	Seite davor
+	Move pad to a page	Pad auf eine Seite verschieben
+	Show pad page	Pad-Seite zeigen
+	Next pad page	Nächste Pad-Seite
+	Pad page before	Pad-Seite davor
+	that page is past the next new one	diese Seite liegt hinter der nächsten neuen
+	give `page`	`page` angeben
+	Page	Seite

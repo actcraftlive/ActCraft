@@ -3,7 +3,7 @@
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
-use actcraft_show::limits::MAX_PADS;
+use actcraft_show::limits::{MAX_PAD_PAGES, MAX_PADS};
 use actcraft_show::{FaderTarget, Macro, Pad, ToggleTarget, parse_colour};
 use serde_json::{Value, json};
 
@@ -56,7 +56,8 @@ pub fn pad_add(e: &mut Engine, prm: &Value) -> CommandResult {
     {
         return Err(invalid("a pad runs a command that needs nothing more, or a macro"));
     }
-    let mut pad = Pad { label, command, macro_name, fader, toggle, ..Pad::default() };
+    let page = page_param(prm, "page")?.unwrap_or(e.pad_page);
+    let mut pad = Pad { label, command, macro_name, fader, toggle, page: page_u8(page), ..Pad::default() };
     if let Some(c) = p::opt_str_max(prm, "colour", 16)? {
         if parse_colour(c).is_none() {
             return Err(invalid("`colour` must look like #rrggbb"));
@@ -98,10 +99,71 @@ pub fn pad_list(e: &mut Engine, _prm: &Value) -> CommandResult {
             .pads
             .iter()
             .map(|p| {
-                json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name, "fader": p.fader, "toggle": p.toggle})
+                json!({"label": p.label, "colour": p.colour, "command": p.command, "macro": p.macro_name, "fader": p.fader, "toggle": p.toggle, "page": p.page})
             })
             .collect(),
     ))
+}
+
+fn page_param(prm: &Value, key: &str) -> Result<Option<usize>, CommandError> {
+    Ok(p::opt_i64_in(prm, key, 0, MAX_PAD_PAGES as i64 - 1)?.and_then(|n| usize::try_from(n).ok()))
+}
+
+fn page_u8(page: usize) -> u8 {
+    u8::try_from(page.min(MAX_PAD_PAGES - 1)).unwrap_or(0)
+}
+
+impl Engine {
+    /// The pad page the bar shows (from 0).
+    pub fn pad_page(&self) -> usize {
+        self.pad_page
+    }
+
+    /// How many pad pages there are: up to the last one holding a pad, or the one shown.
+    pub fn pad_pages(&self) -> usize {
+        let used = self.show.pads.iter().map(|p| usize::from(p.page) + 1).max().unwrap_or(1);
+        used.max(self.pad_page + 1)
+    }
+
+    /// The pads on the page shown, as indexes into every pad, in order.
+    pub fn shown_pads(&self) -> Vec<usize> {
+        let page = page_u8(self.pad_page);
+        self.show.pads.iter().enumerate().filter(|(_, p)| p.page == page).map(|(i, _)| i).collect()
+    }
+}
+
+/// `pad.page {page}`: the bar shows this pad page (from 0); a page past the last starts a new one.
+pub fn pad_page(e: &mut Engine, prm: &Value) -> CommandResult {
+    let page = page_param(prm, "page")?.ok_or_else(|| invalid("give `page`"))?;
+    if page > e.pad_pages() {
+        return Err(invalid("that page is past the next new one"));
+    }
+    e.pad_page = page;
+    Ok(json!({"page": page, "pages": e.pad_pages()}))
+}
+
+/// `pad.page_next`: the next pad page, from the last back to the first.
+pub fn pad_page_next(e: &mut Engine, _prm: &Value) -> CommandResult {
+    e.pad_page = (e.pad_page + 1) % e.pad_pages();
+    Ok(json!({"page": e.pad_page, "pages": e.pad_pages()}))
+}
+
+/// `pad.page_before`: the pad page before, from the first round to the last.
+pub fn pad_page_before(e: &mut Engine, _prm: &Value) -> CommandResult {
+    let pages = e.pad_pages();
+    e.pad_page = (e.pad_page + pages - 1) % pages;
+    Ok(json!({"page": e.pad_page, "pages": e.pad_pages()}))
+}
+
+/// `pad.move {pad, page}`: puts a pad on another page (at the end of it).
+pub fn pad_move(e: &mut Engine, prm: &Value) -> CommandResult {
+    let i = p::index(prm, "pad", e.show.pads.len())?;
+    let page = page_param(prm, "page")?.ok_or_else(|| invalid("give `page`"))?;
+    let mut pad = e.show.pads.remove(i);
+    pad.page = page_u8(page);
+    e.show.pads.push(pad);
+    e.mark_changed();
+    Ok(json!({"pad": e.show.pads.len() - 1}))
 }
 
 /// `pad.press {pad}`: runs what the pad runs.
@@ -203,5 +265,48 @@ mod tests {
         assert_eq!(e.show.pads.len(), 2);
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.pads).unwrap_or_default();
         assert_eq!(back, e.show.pads);
+    }
+
+    #[test]
+    fn pads_sit_on_pages_that_are_shown_one_at_a_time() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let add = |e: &mut Engine, label: &str, page: Option<u8>| {
+            let mut prm = json!({"label": label, "command": "metronome.toggle"});
+            if let Some(p) = page {
+                prm["page"] = json!(p);
+            }
+            e.run("pad.add", &prm)
+        };
+        assert!(add(&mut e, "A", None).is_ok());
+        assert!(add(&mut e, "B", Some(1)).is_ok());
+        assert!(add(&mut e, "C", None).is_ok());
+        assert_eq!((e.pad_page(), e.pad_pages()), (0, 2));
+        assert_eq!(e.shown_pads(), vec![0, 2]);
+        assert_eq!(e.run("pad.page_next", &Value::Null).ok(), Some(json!({"page": 1, "pages": 2})));
+        assert_eq!(e.shown_pads(), vec![1]);
+        // OSC pad numbers count on the page shown.
+        assert_eq!(e.osc_in("/actcraft/pad/1", Some(1.0)), 1);
+        assert_eq!(e.osc_in("/actcraft/pad/2", Some(1.0)), 0, "page 2 holds one pad");
+        assert_eq!(
+            e.run("pad.page_next", &Value::Null).ok(),
+            Some(json!({"page": 0, "pages": 2})),
+            "round to the first"
+        );
+        assert_eq!(e.run("pad.page_before", &Value::Null).ok(), Some(json!({"page": 1, "pages": 2})));
+        // A new, empty page, and new pads land on the page shown.
+        assert_eq!(e.run("pad.page", &json!({"page": 2})).ok(), Some(json!({"page": 2, "pages": 3})));
+        assert!(e.run("pad.page", &json!({"page": 4})).is_err(), "past the next new page");
+        assert!(e.run("pad.page", &json!({"page": 8})).is_err());
+        assert!(add(&mut e, "D", None).is_ok());
+        assert_eq!(e.show.pads[3].page, 2);
+        // Moving a pad puts it at the end of its new page.
+        assert_eq!(e.run("pad.move", &json!({"pad": 0, "page": 2})).ok(), Some(json!({"pad": 3})));
+        assert_eq!(e.shown_pads(), vec![2, 3]);
+        assert!(e.run("pad.move", &json!({"pad": 0, "page": 9})).is_err());
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.pads).unwrap_or_default();
+        assert_eq!(back, e.show.pads);
+        // A file from elsewhere can't put a pad past the last page.
+        let file = br#"{"format":"actcraft-show","version":1,"name":"P","pads":[{"label":"X","command":"transport.toggle","page":200}]}"#;
+        assert_eq!(actcraft_show::Show::from_bytes(file).map(|s| s.pads[0].page).ok(), Some(7));
     }
 }
