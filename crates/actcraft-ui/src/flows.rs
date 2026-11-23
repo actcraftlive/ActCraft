@@ -53,6 +53,8 @@ pub enum FileAsk {
         playlist: Option<usize>,
     },
     OpenPackage,
+    /// An Open Fixture Library fixture to bring in as a fixture type.
+    ImportFixtureType,
 }
 
 /// What happens once a save finishes.
@@ -108,7 +110,7 @@ pub(crate) enum Modal {
 /// ActCraft's website, shown in the About window.
 pub const WEBSITE: &str = "https://actcraft.org";
 
-fn show_dir(e: &Engine) -> Option<PathBuf> {
+pub(crate) fn show_dir(e: &Engine) -> Option<PathBuf> {
     e.show_path.as_deref().and_then(|p| Path::new(p).parent()).map(Path::to_path_buf)
 }
 
@@ -222,6 +224,14 @@ impl ActCraftApp {
             FileAsk::ImportLyrics { song } => {
                 if e.run("lyrics.import", &json!({"song": song, "path": path_string(&first)})).is_ok() {
                     self.centre_tab = crate::CentreTab::Lyrics;
+                }
+            }
+            FileAsk::ImportFixtureType => {
+                if let Ok(v) = e.run("fixture_type.import", &json!({"path": path_string(&first)})) {
+                    // The new type is what the patch form offers next.
+                    let t = v["type"].as_u64().and_then(|t| usize::try_from(t).ok()).unwrap_or(0);
+                    self.fixture_draft.kind = actcraft_engine::fixtures::KINDS.len() + t;
+                    self.fixture_draft.mode = 0;
                 }
             }
             FileAsk::AttachMidi { song } => {

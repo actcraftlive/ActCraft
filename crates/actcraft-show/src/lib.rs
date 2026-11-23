@@ -68,6 +68,9 @@ pub mod limits {
     pub const MAX_FIXTURES: usize = 1_024;
     /// Channels of one fixture.
     pub const MAX_FIXTURE_CHANNELS: usize = 64;
+    /// Fixture types in a show, and modes of one.
+    pub const MAX_FIXTURE_TYPES: usize = 256;
+    pub const MAX_FIXTURE_MODES: usize = 32;
     /// Marks on one song's PDF.
     pub const MAX_PDF_MARKS: usize = 4_000;
     /// Points in one pen stroke.
@@ -152,6 +155,9 @@ pub struct Show {
     /// The lights: each fixture with its channels and where it is patched.
     #[serde(default)]
     pub fixtures: Vec<Fixture>,
+    /// Kinds of fixtures brought in from fixture library files.
+    #[serde(default)]
+    pub fixture_types: Vec<FixtureType>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -181,6 +187,7 @@ impl Default for Show {
             pads: Vec::new(),
             dmx_outputs: Vec::new(),
             fixtures: Vec::new(),
+            fixture_types: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -645,6 +652,26 @@ impl Attribute {
     pub fn is_fine(self) -> bool {
         matches!(self, Attribute::IntensityFine | Attribute::PanFine | Attribute::TiltFine)
     }
+}
+
+/// A kind of fixture brought into the show (from a fixture library file), with its modes.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FixtureType {
+    pub name: String,
+    pub modes: Vec<FixtureMode>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// One way a fixture type can be set up: its channels in DMX order.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FixtureMode {
+    pub name: String,
+    pub channels: Vec<Attribute>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 /// A light (or anything else DMX drives) patched into a universe.
@@ -1254,6 +1281,17 @@ impl Show {
                 pad.fader = None;
             }
         }
+        self.fixture_types.truncate(MAX_FIXTURE_TYPES);
+        for t in &mut self.fixture_types {
+            cut(&mut t.name, 64);
+            t.modes.truncate(MAX_FIXTURE_MODES);
+            for m in &mut t.modes {
+                cut(&mut m.name, 64);
+                m.channels.truncate(MAX_FIXTURE_CHANNELS);
+            }
+            t.modes.retain(|m| !m.channels.is_empty());
+        }
+        self.fixture_types.retain(|t| !t.modes.is_empty());
         self.fixtures.truncate(MAX_FIXTURES);
         for f in &mut self.fixtures {
             cut(&mut f.name, 64);
