@@ -641,7 +641,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Import a fixture type",
             "",
             None,
-            "{path: an Open Fixture Library .json file} -> {type: index, name, modes: [name]}",
+            "{path: an Open Fixture Library .json file or an .r20 file} -> {type: index, name, modes: [name]}",
             crate::fixture_library::fixture_type_import,
         ),
         cmd(

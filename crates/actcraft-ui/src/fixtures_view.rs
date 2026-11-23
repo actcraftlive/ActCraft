@@ -320,7 +320,7 @@ impl ActCraftApp {
                 ask: crate::flows::FileAsk::ImportFixtureType,
                 kind: crate::flows::FileKind::Open,
                 title: tr("Import fixture type"),
-                filters: vec![(tr("Open Fixture Library fixture"), actcraft_engine::fixture_library::EXTENSIONS)],
+                filters: vec![(tr("Fixture file (.json, .r20)"), actcraft_engine::fixture_library::EXTENSIONS)],
                 file_name: None,
                 directory: crate::flows::show_dir(e),
             });

@@ -1248,3 +1248,6 @@
 	give each range a name	jedem Bereich einen Namen geben
 	the fixture has no such channel	das Gerät hat diesen Kanal nicht
 	no such range	diesen Bereich gibt es nicht
+	Fixture file (.json, .r20)	Gerätedatei (.json, .r20)
+	ActCraft reads fixture types from Open Fixture Library .json and .r20 files	ActCraft liest Gerätetypen aus Open-Fixture-Library-.json- und .r20-Dateien
+	that file is not an .r20 fixture file	diese Datei ist keine .r20-Gerätedatei
