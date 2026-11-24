@@ -3,7 +3,7 @@
 //! 1. Builds `actcraft` and `actcraft-cli`.
 //! 2. Makes an example show in `target/help-shots/` with `actcraft-cli`: three songs (their audio is
 //!    a quiet tone this task writes), lyrics with chords, regions, a setlist with an encore, a moving
-//!    head from the fixture library, four pars, presets, a cue list and a sequence. Nothing of this
+//!    head from the fixture library, four pars, presets, a cue list, a sequence and a hit. Nothing of this
 //!    computer goes in.
 //! 3. Opens the window once per picture and language with `--no-devices` (no audio interface, no
 //!    remote control) and settings in `target/help-shots/settings`, so the person's own settings
@@ -201,6 +201,7 @@ fn example_show(cli: &Path, dir: &Path) -> Result<PathBuf, String> {
     let seq = index(&run("sequence.set", json!({"name": "Sweep", "mode": "bounce", "in_beats": true}))?, "sequence")?;
     run("sequence.step_add", json!({"sequence": seq, "preset": warm, "length": 4.0, "fade": 0.5}))?;
     run("sequence.step_add", json!({"sequence": seq, "preset": blue, "length": 4.0, "fade": 0.5}))?;
+    run("hit.set", json!({"name": "Flash", "preset": blue, "seconds": 0.3}))?;
     Ok(show)
 }
 

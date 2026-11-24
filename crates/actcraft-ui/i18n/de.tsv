@@ -942,7 +942,6 @@
 	Light cues	Licht-Cues
 	Light cues •	Licht-Cues •
 	Lighting cues this song fires as it plays (a jump skips the ones in between).	Licht-Cues, die dieser Song beim Abspielen auslöst (ein Sprung überspringt die dazwischen).
-	Make a cue list with cues first (Lighting > Presets).	Erst eine Cue-Liste mit Cues anlegen (Licht > Presets).
 	Now	Jetzt
 	Region name	Name des Bereichs
 	Remove a song's lighting cue	Einen Licht-Cue des Songs entfernen
@@ -1428,3 +1427,24 @@
 	All Stop	Alles stoppen
 	Stop every cue list, sequence and effect; every fixture goes dark without moving	Stoppt jede Cue-Liste, jeden Ablauf und Effekt; jedes Gerät wird dunkel, ohne sich zu bewegen
 	Stop this cue list and what its cues started; its lights go dark	Stoppt diese Cue-Liste und was ihre Cues gestartet haben; ihre Lampen werden dunkel
+	A preset on for a moment, such as fog for half a second, outside the cue lists; then its channels go back.	Ein Preset kurz an, etwa Nebel für eine halbe Sekunde, außerhalb der Cue-Listen; danach gehen seine Kanäle zurück.
+	Add hit	Stoß hinzufügen
+	Add hit here	Stoß hier hinzufügen
+	Fire	Auslösen
+	Fire a hit	Stoß auslösen
+	Hit	Stoß
+	Hits	Stöße
+	List hits	Stöße auflisten
+	Make a cue list with cues, or a hit, first (Lighting > Presets).	Erst eine Cue-Liste mit Cues oder einen Stoß anlegen (Licht > Presets).
+	Make a hit	Stoß anlegen
+	New hit	Neuer Stoß
+	On for	An für
+	Put it on now, for its time	Jetzt auslösen, für seine Dauer
+	Remove a hit	Stoß entfernen
+	Store a preset first: a hit puts a preset on.	Erst ein Preset speichern: Ein Stoß schaltet ein Preset an.
+	The song fires this hit when playback passes this point	Der Song löst diesen Stoß aus, wenn die Wiedergabe diese Stelle erreicht
+	a hit needs a name	ein Stoß braucht einen Namen
+	a show holds at most 256 hits	eine Show hat höchstens 256 Stöße
+	its preset is gone	sein Preset fehlt
+	no such hit	diesen Stoß gibt es nicht
+	that hit's preset is not in the show	das Preset dieses Stoßes ist nicht in der Show

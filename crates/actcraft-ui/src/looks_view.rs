@@ -29,6 +29,11 @@ pub struct LooksDraft {
     pub light_time: f64,
     pub light_list: usize,
     pub light_cue: usize,
+    /// A new hit: its name, preset (index) and seconds on; a hit for the song's lane (index).
+    pub hit_name: String,
+    pub hit_preset: usize,
+    pub hit_seconds: f64,
+    pub light_hit: usize,
     /// An effect being put together.
     pub effect: actcraft_show::Effect,
     pub effect_group: usize,
@@ -136,6 +141,10 @@ fn bar_text(clock: &actcraft_engine::BeatClock, seconds: f64) -> String {
 
 /// A song lighting cue's cue, in words: "2. Chorus", or that it is gone.
 fn light_cue_name(e: &Engine, c: &actcraft_show::LightCue) -> String {
+    if !c.hit.is_empty() {
+        let there = e.show.hits.iter().any(|h| h.name == c.hit);
+        return if there { format!("{}: {}", tr("Hit"), c.hit) } else { tr("(not there)").to_owned() };
+    }
     e.show
         .cue_lists
         .iter()
@@ -270,7 +279,7 @@ impl ActCraftApp {
                 let name = light_cue_name(e, c);
                 ui.label(at_text(c.time));
                 ui.label(format!("{} {}", tr("Bar"), bar_text(&clock, c.time)));
-                ui.label(&c.list);
+                ui.label(if c.hit.is_empty() { c.list.as_str() } else { tr("Hit") });
                 ui.label(&name);
                 // Moving by a beat, for the keyboard (the lane above also takes a drag).
                 let beat = clock.beat_len();
@@ -296,16 +305,17 @@ impl ActCraftApp {
             self.run(e, id, prm);
         }
         let lists = e.show.cue_lists.clone();
-        if lists.iter().all(|l| l.cues.is_empty()) {
-            ui.label(RichText::new(tr("Make a cue list with cues first (Lighting > Presets).")).color(t.text_dim));
+        let hits = e.show.hits.clone();
+        let no_cues = lists.iter().all(|l| l.cues.is_empty());
+        if no_cues && hits.is_empty() {
+            ui.label(
+                RichText::new(tr("Make a cue list with cues, or a hit, first (Lighting > Presets).")).color(t.text_dim),
+            );
             return;
         }
         let now = e.status.time;
         let d = &mut self.looks_draft;
-        d.light_list = d.light_list.min(lists.len().saturating_sub(1));
-        let cues = lists.get(d.light_list).map(|l| l.cues.clone()).unwrap_or_default();
-        d.light_cue = d.light_cue.min(cues.len().saturating_sub(1));
-        let mut add = false;
+        // Where a new cue or hit goes: shared by both rows below.
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("At"));
             ui.add(egui::DragValue::new(&mut d.light_time).range(0.0..=86_400.0).speed(0.1).suffix(" s"))
@@ -314,37 +324,66 @@ impl ActCraftApp {
                 d.light_time = (now * 10.0).round() / 10.0;
             }
             ui.label(format!("{} {}", tr("Bar"), bar_text(&clock, d.light_time)));
-            let label = ui.label(tr("Cue list"));
-            egui::ComboBox::from_id_salt("light-list")
-                .selected_text(lists.get(d.light_list).map(|l| l.name.clone()).unwrap_or_default())
-                .show_ui(ui, |ui| {
-                    for (i, l) in lists.iter().enumerate() {
-                        ui.selectable_value(&mut d.light_list, i, &l.name);
-                    }
-                })
-                .response
-                .labelled_by(label.id);
-            let label = ui.label(tr("Cue"));
-            egui::ComboBox::from_id_salt("light-cue")
-                .selected_text(
-                    cues.get(d.light_cue).map(|c| format!("{}. {}", d.light_cue + 1, c.name)).unwrap_or_default(),
-                )
-                .show_ui(ui, |ui| {
-                    for (i, c) in cues.iter().enumerate() {
-                        ui.selectable_value(&mut d.light_cue, i, format!("{}. {}", i + 1, c.name));
-                    }
-                })
-                .response
-                .labelled_by(label.id);
-            add = ui.add_enabled(!cues.is_empty(), egui::Button::new(tr("Add lighting cue"))).clicked();
         });
-        if add {
-            let d = self.looks_draft.clone();
-            self.run(
-                e,
-                "song.light_cue_add",
-                json!({"song": song.id, "time": d.light_time, "list": d.light_list, "cue": d.light_cue}),
-            );
+        let mut add: Option<Value> = None;
+        if !no_cues {
+            d.light_list = d.light_list.min(lists.len().saturating_sub(1));
+            let cues = lists.get(d.light_list).map(|l| l.cues.clone()).unwrap_or_default();
+            d.light_cue = d.light_cue.min(cues.len().saturating_sub(1));
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tr("Cue list"));
+                egui::ComboBox::from_id_salt("light-list")
+                    .selected_text(lists.get(d.light_list).map(|l| l.name.clone()).unwrap_or_default())
+                    .show_ui(ui, |ui| {
+                        for (i, l) in lists.iter().enumerate() {
+                            ui.selectable_value(&mut d.light_list, i, &l.name);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                let label = ui.label(tr("Cue"));
+                egui::ComboBox::from_id_salt("light-cue")
+                    .selected_text(
+                        cues.get(d.light_cue).map(|c| format!("{}. {}", d.light_cue + 1, c.name)).unwrap_or_default(),
+                    )
+                    .show_ui(ui, |ui| {
+                        for (i, c) in cues.iter().enumerate() {
+                            ui.selectable_value(&mut d.light_cue, i, format!("{}. {}", i + 1, c.name));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                if ui.add_enabled(!cues.is_empty(), egui::Button::new(tr("Add lighting cue"))).clicked() {
+                    add =
+                        Some(json!({"song": song.id, "time": d.light_time, "list": d.light_list, "cue": d.light_cue}));
+                }
+            });
+        }
+        // A hit at this point: fog, a flash, outside the cue lists.
+        if !hits.is_empty() {
+            d.light_hit = d.light_hit.min(hits.len() - 1);
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tr("Hit"));
+                egui::ComboBox::from_id_salt("light-hit")
+                    .selected_text(hits.get(d.light_hit).map(|h| h.name.clone()).unwrap_or_default())
+                    .show_ui(ui, |ui| {
+                        for (i, h) in hits.iter().enumerate() {
+                            ui.selectable_value(&mut d.light_hit, i, &h.name);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                if ui
+                    .button(tr("Add hit here"))
+                    .on_hover_text(tr("The song fires this hit when playback passes this point"))
+                    .clicked()
+                {
+                    add = Some(json!({"song": song.id, "time": d.light_time, "hit": d.light_hit}));
+                }
+            });
+        }
+        if let Some(prm) = add {
+            self.run(e, "song.light_cue_add", prm);
         }
     }
 
@@ -366,6 +405,8 @@ impl ActCraftApp {
                     self.presets_ui(ui, e);
                     ui.separator();
                     self.cue_lists_ui(ui, e);
+                    ui.separator();
+                    self.hits_ui(ui, e);
                     ui.separator();
                     self.effects_ui(ui, e);
                     ui.separator();

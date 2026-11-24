@@ -44,7 +44,7 @@ Asked for by the owner on 2026-11-24 (details under M11):
 
 8. ✅ M11: Stop for cue lists and All stop
 9. ✅ M11: one cue in control (a new cue takes over from the one before)
-10. M11: hits, short bursts outside the cue lists (fog for 0.5 s)
+10. ✅ M11: hits, short bursts outside the cue lists (fog for 0.5 s)
 
 ## Quality and open questions
 
@@ -367,7 +367,7 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   goes takes over. Every other cue list stops going on by itself, and the sequences and effects
   the cues before it started stop, unless this cue starts them too (they then go on without
   starting over)
-- ⬜ Hits (owner, 2026-11-24: "single things I can put in, e.g. fire a fog machine for 0.5 s, not
+- ✅ Hits (owner, 2026-11-24: "single things I can put in, e.g. fire a fog machine for 0.5 s, not
   cues but small bursts outside the cue lists"): a hit is a name, a preset and a length. Firing it
   puts the preset on top for that long, then puts back exactly what those channels were before.
   Hits belong to no cue list, so a cue taking over leaves them alone. Fired from the song's

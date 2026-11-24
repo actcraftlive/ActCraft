@@ -957,3 +957,37 @@ fn a_question_mark_opens_the_help_at_its_part() {
     frames(&mut h, 3);
     assert!(h.query_by_role_and_label(Role::Label, "Set it up").is_some());
 }
+
+#[test]
+fn a_hit_is_made_fired_and_put_on_a_songs_lane() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("song.add", &json!({"title": "Opener"}));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1, "name": "Fog"}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Fog on"}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.0}}));
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::TextInput, "New hit").focus();
+    frames(&mut h, 1);
+    h.get_by_role_and_label(Role::TextInput, "New hit").type_text("Fog");
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add hit").click_accesskit();
+    frames(&mut h, 3);
+    let hit = with(&engine, |e| e.show.hits.first().map(|h| (h.name.clone(), h.preset.clone(), h.seconds)));
+    assert_eq!(hit, Some(("Fog".to_owned(), "Fog on".to_owned(), 0.5)));
+    h.get_by_role_and_label(Role::Button, "Fire (Fog)").click_accesskit();
+    frames(&mut h, 2);
+    assert_eq!(with(&engine, |e| e.hits_on()), vec!["Fog".to_owned()]);
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[0])), Some(255));
+    // On the song's lane.
+    h.state_mut().show_light_cues();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "Add hit here").click_accesskit();
+    frames(&mut h, 3);
+    let marks = with(&engine, |e| e.current().map(|s| s.light_cues.iter().map(|c| c.hit.clone()).collect::<Vec<_>>()));
+    assert_eq!(marks, Some(vec!["Fog".to_owned()]));
+    // The table names the mark as a hit.
+    assert!(h.query_by_role_and_label(Role::Label, "Hit: Fog").is_some());
+}

@@ -202,7 +202,9 @@ impl Engine {
             .map(|s| s.light_cues.iter().filter(|c| c.time > from && c.time <= now).cloned().collect())
             .unwrap_or_default();
         for c in due {
-            if let Some(list) = self.show.cue_lists.iter().position(|l| l.name == c.list) {
+            if !c.hit.is_empty() {
+                let _ = self.fire_hit(&c.hit);
+            } else if let Some(list) = self.show.cue_lists.iter().position(|l| l.name == c.list) {
                 let _ = self.go_to(list, c.cue);
             }
         }
@@ -251,6 +253,18 @@ fn place(song: &mut actcraft_show::Song, cue: LightCue) -> usize {
 pub fn light_cue_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let id = song_id(e, prm)?;
     let time = cue_time(e, id, prm)?;
+    // A hit instead of a cue.
+    if p::has(prm, "hit") {
+        let hit = p::index(prm, "hit", e.show.hits.len())?;
+        let name = e.show.hits.get(hit).map(|h| h.name.clone()).unwrap_or_default();
+        let Some(song) = e.show.song_mut(id) else { return Err(invalid("no such song")) };
+        if song.light_cues.len() >= actcraft_show::limits::MAX_LIGHT_CUES {
+            return Err(failed("a song fires at most 1000 lighting cues"));
+        }
+        let at = place(song, LightCue { time, hit: name, ..LightCue::default() });
+        e.mark_changed();
+        return Ok(json!({"light_cue": at}));
+    }
     let list = p::index(prm, "list", e.show.cue_lists.len())?;
     let len = e.show.cue_lists.get(list).map_or(0, |l| l.cues.len());
     let cue = p::index(prm, "cue", len)?;
@@ -446,6 +460,8 @@ pub fn lighting_stop_all(e: &mut Engine, prm: &Value) -> CommandResult {
     e.cue_at.clear();
     e.cue_went.clear();
     e.stop_by_name("*");
+    // Hits end too; the dark below covers what they lit.
+    e.running_hits.clear();
     let values: Vec<actcraft_show::PresetValue> = e
         .show
         .fixtures
