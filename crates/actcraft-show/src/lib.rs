@@ -803,6 +803,13 @@ pub struct RemoteAction {
     pub trigger: RemoteTrigger,
     /// A command id (`transport.toggle`, `song.next`...).
     pub command: String,
+    /// For a command that acts on one thing of the show (`preset.recall`, `hit.fire`, `cue.go`,
+    /// `sequence.start`, `macro.run`...): that thing's name, found when the message comes in.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub target: String,
+    /// For `cue.jump`: the cue's place in the cue list named by `target`, from 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cue: Option<usize>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }

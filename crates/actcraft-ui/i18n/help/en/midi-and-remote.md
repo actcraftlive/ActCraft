@@ -14,6 +14,14 @@ Next song, Leave Loop or the next light cue.
 1. Settings > MIDI: choose the MIDI input.
 2. **Add remote action**, choose the command, then **Learn** and press the foot switch.
 
+Some commands act on one thing of the show: **Recall a preset**, **Fire a hit**, **Go to a cue**,
+the next cue or Stop of a cue list, starting or stopping a sequence, running a macro. For these,
+**Acts on** picks the preset, hit, cue list, sequence or macro by name (and **Cue** the cue).
+The action finds it by name when the note comes in, so it keeps working when the list changes.
+
+Coming from another lighting program: if your backing-track program already sends a note per
+song or part, give each note an action here with **Learn**, and the same notes go on working.
+
 ## Pads {#pads}
 
 Pads are buttons at the bottom of the window (**Add pads…**). A pad runs a command, a macro, or

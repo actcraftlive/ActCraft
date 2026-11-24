@@ -478,7 +478,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add remote action",
             "",
             None,
-            "{kind: note|cc|program, channel?: 1-16 (any when left out), number: 0-127, command: id (one that needs nothing more)} -> {action: index}",
+            "{kind: note|cc|program, channel?: 1-16 (any when left out), number: 0-127, command: id (one that needs nothing more, or one that acts on a thing: preset.recall, hit.fire, cue.go, cue.back, cue_list.stop, cue.jump, sequence.start, sequence.toggle, sequence.stop, macro.run), target?: name of its preset, hit, cue list, sequence or macro, cue?: index (cue.jump)} -> {action: index}",
             crate::remote::remote_add,
         ),
         cmd("remote.remove", "Remove remote action", "", None, "{action: index}", crate::remote::remote_remove),
@@ -548,7 +548,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Add a controller button",
             "",
             None,
-            "{button: south | east | north | west | left_bumper | left_trigger | right_bumper | right_trigger | select | start | mode | left_stick | right_stick | dpad_up | dpad_down | dpad_left | dpad_right, command: id (one that needs nothing more)} -> {action: index}",
+            "{button: south | east | north | west | left_bumper | left_trigger | right_bumper | right_trigger | select | start | mode | left_stick | right_stick | dpad_up | dpad_down | dpad_left | dpad_right, command: id (one that needs nothing more, or one that acts on a thing: preset.recall, hit.fire, cue.go, cue.back, cue_list.stop, cue.jump, sequence.start, sequence.toggle, sequence.stop, macro.run), target?: name of its preset, hit, cue list, sequence or macro, cue?: index (cue.jump)} -> {action: index}",
             crate::gamepad::gamepad_add,
         ),
         cmd(

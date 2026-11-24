@@ -50,7 +50,7 @@ Asked for by the owner on 2026-11-24 (details under M11):
 Asked for by the owner on 2026-11-24, so people moving from other lighting programs keep what
 they have (details under M3 and M4–M6):
 
-13. ⬜ M3: remote actions with a target: a MIDI note, controller or program change recalls a
+13. ✅ M3: remote actions with a target: a MIDI note, controller or program change recalls a
     chosen preset, fires a hit, goes to a cue in a cue list, starts a sequence or runs a macro
 
 ## Quality and open questions
@@ -184,7 +184,7 @@ they have (details under M3 and M4–M6):
   Keys have their shortcuts; pads on the screen (below). OSC: Settings > MIDI listens on a UDP
   port (this computer only, or the network too); `/actcraft/<command id>`, `/actcraft/macro/<NAME>`
   and `/actcraft/pad/<n>` run a command, a macro or a pad (`osc.trigger`)
-- ⬜ Remote actions with a target, so the MIDI a show already sends (from a backing-track
+- ✅ Remote actions with a target, so the MIDI a show already sends (from a backing-track
   program, a keyboard, a foot controller) keeps working after moving from another lighting
   program: the action names what it acts on (a preset, a hit, a cue list or one of its cues, a
   sequence, a macro) and finds it by name when the message comes in (`remote.add {target, cue}`)

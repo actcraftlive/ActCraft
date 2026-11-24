@@ -700,7 +700,13 @@
 	any channel	jeder Kanal
 	channel {channel}	Kanal {channel}
 	`kind` must be note, cc or program	`kind` muss note, cc oder program sein
-	a remote action runs a command that needs nothing more	eine Fernaktion führt einen Befehl aus, der nichts weiter braucht
+	a remote action runs a command that needs nothing more, or names what it acts on	eine Fernaktion führt einen Befehl aus, der nichts weiter braucht oder nennt, worauf er wirkt
+	the show has no such preset, hit, cue list, cue, sequence or macro	die Show hat kein Preset, keinen Stoß, keine Cue-Liste, keinen Cue, keinen Ablauf und kein Makro dieses Namens
+	that command does not act on a preset, hit, cue list, sequence or macro	dieser Befehl wirkt nicht auf ein Preset, einen Stoß, eine Cue-Liste, einen Ablauf oder ein Makro
+	Acts on	Wirkt auf
+	Choose	Wählen
+	Not chosen	Nicht gewählt
+	Not chosen, it does what the command does by itself: the first cue list, or every sequence	Nicht gewählt, tut es, was der Befehl allein tut: die erste Cue-Liste oder jeder Ablauf
 	a show holds at most 256 remote actions	eine Show hat höchstens 256 Fernaktionen
 	Add a command	Einen Befehl hinzufügen
 	Change	Ändern
