@@ -421,6 +421,23 @@ pub fn cue_list_stop(e: &mut Engine, prm: &Value) -> CommandResult {
     Ok(Value::Null)
 }
 
+/// `lighting.stop_all {fade?}`: every cue list back to "not started", every sequence and effect
+/// stopped, every fixture dark (at once, or over `fade` seconds) without moving.
+pub fn lighting_stop_all(e: &mut Engine, prm: &Value) -> CommandResult {
+    let fade = p::opt_f64_in(prm, "fade", 0.0, MAX_FADE_S)?.unwrap_or(0.0);
+    e.cue_at.clear();
+    e.cue_went.clear();
+    e.stop_by_name("*");
+    let values: Vec<actcraft_show::PresetValue> = e
+        .show
+        .fixtures
+        .iter()
+        .flat_map(|f| LIGHT.map(|attribute| actcraft_show::PresetValue { fixture: f.id, attribute, value: 0.0 }))
+        .collect();
+    e.fade_to(&Preset { values, ..Preset::default() }, fade);
+    Ok(Value::Null)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,6 +469,33 @@ mod tests {
         // Go starts it again from the first cue.
         assert!(e.run("cue.go", &json!({"list": 0})).is_ok());
         assert_eq!(e.cue_position(0), Some(0));
+    }
+
+    /// All stop ends every list, sequence and effect and darkens every fixture, also one no cue
+    /// lit, without moving any.
+    #[test]
+    fn all_stop_stops_everything_and_darkens_every_fixture() {
+        let mut e = engine();
+        let _ = e.run("fixture.add", &json!({"channels": ["pan", "red"], "universe": 1, "address": 10}));
+        let _ = e.run("fixture.set", &json!({"fixture": 1, "values": {"pan": 0.5, "red": 1.0}}));
+        let _ = e.run("sequence.set", &json!({"name": "Sweep"}));
+        let _ = e.run("sequence.step_add", &json!({"sequence": 0, "preset": 0, "length": 1.0}));
+        let _ = e.run("sequence.start", &json!({"sequence": 0}));
+        let _ = e.run("cue_list.add", &json!({"name": "A"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 1.0}));
+        let _ = e.run("cue_list.add", &json!({"name": "B"}));
+        let _ = e.run("cue.add", &json!({"list": 1, "preset": 0}));
+        let _ = e.run("cue.go", &json!({"list": 0}));
+        let _ = e.run("cue.go", &json!({"list": 1}));
+        assert_eq!(level(&e), 255);
+
+        assert!(e.run("lighting.stop_all", &Value::Null).is_ok());
+        assert_eq!((e.cue_position(0), e.cue_position(1)), (None, None));
+        assert!(e.running_sequences.is_empty());
+        assert_eq!(level(&e), 0);
+        assert_eq!(e.dmx.universe(1).map(|u| (u[9], u[10])), Some((128, 0)), "pan kept, red off");
+        e.step_follow(e.services().now() + TimeDelta::seconds(5));
+        assert_eq!(e.cue_position(0), None, "nothing goes on by itself");
     }
 
     /// Stop darkens without moving: a moving head's position stays where the cue put it.

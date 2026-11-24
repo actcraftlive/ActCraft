@@ -861,6 +861,22 @@ pub fn all() -> Vec<Command<Engine>> {
         ),
         cmd("cue.jump", "Go to a cue", "", None, "{list: index, cue: index} -> {cue, name}", crate::cues::cue_jump),
         cmd(
+            "cue_list.stop",
+            "Stop the cue list",
+            "Lighting/Stop Cue List",
+            None,
+            "{list?: index (the first list without), fade?: seconds 0-600} (back to not started; its sequences and effects stop; its lights go dark without moving)",
+            crate::cues::cue_list_stop,
+        ),
+        cmd(
+            "lighting.stop_all",
+            "All stop",
+            "Lighting/All Stop",
+            None,
+            "{fade?: seconds 0-600} (every cue list, sequence and effect stops; every fixture goes dark without moving)",
+            crate::cues::lighting_stop_all,
+        ),
+        cmd(
             "song.light_cue_add",
             "Fire a lighting cue at a song time",
             "",

@@ -458,6 +458,16 @@ impl ActCraftApp {
         let t = self.tokens;
         let mut run: Option<(&str, Value)> = None;
         ui.horizontal_wrapped(|ui| {
+            // First and red: the way out of anything the lights are doing.
+            let all_stop =
+                egui::Button::new(RichText::new(tr("All stop")).strong().color(t.accent_text)).fill(t.danger);
+            if ui
+                .add(all_stop)
+                .on_hover_text(tr("Stop every cue list, sequence and effect; every fixture goes dark without moving"))
+                .clicked()
+            {
+                run = Some(("lighting.stop_all", Value::Null));
+            }
             let blackout = e.dmx.blackout;
             let words = format!("{} \u{b7} {}", tr("Blackout"), if blackout { tr("on") } else { tr("off") });
             let fill = if blackout { RichText::new(words).color(t.danger).strong() } else { RichText::new(words) };
@@ -513,6 +523,15 @@ impl ActCraftApp {
                 }
                 if ui.add_enabled(at.is_some_and(|c| c > 0), egui::Button::new(tr("Back"))).clicked() {
                     run = Some(("cue.back", json!({"list": li})));
+                }
+                // Named with its list: the window has the transport's Stop too.
+                let stop = ui
+                    .add_enabled(at.is_some(), egui::Button::new(tr("Stop")))
+                    .on_hover_text(tr("Stop this cue list and what its cues started; its lights go dark"));
+                let name = format!("{} ({})", tr("Stop"), list.name);
+                stop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, at.is_some(), &name));
+                if stop.clicked() {
+                    run = Some(("cue_list.stop", json!({"list": li})));
                 }
                 let state = match at.and_then(|c| list.cues.get(c).map(|cue| (c, cue))) {
                     Some((c, cue)) => tr("At cue {n} of {count}: {name}")
