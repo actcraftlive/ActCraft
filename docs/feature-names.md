@@ -17,4 +17,5 @@ Compatibility names that stay as they are: MIDI, MTC, MIDI Clock, OSC, Art-Net, 
 ChordPro, LRC, PDF, WAV, FLAC, MP3, Philips Hue, MCP, Open Fixture Library (the open fixture file
 format ActCraft imports; named only as the source of a file, never as a feature of ActCraft), DMX USB
 Pro (the serial protocol of USB DMX interfaces; named only to say which interfaces work, never as a
-feature of ActCraft).
+feature of ActCraft), `.lightkeyfxt` (the file extension of a fixture profile ActCraft imports;
+named only as a file type to choose, never as a feature of ActCraft).

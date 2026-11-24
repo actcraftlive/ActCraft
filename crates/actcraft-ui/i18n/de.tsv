@@ -1239,7 +1239,7 @@
 	give each range a name	jedem Bereich einen Namen geben
 	the fixture has no such channel	das Gerät hat diesen Kanal nicht
 	no such range	diesen Bereich gibt es nicht
-	Fixture file (.json, .r20)	Gerätedatei (.json, .r20)
+	Fixture file (.json, .r20, .lightkeyfxt)	Gerätedatei (.json, .r20, .lightkeyfxt)
 	that file is not an .r20 fixture file	diese Datei ist keine .r20-Gerätedatei
 	Add musician	Musiker hinzufügen
 	Add sheet	Notenblatt hinzufügen
@@ -1364,7 +1364,7 @@
 	Reset	Zurücksetzen
 	From the library	Aus der Bibliothek
 	{name} (library)	{name} (Bibliothek)
-	An ActCraft fixture file or one from the Open Fixture Library (.json), or an .r20 file	Eine ActCraft-Gerätedatei oder eine aus der Open Fixture Library (.json) oder eine .r20-Datei
+	An ActCraft fixture file or one from the Open Fixture Library (.json), an .r20 file or a .lightkeyfxt fixture profile	Eine ActCraft-Gerätedatei oder eine aus der Open Fixture Library (.json), eine .r20-Datei oder ein .lightkeyfxt-Geräteprofil
 	Export fixture type…	Gerätetyp exportieren …
 	Save this fixture type as a file another show or computer can import	Diesen Gerätetyp als Datei speichern, die eine andere Show oder ein anderer Computer importieren kann
 	Export fixture type	Gerätetyp exportieren
@@ -1372,7 +1372,8 @@
 	a fixture type is written as a .json file	ein Gerätetyp wird als .json-Datei geschrieben
 	the library has no fixture type called `{name}`	die Bibliothek hat keinen Gerätetyp namens `{name}`
 	that file is not an ActCraft or Open Fixture Library fixture	diese Datei ist keine ActCraft- oder Open-Fixture-Library-Gerätedatei
-	ActCraft reads fixture types from ActCraft and Open Fixture Library .json files and .r20 files	ActCraft liest Gerätetypen aus ActCraft- und Open-Fixture-Library-.json-Dateien und .r20-Dateien
+	ActCraft reads fixture types from ActCraft and Open Fixture Library .json files, .r20 files and .lightkeyfxt files	ActCraft liest Gerätetypen aus ActCraft- und Open-Fixture-Library-.json-Dateien, .r20-Dateien und .lightkeyfxt-Dateien
+	that file is not a .lightkeyfxt fixture profile	diese Datei ist kein .lightkeyfxt-Geräteprofil
 	Export a fixture type	Gerätetyp exportieren
 	Fixture library	Gerätebibliothek
 	Fixture type from the library	Gerätetyp aus der Bibliothek
