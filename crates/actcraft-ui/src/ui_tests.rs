@@ -82,6 +82,37 @@ fn a_cue_list_goes_by_its_go_button_and_says_where_it_is() {
     frames(&mut h, 3);
     assert_eq!(with(&engine, |e| e.cue_position(0)), Some(0));
     assert!(h.query_by_label("At cue 1 of 1: Full").is_some());
+    // Stop puts it back and the light goes dark.
+    h.get_by_role_and_label(Role::Button, "Stop (Main)").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| e.cue_position(0)), None);
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[0])), Some(0));
+    assert!(h.query_by_label("Not started").is_some());
+    use egui_kittest::kittest::NodeT;
+    let stop = h.get_by_role_and_label(Role::Button, "Stop (Main)");
+    assert!(stop.accesskit_node().is_disabled(), "nothing left to stop");
+}
+
+#[test]
+fn all_stop_in_the_presets_window_stops_every_list_and_darkens() {
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Full"}));
+        for name in ["A", "B"] {
+            let _ = e.run("cue_list.add", &json!({"name": name}));
+        }
+        for list in [0, 1] {
+            let _ = e.run("cue.add", &json!({"list": list, "preset": 0, "follow": 2.0}));
+            let _ = e.run("cue.go", &json!({"list": list}));
+        }
+    });
+    h.state_mut().show_presets();
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::Button, "All stop").click_accesskit();
+    frames(&mut h, 3);
+    assert_eq!(with(&engine, |e| (e.cue_position(0), e.cue_position(1))), (None, None));
+    assert_eq!(with(&engine, |e| e.dmx.universe(1).map(|u| u[0])), Some(0));
 }
 
 #[test]

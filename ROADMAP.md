@@ -40,6 +40,10 @@ Next, asked for by the owner on 2026-11-24 (details under M12):
 6. ✅ M12: question-mark buttons that open the help at their section
 7. ✅ M12: translating the help (`docs/translating.md`)
 
+Asked for by the owner on 2026-11-24 (details under M11):
+
+8. ✅ M11: Stop for cue lists and All stop
+
 ## Quality and open questions
 
 - ✅ OSC: the shared libraries have none; the owner chose a crates.io crate (`rosc`,
@@ -348,6 +352,14 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   (from the song's lighting lane, a pad, MIDI or a foot switch) runs a whole animation
   (`sequence.set`, `sequence.step_add` and the other `sequence.*` commands, `cue.set {starts,
   stops}`, `sequence.toggle` for pads)
+- ✅ Stop a cue list (owner, 2026-11-24: "started cues can't be stopped, the lights stay on, where is
+  the stop button?"): a Stop button beside Go and Back, and a command for pads, MIDI and the menu.
+  It puts the list back to "not started" (no more going on by itself), stops the sequences and
+  effects its cues started, and darkens the fixtures its presets light, without moving them
+  (`cue_list.stop`)
+- ✅ All stop (owner, 2026-11-24: "and a general ALL STOP button"): one button in the Presets
+  window, the Lighting menu and a command for pads, MIDI and foot switches that stops every cue
+  list, sequence and effect and darkens every fixture without moving it (`lighting.stop_all`)
 
 ## M12 Help and how-tos ✅
 
