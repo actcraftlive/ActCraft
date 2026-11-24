@@ -2,4 +2,15 @@
 # i18n/help/<language>/<name>.md. English (en/) has every page; another language may leave one
 # out, and the English one shows. See docs/translating.md.
 getting-started
+songs-and-mixer
+playlists-and-setlists
+lyrics-and-chords
+sheet-music
+midi-and-remote
+lighting-output
+fixtures
+looks-and-cues
+band-link
+updates
+shortcuts
 using-the-help

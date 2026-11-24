@@ -19,7 +19,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) and the update check (Help > About, only when asked) done; installers, CI artifacts and a first alpha release to do |
 | M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
 | M11 | Light sequences: animations for moving heads, steps on the click, started by cues | 🔶 sequences done; more from the owner's list to come |
-| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | 🔶 help window done; pages, screenshots, ? buttons, translating to do |
+| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | 🔶 help window and pages done; screenshots, ? buttons, translating to do |
 
 ## Next up
 
@@ -35,7 +35,7 @@ M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section
 Next, asked for by the owner on 2026-11-24 (details under M12):
 
 3. ✅ M12: help window and file layout
-4. M12: the help pages in English and German
+4. ✅ M12: the help pages in English and German
 5. M12: screenshots in each language (`cargo xtask help-shots`)
 6. M12: question-mark buttons that open the help at their section
 7. M12: translating the help (`docs/translating.md`)
@@ -362,7 +362,7 @@ Each step is its own pull request, in this order:
    the English one. A contents list, links between pages and to sections, back and forward,
    all by keyboard and with names for screen readers. The Markdown is read with the shared
    `craft-markdown` (house rule 16); the window draws it.
-2. ⬜ The pages, in English and German: getting started; songs, tracks and the mixer; playlists,
+2. ✅ The pages, in English and German: getting started; songs, tracks and the mixer; playlists,
    setlists and the printed setlist; lyrics and chords; sheet music, sheets per musician and the
    browser view; MIDI, foot switches, pads and OSC; lighting: DMX output, the USB cable,
    fixtures and the fixture library; presets, cues, effects and sequences; the band link;
