@@ -1,7 +1,10 @@
 //! Remote actions: a MIDI controller (a foot switch, a pad, a keyboard) sets off commands. A
 //! show keeps a list of triggers (a note, a controller or a program change, on one channel or
-//! any) and the command each runs. The platform layer hands incoming MIDI bytes to
-//! [`Engine::midi_in`]; `remote.trigger` does the same from the command line or an agent.
+//! any) and the command each runs. The command may act on one thing of the show (a preset, a hit,
+//! a cue list or one of its cues, a sequence, a macro), kept by name and found when the message
+//! comes in, so the MIDI a show already sends keeps working after moving from another lighting
+//! program. The platform layer hands incoming MIDI bytes to [`Engine::midi_in`];
+//! `remote.trigger` does the same from the command line or an agent.
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
@@ -52,6 +55,78 @@ pub fn runnable(id: &str) -> bool {
     id != "remote.trigger" && registry().get(id).is_some_and(|c| c.spec.runs_without_params())
 }
 
+/// What a targeted command acts on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Thing {
+    Preset,
+    Hit,
+    CueList,
+    /// A cue of a cue list: the list by name, the cue by its place.
+    Cue,
+    Sequence,
+    Macro,
+}
+
+/// Commands a remote action can run on one thing of the show, and what that thing is.
+pub const TARGETED: &[(&str, Thing)] = &[
+    ("preset.recall", Thing::Preset),
+    ("hit.fire", Thing::Hit),
+    ("cue.go", Thing::CueList),
+    ("cue.back", Thing::CueList),
+    ("cue_list.stop", Thing::CueList),
+    ("cue.jump", Thing::Cue),
+    ("sequence.start", Thing::Sequence),
+    ("sequence.toggle", Thing::Sequence),
+    ("sequence.stop", Thing::Sequence),
+    ("macro.run", Thing::Macro),
+];
+
+/// What a command acts on, when a remote action can aim it at one thing of the show.
+pub fn thing_of(command: &str) -> Option<Thing> {
+    TARGETED.iter().find(|(id, _)| *id == command).map(|(_, t)| *t)
+}
+
+/// The names the show has now for things of this kind (for a cue, the cue lists').
+pub fn names(e: &Engine, thing: Thing) -> Vec<String> {
+    match thing {
+        Thing::Preset => e.show.presets.iter().map(|p| p.name.clone()).collect(),
+        Thing::Hit => e.show.hits.iter().map(|h| h.name.clone()).collect(),
+        Thing::CueList | Thing::Cue => e.show.cue_lists.iter().map(|l| l.name.clone()).collect(),
+        Thing::Sequence => e.show.sequences.iter().map(|s| s.name.clone()).collect(),
+        Thing::Macro => e.show.macros.iter().map(|m| m.name.clone()).collect(),
+    }
+}
+
+/// The params that run `command` on the thing named `target` (and, for a cue, its place), or
+/// `None` when the show has no such thing now.
+fn params_for(e: &Engine, command: &str, target: &str, cue: Option<usize>) -> Option<Value> {
+    let at = |thing| names(e, thing).iter().position(|n| n == target);
+    Some(match thing_of(command)? {
+        Thing::Preset => json!({"preset": at(Thing::Preset)?}),
+        Thing::Hit => json!({"hit": at(Thing::Hit)?}),
+        Thing::CueList => json!({"list": at(Thing::CueList)?}),
+        Thing::Cue => {
+            let list = at(Thing::Cue)?;
+            let cue = cue.filter(|&c| e.show.cue_lists.get(list).is_some_and(|l| c < l.cues.len()))?;
+            json!({"list": list, "cue": cue})
+        }
+        Thing::Sequence => json!({"sequence": at(Thing::Sequence)?}),
+        Thing::Macro => {
+            at(Thing::Macro)?;
+            json!({"name": target})
+        }
+    })
+}
+
+/// What an action runs now, its command and params; `None` when it can't (its thing is gone,
+/// or its command needs one).
+fn what_runs(e: &Engine, a: &RemoteAction) -> Option<(String, Value)> {
+    if a.target.is_empty() {
+        return runnable(&a.command).then(|| (a.command.clone(), Value::Null));
+    }
+    params_for(e, &a.command, &a.target, a.cue).map(|prm| (a.command.clone(), prm))
+}
+
 impl Engine {
     /// Runs the remote actions an incoming MIDI message sets off; returns how many ran. A
     /// controller sets them off once on its way up past half (a foot switch pressed), not again
@@ -65,17 +140,17 @@ impl Engine {
                 return 0;
             }
         }
-        let commands: Vec<String> = self
+        let runs: Vec<(String, Value)> = self
             .show
             .remote
             .iter()
-            .filter(|a| answers(&a.trigger, &trigger) && runnable(&a.command))
-            .map(|a| a.command.clone())
+            .filter(|a| answers(&a.trigger, &trigger))
+            .filter_map(|a| what_runs(self, a))
             .collect();
-        for id in &commands {
-            let _ = self.run(id, &Value::Null);
+        for (id, prm) in &runs {
+            let _ = self.run(id, prm);
         }
-        commands.len()
+        runs.len()
     }
 }
 
@@ -99,25 +174,57 @@ fn action_json(a: &RemoteAction) -> Value {
         RemoteKind::Cc => "cc",
         RemoteKind::Program => "program",
     };
-    json!({
+    let mut v = json!({
         "kind": kind,
         "channel": a.trigger.channel.map(|c| c + 1),
         "number": a.trigger.number,
         "command": a.command,
-    })
+    });
+    if !a.target.is_empty() {
+        v["target"] = json!(a.target);
+    }
+    if let Some(cue) = a.cue {
+        v["cue"] = json!(cue);
+    }
+    v
 }
 
-/// `remote.add {kind, channel?, number, command}`: a MIDI message runs a command.
+/// `remote.add {kind, channel?, number, command, target?, cue?}`: a MIDI message runs a command;
+/// one that acts on a preset, hit, cue list, sequence or macro runs on the one named `target`
+/// (for `cue.jump`, on the cue at place `cue` of that list).
 pub fn remote_add(e: &mut Engine, prm: &Value) -> CommandResult {
     let trigger = trigger_param(prm)?;
     let command = p::str_max(prm, "command", 64)?;
-    if !runnable(command) {
-        return Err(invalid("a remote action runs a command that needs nothing more"));
+    let target = p::opt_str_max(prm, "target", 64)?.map(str::trim).filter(|t| !t.is_empty());
+    let cue = p::opt_i64_in(prm, "cue", 0, 9_999)?.and_then(|c| usize::try_from(c).ok());
+    match (thing_of(command), target) {
+        (Some(_), Some(t)) => {
+            if params_for(e, command, t, cue).is_none() {
+                return Err(invalid("the show has no such preset, hit, cue list, cue, sequence or macro"));
+            }
+        }
+        (None, Some(_)) => {
+            return Err(invalid("that command does not act on a preset, hit, cue list, sequence or macro"));
+        }
+        _ => {
+            if !runnable(command) {
+                return Err(invalid(
+                    "a remote action runs a command that needs nothing more, or names what it acts on",
+                ));
+            }
+        }
     }
+    let cue = if thing_of(command) == Some(Thing::Cue) { cue } else { None };
     if e.show.remote.len() >= MAX_REMOTE_ACTIONS {
         return Err(failed("a show holds at most 256 remote actions"));
     }
-    e.show.remote.push(RemoteAction { trigger, command: command.to_owned(), ..RemoteAction::default() });
+    e.show.remote.push(RemoteAction {
+        trigger,
+        command: command.to_owned(),
+        target: target.unwrap_or_default().to_owned(),
+        cue,
+        ..RemoteAction::default()
+    });
     e.mark_changed();
     Ok(json!({"action": e.show.remote.len() - 1}))
 }
@@ -223,5 +330,94 @@ mod tests {
         assert_eq!(e.show.remote.len(), 1);
         let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.remote).unwrap_or_default();
         assert_eq!(back, e.show.remote);
+    }
+
+    /// The owner's case: someone moving from another lighting program keeps the notes their
+    /// backing-track program sends per song: each note recalls a look, fires a burst, jumps to a
+    /// cue or starts an animation, found by name.
+    #[test]
+    fn a_note_acts_on_the_preset_hit_cue_or_sequence_it_names() {
+        let mut e = engine();
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1, "address": 1}));
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1, "address": 2}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.2}}));
+        let _ = e.run("preset.store", &json!({"name": "Dim", "fixture": 0}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Warm", "fixture": 0}));
+        let _ = e.run("fixture.set", &json!({"fixture": 1, "values": {"intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Fog on", "fixture": 1}));
+        let _ = e.run("fixture.set", &json!({"fixture": 1, "values": {"intensity": 0.0}}));
+        let _ = e.run("hit.set", &json!({"name": "Fog", "preset": 2, "seconds": 0.5}));
+        let _ = e.run("cue_list.add", &json!({"name": "Song 2"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 1}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.0}}));
+        let level = |e: &Engine, ch: usize| e.dmx.universe(1).and_then(|u| u.get(ch).copied()).unwrap_or(0);
+        let add = |e: &mut Engine, number: u8, command: &str, target: &str, cue: Option<usize>| {
+            let mut prm = json!({"kind": "note", "channel": 1, "number": number, "command": command, "target": target});
+            if let Some(c) = cue {
+                prm["cue"] = json!(c);
+            }
+            e.run("remote.add", &prm)
+        };
+        assert!(add(&mut e, 60, "preset.recall", "Warm", None).is_ok());
+        assert!(add(&mut e, 61, "hit.fire", "Fog", None).is_ok());
+        assert!(add(&mut e, 62, "cue.jump", "Song 2", Some(1)).is_ok());
+        assert_eq!(
+            e.run("remote.list", &Value::Null).ok().map(|l| l[2].clone()),
+            Some(
+                json!({"kind": "note", "channel": 1, "number": 62, "command": "cue.jump", "target": "Song 2", "cue": 1})
+            )
+        );
+        // Note 60: the preset.
+        assert_eq!(e.midi_in(&[0x90, 60, 100]), 1);
+        assert_eq!(level(&e, 0), 255);
+        // Note 61: the hit, on for its time.
+        assert_eq!(e.midi_in(&[0x90, 61, 100]), 1);
+        assert_eq!((level(&e, 1), e.hits_on()), (255, vec!["Fog".to_owned()]));
+        // Note 62: straight to the second cue of the list.
+        assert_eq!(e.midi_in(&[0x90, 62, 100]), 1);
+        assert_eq!(e.cue_position(0), Some(1));
+        // Found by name: with the preset before it removed, "Warm" moves up a place and the note
+        // still recalls it; once "Warm" is gone the note does nothing.
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"intensity": 0.0}}));
+        let _ = e.run("preset.remove", &json!({"preset": 0}));
+        assert_eq!(e.show.presets.first().map(|p| p.name.as_str()), Some("Warm"));
+        assert_eq!(e.midi_in(&[0x90, 60, 100]), 1);
+        assert_eq!(level(&e, 0), 255);
+        let warm = e.show.presets.iter().position(|p| p.name == "Warm").unwrap_or(0);
+        let _ = e.run("preset.remove", &json!({"preset": warm}));
+        assert_eq!(e.midi_in(&[0x90, 60, 100]), 0, "its preset is gone");
+        // Saved with the show.
+        let back = actcraft_show::Show::from_bytes(&e.show.to_bytes()).map(|s| s.remote).unwrap_or_default();
+        assert_eq!(back, e.show.remote);
+    }
+
+    #[test]
+    fn a_target_is_checked() {
+        let mut e = engine();
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("macro.set", &json!({"name": "INTRO", "commands": ["transport.stop"]}));
+        for bad in [
+            json!({"kind": "note", "number": 1, "command": "preset.recall"}),
+            json!({"kind": "note", "number": 1, "command": "preset.recall", "target": "Nope"}),
+            json!({"kind": "note", "number": 1, "command": "cue.jump", "target": "Main", "cue": 0}),
+            json!({"kind": "note", "number": 1, "command": "cue.jump", "target": "Main"}),
+            json!({"kind": "note", "number": 1, "command": "transport.stop", "target": "Main"}),
+            json!({"kind": "note", "number": 1, "command": "macro.run", "target": "OUTRO"}),
+            json!({"kind": "note", "number": 1, "command": "cue.go", "target": 5}),
+        ] {
+            assert!(e.run("remote.add", &bad).is_err(), "{bad}");
+        }
+        // A command that runs without a thing may still name one; the macro by its name.
+        assert!(e.run("remote.add", &json!({"kind": "note", "number": 1, "command": "cue.go"})).is_ok());
+        assert!(
+            e.run("remote.add", &json!({"kind": "note", "number": 2, "command": "cue.go", "target": "Main"})).is_ok()
+        );
+        assert!(
+            e.run("remote.add", &json!({"kind": "note", "number": 3, "command": "macro.run", "target": "INTRO"}))
+                .is_ok()
+        );
+        assert_eq!(e.midi_in(&[0x90, 3, 100]), 1);
     }
 }

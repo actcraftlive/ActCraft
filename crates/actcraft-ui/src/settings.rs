@@ -64,6 +64,10 @@ pub(crate) struct RemoteDraft {
     pub channel: u8,
     pub number: u8,
     pub command: String,
+    /// The preset, hit, cue list, sequence or macro the command acts on, by name; empty for none.
+    pub target: String,
+    /// For going to a cue: its place in the cue list.
+    pub cue: usize,
     pub learning: bool,
 }
 
@@ -786,8 +790,19 @@ impl ActCraftApp {
             for (i, a) in actions.iter().enumerate() {
                 ui.label(trigger_text(&a.trigger));
                 let label = actcraft_engine::registry().get(&a.command).map_or(a.command.as_str(), |c| c.spec.label);
-                ui.label(tr(label));
-                if ui.button(tr("Remove")).clicked() {
+                let mut words = tr(label).to_owned();
+                if !a.target.is_empty() {
+                    words = format!("{words} \u{b7} {}", a.target);
+                }
+                if let Some(c) = a.cue {
+                    words = format!("{words} \u{b7} {} {}", tr("Cue"), c + 1);
+                }
+                ui.label(words);
+                let r = ui.button(tr("Remove"));
+                // Named by its trigger, so the buttons of a long list differ for a screen reader.
+                let name = format!("{} ({})", tr("Remove"), trigger_text(&a.trigger));
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+                if r.clicked() {
                     remove = Some(i);
                 }
                 ui.end_row();
@@ -830,11 +845,12 @@ impl ActCraftApp {
             .labelled_by(label.id)
             .on_hover_text(tr("0 answers on every channel"));
         });
+        use actcraft_engine::remote::{Thing, names, runnable, thing_of};
         ui.horizontal_wrapped(|ui| {
             let label = ui.label(tr("Runs"));
             let mut commands: Vec<(&'static str, &'static str)> = actcraft_engine::registry()
                 .iter()
-                .filter(|c| actcraft_engine::remote::runnable(c.spec.id))
+                .filter(|c| runnable(c.spec.id) || thing_of(c.spec.id).is_some())
                 .map(|c| (c.spec.id, tr(c.spec.label)))
                 .collect();
             commands.sort_by(|a, b| a.1.cmp(b.1));
@@ -844,20 +860,88 @@ impl ActCraftApp {
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for (id, name) in &commands {
-                        if ui.selectable_label(d.command == *id, *name).clicked() {
+                        if ui.selectable_label(d.command == *id, *name).clicked() && d.command != *id {
                             d.command = (*id).to_owned();
+                            d.target.clear();
+                            d.cue = 0;
                         }
                     }
                 })
                 .response
                 .labelled_by(label.id);
+            // What it acts on, for a command that acts on one preset, hit, cue list...
+            let Some(thing) = thing_of(&d.command) else { return };
+            let can_leave_out = runnable(&d.command);
+            let not_chosen = tr("Not chosen");
+            let label = ui.label(tr("Acts on"));
+            let shown = if d.target.is_empty() {
+                if can_leave_out { not_chosen } else { tr("Choose") }
+            } else {
+                d.target.as_str()
+            };
+            let r = egui::ComboBox::from_id_salt("remote-target")
+                .width(200.0)
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    if can_leave_out {
+                        ui.selectable_value(&mut d.target, String::new(), not_chosen);
+                    }
+                    for name in names(e, thing) {
+                        if ui.selectable_label(d.target == name, &name).clicked() && d.target != name {
+                            d.target = name;
+                            d.cue = 0;
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            if can_leave_out {
+                r.on_hover_text(tr(
+                    "Not chosen, it does what the command does by itself: the first cue list, or every sequence",
+                ));
+            }
+            if thing == Thing::Cue {
+                let cues: Vec<String> = e
+                    .show
+                    .cue_lists
+                    .iter()
+                    .find(|l| l.name == d.target)
+                    .map(|l| l.cues.iter().enumerate().map(|(i, c)| format!("{} {}", i + 1, c.name)).collect())
+                    .unwrap_or_default();
+                d.cue = d.cue.min(cues.len().saturating_sub(1));
+                let label = ui.label(tr("Cue"));
+                egui::ComboBox::from_id_salt("remote-cue")
+                    .width(160.0)
+                    .selected_text(cues.get(d.cue).cloned().unwrap_or_default())
+                    .show_ui(ui, |ui| {
+                        for (i, c) in cues.iter().enumerate() {
+                            ui.selectable_value(&mut d.cue, i, c);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            }
         });
-        let ready = !self.remote_draft.command.is_empty();
+        let d = &self.remote_draft;
+        let ready = !d.command.is_empty()
+            && match thing_of(&d.command) {
+                None => true,
+                Some(Thing::Cue) => {
+                    e.show.cue_lists.iter().find(|l| l.name == d.target).is_some_and(|l| d.cue < l.cues.len())
+                }
+                Some(_) => !d.target.is_empty() || runnable(&d.command),
+            };
         if ui.add_enabled(ready, egui::Button::new(tr("Add remote action"))).clicked() {
             let d = &self.remote_draft;
             let mut prm = json!({"kind": kind_id(d.kind), "number": d.number, "command": d.command});
             if d.channel > 0 {
                 prm["channel"] = json!(d.channel);
+            }
+            if !d.target.is_empty() {
+                prm["target"] = json!(d.target);
+            }
+            if thing_of(&d.command) == Some(Thing::Cue) {
+                prm["cue"] = json!(d.cue);
             }
             self.remote_draft.learning = false;
             self.run(e, "remote.add", prm);

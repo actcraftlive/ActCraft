@@ -991,3 +991,67 @@ fn a_hit_is_made_fired_and_put_on_a_songs_lane() {
     // The table names the mark as a hit.
     assert!(h.query_by_role_and_label(Role::Label, "Hit: Fog").is_some());
 }
+
+/// The owner's case: a note their backing-track program sends recalls a chosen preset, and
+/// another goes to a chosen cue of a cue list, set up by name in Settings > MIDI.
+#[test]
+fn a_remote_action_is_aimed_at_a_preset_and_at_a_cue() {
+    use egui_kittest::kittest::NodeT;
+    let (mut h, engine) = window(|e| {
+        let _ = e.run("fixture.add", &json!({"kind": "dimmer", "universe": 1}));
+        let _ = e.run("preset.store", &json!({"name": "Warm"}));
+        let _ = e.run("cue_list.add", &json!({"name": "Main"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "name": "Intro"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "name": "Chorus"}));
+    });
+    h.state_mut().open_settings_at("midi");
+    frames(&mut h, 3);
+    h.get_by_role_and_label(Role::SpinButton, "Number").set_value_accesskit(60.0);
+    h.get_by_role_and_label(Role::ComboBox, "Runs").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Recall a preset").click_accesskit();
+    frames(&mut h, 2);
+    let add_is_off = |h: &Harness<'static, ActCraftApp>| {
+        h.get_by_role_and_label(Role::Button, "Add remote action").accesskit_node().is_disabled()
+    };
+    assert!(add_is_off(&h), "a preset to recall is chosen first");
+    h.get_by_role_and_label(Role::ComboBox, "Acts on").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Warm").click_accesskit();
+    frames(&mut h, 2);
+    assert!(!add_is_off(&h));
+    h.get_by_role_and_label(Role::Button, "Add remote action").click_accesskit();
+    frames(&mut h, 3);
+    // The second: note 61 to the second cue of "Main".
+    h.get_by_role_and_label(Role::SpinButton, "Number").set_value_accesskit(61.0);
+    h.get_by_role_and_label(Role::ComboBox, "Runs").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Go to a cue").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "Acts on").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("Main").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::ComboBox, "Cue").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_label("2 Chorus").click_accesskit();
+    frames(&mut h, 2);
+    h.get_by_role_and_label(Role::Button, "Add remote action").click_accesskit();
+    frames(&mut h, 3);
+    let got = with(&engine, |e| {
+        e.show.remote.iter().map(|a| (a.trigger.number, a.command.clone(), a.target.clone(), a.cue)).collect::<Vec<_>>()
+    });
+    assert_eq!(
+        got,
+        vec![
+            (60, "preset.recall".to_owned(), "Warm".to_owned(), None),
+            (61, "cue.jump".to_owned(), "Main".to_owned(), Some(1)),
+        ]
+    );
+    assert!(h.query_by_label("Recall a preset \u{b7} Warm").is_some(), "the list says what it acts on");
+    assert!(h.query_by_label("Go to a cue \u{b7} Main \u{b7} Cue 2").is_some());
+    assert!(h.query_by_role_and_label(Role::Button, "Remove (Note 60, any channel)").is_some(), "named by its trigger");
+    // The note does what the list says.
+    assert_eq!(with(&engine, |e| e.midi_in(&[0x90, 61, 100])), 1);
+    assert_eq!(with(&engine, |e| e.cue_position(0)), Some(1));
+}

@@ -14,6 +14,16 @@ Fußschalter für Nächster Song, Schleife verlassen oder den nächsten Licht-Cu
 1. Einstellungen > MIDI: den MIDI-Eingang wählen.
 2. **Fernaktion hinzufügen**, den Befehl wählen, dann **Lernen** und den Fußschalter drücken.
 
+Manche Befehle wirken auf ein Ding der Show: **Ein Preset abrufen**, **Stoß auslösen**, **Zu einem Cue
+gehen**, der nächste Cue oder Stopp einer Cue-Liste, einen Ablauf starten oder stoppen, ein Makro
+ausführen. Bei diesen wählt **Wirkt auf** das Preset, den Stoß, die Cue-Liste, den Ablauf oder
+das Makro nach Namen (und **Cue** den Cue). Die Aktion sucht es beim Eintreffen der Note nach
+Namen, sie funktioniert also weiter, wenn sich die Liste ändert.
+
+Umstieg von einem anderen Lichtprogramm: Schickt dein Backing-Track-Programm schon eine Note pro
+Song oder Teil, gib hier jeder Note mit **Lernen** eine Aktion, und dieselben Noten funktionieren
+weiter.
+
 ## Pads {#pads}
 
 Pads sind Knöpfe unten im Fenster (**Pads hinzufügen …**). Ein Pad führt einen Befehl oder ein
