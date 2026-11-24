@@ -22,8 +22,9 @@ ActCraft brings fixture types with every range from the maker's manual, for exam
 
 ## Fixture types of your own {#own-types}
 
-- **Import fixture type…** reads ActCraft fixture files, Open Fixture Library files (.json) and
-  `.r20` files.
+- **Import fixture type…** reads ActCraft fixture files, Open Fixture Library files (.json), `.r20`
+  files and `.lightkeyfxt` fixture profiles, so fixtures set up in another lighting program
+  come along with their modes and named ranges.
 - **New fixture type** or **Change this fixture type** opens the editor: channels, modes, and
   **Ranges** beside each channel (from, to, name).
 - **Export fixture type…** saves a type as a file for another show or computer.

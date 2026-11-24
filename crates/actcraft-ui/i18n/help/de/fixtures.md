@@ -24,7 +24,8 @@ Beispiel den **Betopper LM70SR** (14 und 9 Kanäle). Unter Art „(Bibliothek)�
 ## Eigene Gerätetypen {#own-types}
 
 - **Gerätetyp importieren …** liest ActCraft-Gerätedateien, Dateien der Open Fixture Library
-  (.json) und `.r20`-Dateien.
+  (.json), `.r20`-Dateien und `.lightkeyfxt`-Geräteprofile. So kommen Geräte, die in einem
+  anderen Lichtprogramm eingerichtet sind, mit ihren Modi und benannten Bereichen mit.
 - **Neuer Gerätetyp** oder **Diesen Gerätetyp ändern** öffnet den Editor: Kanäle, Modi und
   **Bereiche** neben jedem Kanal (von, bis, Name).
 - **Gerätetyp exportieren …** speichert einen Typ als Datei für eine andere Show oder einen

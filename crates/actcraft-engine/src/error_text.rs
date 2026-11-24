@@ -167,6 +167,7 @@ mod tests {
             include_str!("gamepad.rs"),
             include_str!("fixtures.rs"),
             include_str!("fixture_library.rs"),
+            include_str!("fixture_profile.rs"),
             include_str!("looks.rs"),
             include_str!("cues.rs"),
             include_str!("effects.rs"),

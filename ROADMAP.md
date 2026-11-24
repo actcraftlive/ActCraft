@@ -47,6 +47,11 @@ Asked for by the owner on 2026-11-24 (details under M11):
 10. ✅ M11: hits, short bursts outside the cue lists (fog for 0.5 s)
 11. ✅ M11: presets keep every channel of a fixture
 
+Asked for by the owner on 2026-11-24, so people moving from other lighting programs keep what
+they have (details under M4–M6):
+
+12. ✅ M4–M6: fixture profiles from `.lightkeyfxt` files
+
 ## Quality and open questions
 
 - ✅ OSC: the shared libraries have none; the owner chose a crates.io crate (`rosc`,
@@ -263,6 +268,10 @@ Asked for by the owner on 2026-11-24 (details under M11):
   named in the window's language; a type can be exported as an ActCraft fixture file (.json) and
   imported into another show or on another computer (`fixture_library.list`,
   `fixture_type.from_library`, `fixture_type.export`, `fixture_type.import`)
+- ✅ Fixture profiles from `.lightkeyfxt` files (a binary property list holding a keyed archive,
+  read with the shared `craft-plist`): each mode becomes a mode of the type, each channel's
+  capability its attribute (colours, dimmer and the rest by name), and each named setting a
+  named range on its channel (`fixture_type.import`)
 
 DMX output natively in Rust (Art-Net with node discovery, sACN with priorities, documented USB
 interfaces), 16+ universes, fixture types and editor, Open Fixture Library import, patch, DMX

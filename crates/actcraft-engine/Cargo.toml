@@ -19,6 +19,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 craft-zip = { workspace = true }
 craft-midi = { workspace = true }
+craft-plist = { workspace = true }
 
 # Lyrics from DOCX documents are read on desktops only: the reader's encryption support needs
 # the browser's random numbers in a web build, which the engine has no use for.

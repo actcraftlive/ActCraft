@@ -124,9 +124,10 @@ pub fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
-/// The extension of a path, lowercase, without the dot.
+/// The extension of a path, lowercase, without the dot. A longer "extension" (more than 12
+/// characters; the longest read is `lightkeyfxt`) is taken as part of the name.
 pub fn extension(path: &str) -> Option<String> {
     let name = file_name(path);
     let (_, ext) = name.rsplit_once('.')?;
-    if ext.is_empty() || ext.len() > 8 { None } else { Some(ext.to_ascii_lowercase()) }
+    if ext.is_empty() || ext.len() > 12 { None } else { Some(ext.to_ascii_lowercase()) }
 }

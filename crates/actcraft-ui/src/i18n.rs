@@ -127,6 +127,7 @@ mod tests {
             include_str!("../../actcraft-engine/src/gamepad.rs"),
             include_str!("../../actcraft-engine/src/fixtures.rs"),
             include_str!("../../actcraft-engine/src/fixture_library.rs"),
+            include_str!("../../actcraft-engine/src/fixture_profile.rs"),
             include_str!("../../actcraft-engine/src/looks.rs"),
             include_str!("../../actcraft-engine/src/cues.rs"),
             include_str!("../../actcraft-engine/src/effects.rs"),
