@@ -47,6 +47,12 @@ Asked for by the owner on 2026-11-24 (details under M11):
 10. ✅ M11: hits, short bursts outside the cue lists (fog for 0.5 s)
 11. ✅ M11: presets keep every channel of a fixture
 
+Asked for by the owner on 2026-11-24, so people moving from other lighting programs keep what
+they have (details under M3 and M4–M6):
+
+13. ⬜ M3: remote actions with a target: a MIDI note, controller or program change recalls a
+    chosen preset, fires a hit, goes to a cue in a cue list, starts a sequence or runs a macro
+
 ## Quality and open questions
 
 - ✅ OSC: the shared libraries have none; the owner chose a crates.io crate (`rosc`,
@@ -178,6 +184,10 @@ Asked for by the owner on 2026-11-24 (details under M11):
   Keys have their shortcuts; pads on the screen (below). OSC: Settings > MIDI listens on a UDP
   port (this computer only, or the network too); `/actcraft/<command id>`, `/actcraft/macro/<NAME>`
   and `/actcraft/pad/<n>` run a command, a macro or a pad (`osc.trigger`)
+- ⬜ Remote actions with a target, so the MIDI a show already sends (from a backing-track
+  program, a keyboard, a foot controller) keeps working after moving from another lighting
+  program: the action names what it acts on (a preset, a hit, a cue list or one of its cues, a
+  sequence, a macro) and finds it by name when the message comes in (`remote.add {target, cue}`)
 - ✅ Pads: buttons along the bottom of the window that run a command or a macro with one press,
   in a named colour (`pad.add`, `pad.remove`, `pad.list`, `pad.press`; Edit pads); faders for
   the master, the song or a bus volume (`pad.add {fader}`); toggles that switch the click,
