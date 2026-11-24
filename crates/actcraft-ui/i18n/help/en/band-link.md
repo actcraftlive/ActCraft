@@ -4,7 +4,7 @@ Several ActCraft computers can play together: one host, the others follow it (th
 playing and stopping with it). Each plays its own copy of the songs, and a follower plays on if
 the host stops answering, so it is also a backup computer.
 
-## Set it up
+## Set it up {#setup}
 
 1. On the host: Settings > Band, tick **Let band members follow this computer**. A code shows.
 2. On a follower: Settings > Band, enter the host's address and the code, **Follow**.

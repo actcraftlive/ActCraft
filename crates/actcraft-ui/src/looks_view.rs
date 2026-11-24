@@ -381,7 +381,7 @@ impl ActCraftApp {
 
     fn presets_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("Presets")).strong());
+        crate::help_view::section_title(ui, tr("Presets"), crate::help_view::Topic::Presets);
         ui.horizontal(|ui| {
             let label = ui.label(tr("Fade in over"));
             ui.add(egui::DragValue::new(&mut self.looks_draft.fade).range(0.0..=600.0).speed(0.1).suffix(" s"))
@@ -500,7 +500,7 @@ impl ActCraftApp {
     /// Cue lists: Go and Back, the cues with where the list stands, and new cues and lists.
     fn cue_lists_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("Cue lists")).strong());
+        crate::help_view::section_title(ui, tr("Cue lists"), crate::help_view::Topic::CueLists);
         let lists = e.show.cue_lists.clone();
         let presets: Vec<String> = e.show.presets.iter().map(|p| p.name.clone()).collect();
         let mut run: Option<(&str, Value)> = None;
@@ -640,7 +640,7 @@ impl ActCraftApp {
         use actcraft_engine::effects::{Shape, shape_key};
         use actcraft_engine::fixtures::{ATTRIBUTES, attribute_key};
         let t = self.tokens;
-        ui.label(RichText::new(tr("Effects")).strong());
+        crate::help_view::section_title(ui, tr("Effects"), crate::help_view::Topic::Effects);
         let effects = e.show.effects.clone();
         let running = e.running_effects();
         let mut run: Option<(&str, Value)> = None;

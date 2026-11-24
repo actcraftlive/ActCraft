@@ -7,6 +7,7 @@ use actcraft_show::{RemoteKind, RemoteTrigger};
 use egui::{RichText, Ui};
 use serde_json::json;
 
+use crate::help_view::{Topic, help_button, section_title};
 use crate::{ActCraftApp, edit_text, tr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -24,6 +25,20 @@ pub(crate) enum Tab {
 }
 
 impl Tab {
+    /// The part of the help that explains this tab (its **?** button).
+    fn help(self) -> Topic {
+        match self {
+            Tab::Audio => Topic::Mixer,
+            Tab::Metronome | Tab::Playback => Topic::SongDetails,
+            Tab::Voice => Topic::SpokenCues,
+            Tab::Midi => Topic::Midi,
+            Tab::Macros => Topic::Macros,
+            Tab::Library => Topic::Library,
+            Tab::Lighting => Topic::DmxOutput,
+            Tab::Band => Topic::BandLink,
+        }
+    }
+
     /// A tab by its English name in lower case.
     pub(crate) fn named(name: &str) -> Option<Tab> {
         Some(match name {
@@ -131,6 +146,7 @@ impl ActCraftApp {
                     ] {
                         ui.selectable_value(&mut self.settings_tab, tab, label);
                     }
+                    help_button(ui, self.settings_tab.help());
                 });
                 ui.separator();
                 // A long tab scrolls inside the window instead of running off the screen.
@@ -736,7 +752,7 @@ impl ActCraftApp {
     /// Remote actions: the MIDI input a controller is on, and what its messages set off.
     fn remote_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("Remote actions")).strong());
+        section_title(ui, tr("Remote actions"), Topic::RemoteActions);
         ui.label(
             RichText::new(tr("A foot switch, a pad or a key on a MIDI controller sets off a command."))
                 .color(t.text_dim),
@@ -991,7 +1007,7 @@ impl ActCraftApp {
             });
         }
         ui.add_space(8.0);
-        ui.label(RichText::new(tr("Sheets in the browser")).strong());
+        section_title(ui, tr("Sheets in the browser"), Topic::SheetsInBrowser);
         ui.label(
             RichText::new(tr(
                 "Musicians open a page on a tablet or laptop on this network, sign in with the code, pick their name and see the sheet made for them for the song that plays, turning pages as it goes.",

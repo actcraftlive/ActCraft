@@ -2,7 +2,7 @@
 
 Ein Gerät ist eine Lampe an einer DMX-Adresse. Ihr **Typ** sagt, was jeder ihrer Kanäle tut.
 
-## Eine Lampe patchen
+## Eine Lampe patchen {#patch}
 
 ![Das Fenster Geräte mit einem Moving Head an 1.001](fixtures.png)
 
@@ -16,12 +16,12 @@ Ein Gerät ist eine Lampe an einer DMX-Adresse. Ihr **Typ** sagt, was jeder ihre
 Die Lampe erscheint dann mit einem Regler pro Kanal. Ein Kanal, der mehreres kann (aus, Dimmer,
 Strobe), hat eine Liste seiner **Bereiche**: einen wählen, dann den Wert darin einstellen.
 
-## Die Gerätebibliothek
+## Die Gerätebibliothek {#library}
 
 ActCraft bringt Gerätetypen mit allen Bereichen aus der Anleitung des Herstellers mit, zum
 Beispiel den **Betopper LM70SR** (14 und 9 Kanäle). Unter Art „(Bibliothek)“ wählen.
 
-## Eigene Gerätetypen
+## Eigene Gerätetypen {#own-types}
 
 - **Gerätetyp importieren …** liest ActCraft-Gerätedateien, Dateien der Open Fixture Library
   (.json) und `.r20`-Dateien.
@@ -30,7 +30,7 @@ Beispiel den **Betopper LM70SR** (14 und 9 Kanäle). Unter Art „(Bibliothek)�
 - **Gerätetyp exportieren …** speichert einen Typ als Datei für eine andere Show oder einen
   anderen Rechner.
 
-## Die Bühnenansicht
+## Die Bühnenansicht {#stage-view}
 
 Licht > Bühne zeigt die Geräte von oben in ihren Farben, mit den Strahlen der Moving Heads. Zieh
 sie dorthin, wo sie hängen.

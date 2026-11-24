@@ -1280,6 +1280,16 @@ impl ActCraftApp {
             ui.selectable_value(&mut self.centre_tab, CentreTab::Cues, big(cues_label));
             let light_label = if song.light_cues.is_empty() { tr("Light cues") } else { tr("Light cues \u{2022}") };
             ui.selectable_value(&mut self.centre_tab, CentreTab::Light, big(light_label));
+            help_view::help_button(
+                ui,
+                match self.centre_tab {
+                    CentreTab::Mixer => help_view::Topic::Mixer,
+                    CentreTab::Lyrics => help_view::Topic::Lyrics,
+                    CentreTab::Sheet => help_view::Topic::SheetMusic,
+                    CentreTab::Cues => help_view::Topic::SpokenCues,
+                    CentreTab::Light => help_view::Topic::CueLists,
+                },
+            );
         });
         self.region_bar(ui, e, &song);
         if self.centre_tab == CentreTab::Lyrics {
