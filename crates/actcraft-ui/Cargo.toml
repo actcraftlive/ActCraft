@@ -17,6 +17,12 @@ serde_json = { workspace = true }
 craft-i18n = { workspace = true }
 craft-pdf = { workspace = true }
 craft-update = { workspace = true }
+# The help pages are Markdown, read with the shared reader into its paragraph model.
+craft-markdown = { workspace = true }
+craft-flow = { workspace = true }
+
+# Decodes the help's pictures (PNG).
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }

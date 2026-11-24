@@ -924,6 +924,8 @@ fn main() {
     let cues = args.iter().any(|a| a == "--cues");
     let sheet = args.iter().any(|a| a == "--sheet");
     let about = args.iter().any(|a| a == "--about");
+    // `--help-page PAGE` (or `PAGE#part`): opens the help there (for screenshots of the help).
+    let help_page = args.iter().position(|a| a == "--help-page").and_then(|i| args.get(i + 1)).cloned();
     let dmx = args.iter().any(|a| a == "--dmx");
     let fixtures = args.iter().any(|a| a == "--fixtures");
     let new_fixture_type = args.iter().any(|a| a == "--new-fixture-type");
@@ -984,6 +986,9 @@ fn main() {
             }
             if about {
                 app.show_about();
+            }
+            if let Some(page) = &help_page {
+                app.show_help_at(page);
             }
             if dmx {
                 app.show_dmx_monitor();

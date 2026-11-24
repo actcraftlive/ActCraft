@@ -887,3 +887,23 @@ fn a_sequence_is_recorded_step_by_step_and_a_cue_starts_it() {
     let starts = with(&engine, |e| e.show.cue_lists[0].cues[0].starts.clone());
     assert_eq!(starts, vec!["Sweep".to_owned()]);
 }
+
+#[test]
+fn the_help_opens_with_f1_and_goes_from_page_to_page() {
+    let (mut h, _engine) = window(|_| {});
+    frames(&mut h, 2);
+    h.key_press(egui::Key::F1);
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::Label, "Getting started").is_some(), "F1 opens the help at its start");
+    // A link to another page, then back.
+    h.get_by_role_and_label(Role::Link, "How this help works").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Question marks in the window").is_some(), "the linked page shows");
+    h.get_by_role_and_label(Role::Button, "Back").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Your first show").is_some(), "Back returns to the first page");
+    // The contents list goes there too.
+    h.get_by_role_and_label(Role::Button, "How this help works").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_label("Help in your language").is_some());
+}

@@ -59,6 +59,7 @@ fn with_open_playlist(mut c: Command<Engine>) -> Command<Engine> {
 pub fn all() -> Vec<Command<Engine>> {
     vec![
         // App
+        cmd("app.help", "ActCraft Help", "Help/ActCraft Help", Some("F1"), "none", app_help),
         cmd("app.about", "About ActCraft", "Help/About ActCraft", None, "none", app_about),
         cmd("app.commands", "List commands", "Help/List Commands", None, "none", app_commands),
         cmd("app.messages", "Recent messages", "", None, "none", app_messages),
@@ -1202,6 +1203,11 @@ fn song_json(s: &Song) -> Value {
 }
 
 // ---- App ----
+
+/// The help itself is the window's; for the command line this names where its pages are.
+fn app_help(_: &mut Engine, _: &Value) -> CommandResult {
+    Ok(json!({"help": "Help > ActCraft Help (F1) in the window"}))
+}
 
 fn app_about(_: &mut Engine, _: &Value) -> CommandResult {
     Ok(json!({"name": "ActCraft", "version": env!("CARGO_PKG_VERSION"), "licence": "MIT OR Apache-2.0"}))

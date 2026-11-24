@@ -234,11 +234,14 @@ dependencies = [
  "actcraft-engine",
  "actcraft-library",
  "actcraft-show",
+ "craft-flow",
  "craft-i18n",
+ "craft-markdown",
  "craft-pdf",
  "craft-update",
  "egui",
  "egui_kittest",
+ "image",
  "serde_json",
 ]
 
@@ -1137,6 +1140,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-flow"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
+dependencies = [
+ "craft-wordmodel",
+ "image",
+ "log",
+]
+
+[[package]]
+name = "craft-html"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
@@ -1165,6 +1183,16 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "craft-markdown"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
+dependencies = [
+ "craft-flow",
+ "craft-html",
+ "craft-wordmodel",
 ]
 
 [[package]]
@@ -2627,10 +2655,15 @@ checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
+ "color_quant",
+ "gif",
+ "image-webp",
  "moxcms",
  "num-traits",
  "png",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -3661,7 +3694,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]

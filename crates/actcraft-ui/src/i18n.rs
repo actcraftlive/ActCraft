@@ -102,6 +102,7 @@ mod tests {
             include_str!("looks_view.rs"),
             include_str!("stage_view.rs"),
             include_str!("sequences_view.rs"),
+            include_str!("help_view.rs"),
             include_str!("../../actcraft-platform/src/sheet_web.rs"),
         ];
         let engine = [
