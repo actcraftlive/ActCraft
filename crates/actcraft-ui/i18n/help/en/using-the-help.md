@@ -15,4 +15,5 @@ Point at it to see which part of the help it opens; press it to open the help th
 ## Help in your language {#languages}
 
 The help is written in plain text files, one per page, next to the window's language files. How
-to translate it is in `docs/translating.md` in ActCraft's source code.
+to translate it, and how to make its pictures in a new language, is in `docs/translating.md` in
+ActCraft's source code.
