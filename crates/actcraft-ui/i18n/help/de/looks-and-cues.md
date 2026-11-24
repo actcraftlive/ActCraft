@@ -2,14 +2,14 @@
 
 Licht > Presets öffnet das Fenster für all das.
 
-## Presets
+## Presets {#presets}
 
 ![Das Fenster Presets mit zwei Presets und einer Cue-Liste](presets.png)
 
 Die Lampen einstellen (Fenster Geräte), dann einen Namen eingeben und **Preset speichern**. Ein
 Druck auf ein Preset holt seine Stimmung zurück, sofort oder überblendet mit **Einblenden über**.
 
-## Cue-Listen
+## Cue-Listen {#cue-lists}
 
 Eine Cue-Liste spielt Stimmungen nacheinander ab:
 
@@ -21,13 +21,13 @@ Eine Cue-Liste spielt Stimmungen nacheinander ab:
 
 Der Reiter **Licht-Cues** eines Songs löst Cues an Takten des Songs aus, auf seiner Lichtspur.
 
-## Effekte
+## Effekte {#effects}
 
 Ein Effekt bewegt eine Gruppe von Lampen von selbst: ein Pulsieren, ein Kreis, ein Regenbogen.
 Erst eine Gruppe speichern (**Gruppe speichern**), dann einen fertigen Effekt wählen. In Schlägen
 folgt er dem Tempo des Songs.
 
-## Abläufe: Animationen für Moving Heads
+## Abläufe: Animationen für Moving Heads {#sequences}
 
 Ein Ablauf ist eine Folge von Stimmungen über die Zeit:
 
@@ -40,7 +40,7 @@ Ein Ablauf ist eine Folge von Stimmungen über die Zeit:
    des Song-Klicks, so kann jeder Schlag oder Takt eine andere Stimmung sein.
 5. **Start**, oder ein Cue startet ihn (die Liste neben dem Cue).
 
-## Blackout, Einfrieren und Blind
+## Blackout, Einfrieren und Blind {#blackout}
 
 **Blackout** macht alles dunkel, **Einfrieren** hält alles, wo es ist, **Blind** lässt dich
 Stimmungen ändern und speichern, ohne dass das Publikum es sieht.

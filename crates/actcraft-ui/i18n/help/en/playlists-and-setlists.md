@@ -1,6 +1,6 @@
 # Playlists and setlists
 
-## A setlist
+## A setlist {#setlist}
 
 1. Playlist > New Playlist… and give it the concert's name.
 2. Open it in the left pane and drag songs from the library into its set, or pick songs and add
@@ -9,12 +9,12 @@
 4. Press a song in the playlist to play from there; with **Play next song automatically** the show
    runs on.
 
-## Breaks and instrument changes
+## Breaks and instrument changes {#notes}
 
 **Note** beside a song in the playlist writes a line that comes before it on the printed
 setlist, for example "Break, 20 minutes" or "Acoustic guitar, capo 2".
 
-## Print the setlist
+## Print the setlist {#print}
 
 1. Playlist > Band Logo… picks your logo (PNG or JPEG), once per show.
 2. Open the playlist, then Playlist > Print Setlist as PDF…
@@ -22,7 +22,7 @@ setlist, for example "Break, 20 minutes" or "Acoustic guitar, capo 2".
    number and length, and the time of all. Songs are printed as large as fits one page, for the
    stage floor.
 
-## Smart playlists and the queue
+## Smart playlists and the queue {#smart}
 
 A smart playlist (Playlist > New Smart Playlist…) collects songs by rules, for example all songs
 in E or above 120 BPM. The queue plays songs next without changing the playlist (Queue > Play

@@ -517,6 +517,7 @@ impl ActCraftApp {
         egui::CollapsingHeader::new(format!("{} ({})", tr("Musicians"), e.show.musicians.len()))
             .id_salt("sheet-musicians")
             .show(ui, |ui| {
+                crate::help_view::help_button(ui, crate::help_view::Topic::SheetsPerMusician);
                 let mut remove = None;
                 for (i, m) in e.show.musicians.iter().enumerate() {
                     ui.horizontal(|ui| {

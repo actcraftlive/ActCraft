@@ -2,7 +2,7 @@
 
 ActCraft sendet DMX über das Netzwerk (Art-Net, sACN) oder ein USB-Kabel.
 
-## Ein USB-DMX-Kabel
+## Ein USB-DMX-Kabel {#usb-cable}
 
 Für ein einfaches USB-RS485-Kabel (FTDI, „Open DMX“):
 
@@ -13,19 +13,19 @@ Für ein einfaches USB-RS485-Kabel (FTDI, „Open DMX“):
 
 Für ein Enttec DMX USB Pro oder ein ähnliches Interface stattdessen **USB-Interface** wählen.
 
-## Art-Net und sACN
+## Art-Net und sACN {#network}
 
 ![Einstellungen, Reiter Licht: DMX-Ausgänge und DMX-Eingang](lighting-settings.png)
 
 **Ausgang hinzufügen** mit Art-Net oder sACN schickt ein Universum an einen Knoten im Netz.
 **Art-Net-Knoten suchen** sucht nach Art-Net-Knoten.
 
-## Pegel prüfen
+## Pegel prüfen {#levels}
 
 Licht > DMX-Monitor zeigt alle Kanäle eines Universums und setzt einen von Hand. Licht >
 Blackout macht alles auf einmal dunkel; der Master im Fenster Presets dimmt alles.
 
-## DMX-Eingang
+## DMX-Eingang {#dmx-in}
 
 Einstellungen > Licht kann auch DMX über Art-Net und sACN von einem Pult empfangen. Der
 DMX-Monitor zeigt, was ankommt, und ein Kanal kann einen Befehl auslösen, wenn er über die Hälfte

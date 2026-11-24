@@ -4,7 +4,7 @@ Mehrere ActCraft-Rechner können zusammen spielen: einer ist der Host, die ander
 (gleicher Song, starten und stoppen mit ihm). Jeder spielt seine eigene Kopie der Songs, und ein
 Folgender spielt weiter, wenn der Host nicht mehr antwortet, er ist also auch ein Ersatzrechner.
 
-## Einrichten
+## Einrichten {#setup}
 
 1. Auf dem Host: Einstellungen > Band, **Bandmitglieder diesem Computer folgen lassen** anhaken. Ein
    Code erscheint.

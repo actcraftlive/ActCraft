@@ -26,11 +26,10 @@ impl ActCraftApp {
     pub(crate) fn stage_view_window(&mut self, ctx: &egui::Context, e: &mut Engine) {
         let Some(mut view) = self.stage_view else { return };
         let mut open = true;
-        egui::Window::new(tr("Stage"))
-            .open(&mut open)
-            .default_width(760.0)
-            .collapsible(false)
-            .show(ctx, |ui| self.stage_ui(ui, e, &mut view));
+        egui::Window::new(tr("Stage")).open(&mut open).default_width(760.0).collapsible(false).show(ctx, |ui| {
+            crate::help_view::help_button(ui, crate::help_view::Topic::StageView);
+            self.stage_ui(ui, e, &mut view);
+        });
         self.stage_view = Some(view);
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.stage_view = None;

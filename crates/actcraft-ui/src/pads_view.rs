@@ -224,6 +224,7 @@ impl ActCraftApp {
             {
                 self.pads_editing = !self.pads_editing;
             }
+            crate::help_view::help_button(ui, crate::help_view::Topic::Pads);
         });
         if let Some(i) = press {
             self.run(e, "pad.press", json!({"pad": i}));

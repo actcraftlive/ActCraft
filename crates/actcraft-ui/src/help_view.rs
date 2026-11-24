@@ -66,7 +66,7 @@ pub fn pages() -> Vec<&'static str> {
 
 /// A page's title: its first `# ` line, else its name.
 pub fn title(text: &str, page: &str) -> String {
-    text.lines().find_map(|l| l.strip_prefix("# ")).map_or_else(|| page.to_owned(), |t| t.trim().to_owned())
+    text.lines().find_map(|l| l.strip_prefix("# ")).map_or_else(|| page.to_owned(), |t| heading(t).0.to_owned())
 }
 
 /// The anchor of a heading: its words in lower case joined by `-`.
@@ -80,6 +80,149 @@ pub fn slug(heading: &str) -> String {
         }
     }
     out.trim_matches('-').to_owned()
+}
+
+/// A heading's words and its anchor. `## Words {#id}` gives the id, which a translation keeps, so
+/// links and **?** buttons find the part in every language. A heading without one answers to its
+/// words joined by `-` ([`slug`]).
+pub fn heading(words: &str) -> (&str, String) {
+    let w = words.trim();
+    let id = w.strip_suffix('}').and_then(|rest| rest.rsplit_once("{#")).filter(|(_, id)| {
+        !id.is_empty() && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    });
+    match id {
+        Some((shown, id)) => (shown.trim_end(), id.to_owned()),
+        None => (w, slug(w)),
+    }
+}
+
+/// The parts of the help a **?** button opens. Each names a page and, for most, a part of it by
+/// its `{#id}`; a test checks every one is there in every language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Topic {
+    SongDetails,
+    Mixer,
+    SpokenCues,
+    Lyrics,
+    SheetMusic,
+    SheetsPerMusician,
+    SheetsInBrowser,
+    Midi,
+    RemoteActions,
+    Pads,
+    Macros,
+    Library,
+    DmxOutput,
+    DmxIn,
+    DmxMonitor,
+    Fixtures,
+    FixtureTypes,
+    StageView,
+    Presets,
+    CueLists,
+    Effects,
+    Sequences,
+    BandLink,
+}
+
+impl Topic {
+    #[cfg(test)]
+    pub(crate) const ALL: [Topic; 23] = [
+        Topic::SongDetails,
+        Topic::Mixer,
+        Topic::SpokenCues,
+        Topic::Lyrics,
+        Topic::SheetMusic,
+        Topic::SheetsPerMusician,
+        Topic::SheetsInBrowser,
+        Topic::Midi,
+        Topic::RemoteActions,
+        Topic::Pads,
+        Topic::Macros,
+        Topic::Library,
+        Topic::DmxOutput,
+        Topic::DmxIn,
+        Topic::DmxMonitor,
+        Topic::Fixtures,
+        Topic::FixtureTypes,
+        Topic::StageView,
+        Topic::Presets,
+        Topic::CueLists,
+        Topic::Effects,
+        Topic::Sequences,
+        Topic::BandLink,
+    ];
+
+    /// Where in the help it is: "page" or "page#id".
+    pub(crate) fn link(self) -> &'static str {
+        match self {
+            Topic::SongDetails => "songs-and-mixer#details",
+            Topic::Mixer => "songs-and-mixer#mixer",
+            Topic::SpokenCues => "songs-and-mixer#spoken-cues",
+            Topic::Lyrics => "lyrics-and-chords",
+            Topic::SheetMusic => "sheet-music",
+            Topic::SheetsPerMusician => "sheet-music#per-musician",
+            Topic::SheetsInBrowser => "sheet-music#browser",
+            Topic::Midi => "midi-and-remote",
+            Topic::RemoteActions => "midi-and-remote#remote-actions",
+            Topic::Pads => "midi-and-remote#pads",
+            Topic::Macros => "midi-and-remote#macros",
+            Topic::Library => "getting-started#first-show",
+            Topic::DmxOutput => "lighting-output",
+            Topic::DmxIn => "lighting-output#dmx-in",
+            Topic::DmxMonitor => "lighting-output#levels",
+            Topic::Fixtures => "fixtures",
+            Topic::FixtureTypes => "fixtures#own-types",
+            Topic::StageView => "fixtures#stage-view",
+            Topic::Presets => "looks-and-cues#presets",
+            Topic::CueLists => "looks-and-cues#cue-lists",
+            Topic::Effects => "looks-and-cues#effects",
+            Topic::Sequences => "looks-and-cues#sequences",
+            Topic::BandLink => "band-link",
+        }
+    }
+}
+
+/// The words of a help link's part (its heading) or page (its title), in `lang`, or `None` when
+/// the page or part isn't there.
+fn topic_words(lang: &str, link: &str) -> Option<String> {
+    let Target::Page(page, anchor) = target(link, "") else { return None };
+    let text = page_text(lang, &page)?;
+    match anchor {
+        None => Some(title(text, &page)),
+        Some(a) => text.lines().filter(|l| l.starts_with('#')).find_map(|l| {
+            let (shown, id) = heading(l.trim_start_matches('#'));
+            (id == a).then(|| shown.to_owned())
+        }),
+    }
+}
+
+/// Where a **?** button leaves its request for the help window.
+fn request_id() -> egui::Id {
+    egui::Id::unique("actcraft-help-request")
+}
+
+/// A small **?** button that opens the help at `topic`. Its tooltip and its name for screen readers
+/// say which part: "Help: Sequences".
+pub(crate) fn help_button(ui: &mut Ui, topic: Topic) {
+    let lang = crate::i18n::current_code();
+    let words = topic_words(&lang, topic.link()).unwrap_or_default();
+    let what = format!("{} {words}", tr("Help:"));
+    let r = ui.small_button("?").on_hover_text(&what);
+    let name = format!("? {what}");
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+    if r.clicked() {
+        ui.ctx().data_mut(|d| d.insert_temp(request_id(), topic.link().to_owned()));
+        ui.ctx().request_repaint();
+    }
+}
+
+/// A section's bold title with its **?** button beside it.
+pub(crate) fn section_title(ui: &mut Ui, words: &str, topic: Topic) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(words).strong());
+        help_button(ui, topic);
+    });
 }
 
 /// A link target: another page and a part of it, a part of this page (`#part`), or a website.
@@ -177,6 +320,10 @@ impl ActCraftApp {
 
     /// The help window, while it is open.
     pub(crate) fn help_window(&mut self, ctx: &egui::Context) {
+        // A **?** button pressed somewhere in the window.
+        if let Some(link) = ctx.data_mut(|d| d.remove_temp::<String>(request_id())) {
+            self.open_help(&link);
+        }
         let Some(mut state) = self.help.take() else { return };
         let lang = crate::i18n::current_code();
         let t = self.tokens;
@@ -354,14 +501,15 @@ fn draw_para(
         Kind::Heading(_) | Kind::Title if !plain(p).trim().is_empty() => {
             let level = if let Kind::Heading(n) = p.kind { n } else { 1 };
             let words = plain(p);
+            let (shown, anchor) = heading(&words);
             let size = match level {
                 1 => 24.0,
                 2 => 19.0,
                 _ => 16.0,
             };
             ui.add_space(if level == 1 { 4.0 } else { 10.0 });
-            let r = ui.label(RichText::new(&words).size(size).strong().color(t.text));
-            if state.jump && state.anchor.as_deref() == Some(slug(&words).as_str()) {
+            let r = ui.label(RichText::new(shown).size(size).strong().color(t.text));
+            if state.jump && state.anchor.as_deref() == Some(anchor.as_str()) {
                 r.scroll_to_me(Some(egui::Align::TOP));
             }
             return;
@@ -464,7 +612,7 @@ mod tests {
                 .blocks
                 .iter()
                 .filter_map(|b| match b {
-                    FBlock::Para(p) if matches!(p.kind, Kind::Heading(_) | Kind::Title) => Some(slug(&plain(p))),
+                    FBlock::Para(p) if matches!(p.kind, Kind::Heading(_) | Kind::Title) => Some(heading(&plain(p)).1),
                     _ => None,
                 })
                 .collect()
@@ -487,6 +635,44 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_heading_keeps_its_id_in_every_language() {
+        assert_eq!(heading("The mixer {#mixer}"), ("The mixer", "mixer".to_owned()));
+        assert_eq!(heading(" Der Mixer {#mixer} "), ("Der Mixer", "mixer".to_owned()));
+        assert_eq!(heading("Spoken cues"), ("Spoken cues", "spoken-cues".to_owned()));
+        // Not an id: spaces or capitals inside, or nothing.
+        assert_eq!(heading("Sets {#a b}").1, "sets-a-b");
+        assert_eq!(heading("Sets {#}").1, "sets");
+        // Markdown keeps `{#id}` as words of the heading, so the window can take it off.
+        let flow = craft_markdown::parse("## Der Mixer {#mixer}\n");
+        let words = flow.blocks.iter().find_map(|b| if let FBlock::Para(p) = b { Some(plain(p)) } else { None });
+        assert_eq!(words.as_deref().map(heading).map(|h| h.1), Some("mixer".to_owned()));
+        assert_eq!(title("# Updates {#updates}\n", "updates"), "Updates");
+    }
+
+    /// Every **?** button's part is there in every language the help has, so a button never opens
+    /// the wrong place.
+    #[test]
+    fn every_question_mark_finds_its_part_in_every_language() {
+        let mut langs: Vec<&str> = HELP_PAGES.iter().map(|(lang, _, _)| *lang).collect();
+        langs.dedup();
+        for lang in langs {
+            for topic in Topic::ALL {
+                assert!(
+                    topic_words(lang, topic.link()).is_some(),
+                    "{lang}: {:?} ({}) is not in the help",
+                    topic,
+                    topic.link()
+                );
+            }
+        }
+        assert_eq!(
+            topic_words("de", Topic::Sequences.link()).as_deref(),
+            Some("Abläufe: Animationen für Moving Heads")
+        );
+        assert_eq!(topic_words("en", Topic::BandLink.link()).as_deref(), Some("Band link"));
     }
 
     #[test]

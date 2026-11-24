@@ -199,7 +199,7 @@ impl ActCraftApp {
         let mut close = false;
         ui.group(|ui| {
             let Some(ed) = self.type_editor.as_mut() else { return };
-            ui.label(RichText::new(tr("Fixture type")).strong());
+            crate::help_view::section_title(ui, tr("Fixture type"), crate::help_view::Topic::FixtureTypes);
             ui.horizontal(|ui| {
                 let label = ui.label(tr("Name"));
                 ui.add(egui::TextEdit::singleline(&mut ed.name).desired_width(220.0)).labelled_by(label.id);
@@ -367,7 +367,7 @@ impl ActCraftApp {
 
     fn fixture_patch_form(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("Patch fixtures")).strong());
+        crate::help_view::section_title(ui, tr("Patch fixtures"), crate::help_view::Topic::Fixtures);
         let types = e.show.fixture_types.clone();
         let mut import = false;
         let mut export = false;

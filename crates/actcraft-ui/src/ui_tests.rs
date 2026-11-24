@@ -907,3 +907,22 @@ fn the_help_opens_with_f1_and_goes_from_page_to_page() {
     frames(&mut h, 3);
     assert!(h.query_by_label("Help in your language").is_some());
 }
+
+#[test]
+fn a_question_mark_opens_the_help_at_its_part() {
+    let (mut h, _engine) = window(|_| {});
+    h.state_mut().open_settings_at("band");
+    frames(&mut h, 3);
+    // The tab's button names the part it opens, starting with what it shows.
+    h.get_by_role_and_label(Role::Button, "? Help: Band link").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::Label, "Set it up").is_some(), "the Band link page shows");
+    // A section's button opens the part of a page, here the sheets in the browser.
+    h.get_by_role_and_label(Role::Button, "? Help: Sheets in the browser").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::Label, "Sheet music for the band").is_some());
+    // Back goes to the page before.
+    h.get_by_role_and_label(Role::Button, "Back").click_accesskit();
+    frames(&mut h, 3);
+    assert!(h.query_by_role_and_label(Role::Label, "Set it up").is_some());
+}

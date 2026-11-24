@@ -2,14 +2,14 @@
 
 Lighting > Presets opens the window for all of this.
 
-## Presets
+## Presets {#presets}
 
 ![The Presets window with two presets and a cue list](presets.png)
 
 Set the lights (Fixtures window), then type a name and **Store preset**. Pressing a preset brings
 its look back, at once or fading over **Fade in over**.
 
-## Cue lists
+## Cue lists {#cue-lists}
 
 A cue list runs looks one after the other:
 
@@ -21,12 +21,12 @@ A cue list runs looks one after the other:
 
 A song's **Light cues** tab fires cues at bars of the song, on its lighting lane.
 
-## Effects
+## Effects {#effects}
 
 An effect moves a group of lights by itself: a pulse, a circle, a rainbow. Save a group first (**Save group**),
 then pick a ready-made effect. In beats it follows the song's tempo.
 
-## Sequences: animations for moving heads
+## Sequences: animations for moving heads {#sequences}
 
 A sequence is a run of looks over time:
 
@@ -38,7 +38,7 @@ A sequence is a run of looks over time:
    click, so each beat or bar can be another look.
 5. **Start**, or let a cue start it (the list beside the cue).
 
-## Blackout, freeze and blind
+## Blackout, freeze and blind {#blackout}
 
 **Blackout** darkens all, **Freeze** holds everything where it is, **Blind** lets you change and
 store looks without the audience seeing it.

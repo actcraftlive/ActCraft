@@ -207,7 +207,7 @@ impl ActCraftApp {
     /// whether from other computers too, and the universes heard.
     pub(crate) fn dmx_input_settings(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("DMX in")).strong());
+        crate::help_view::section_title(ui, tr("DMX in"), crate::help_view::Topic::DmxIn);
         let mut on = self.platform.dmx_in_listening.is_some();
         let mut changed = false;
         ui.horizontal_wrapped(|ui| {
@@ -434,7 +434,10 @@ impl ActCraftApp {
             .default_width(820.0)
             .default_height(560.0)
             .collapsible(false)
-            .show(ctx, |ui| self.dmx_monitor_ui(ui, e, &mut m));
+            .show(ctx, |ui| {
+                crate::help_view::help_button(ui, crate::help_view::Topic::DmxMonitor);
+                self.dmx_monitor_ui(ui, e, &mut m);
+            });
         self.dmx_monitor = Some(m);
         if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.dmx_monitor = None;

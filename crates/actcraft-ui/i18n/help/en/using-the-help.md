@@ -7,12 +7,12 @@ saw.
 The help is in the language the window speaks (Settings > Language). A page that isn't
 translated yet shows in English.
 
-## Question marks in the window
+## Question marks in the window {#question-marks}
 
-Beside some settings there is a **?** button. It opens the help at the part that explains that
-setting.
+Beside settings tabs, song tabs and sections of the lighting windows there is a **?** button.
+Point at it to see which part of the help it opens; press it to open the help there.
 
-## Help in your language
+## Help in your language {#languages}
 
 The help is written in plain text files, one per page, next to the window's language files. How
 to translate it is in `docs/translating.md` in ActCraft's source code.

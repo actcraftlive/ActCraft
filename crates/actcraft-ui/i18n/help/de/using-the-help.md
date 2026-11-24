@@ -7,12 +7,13 @@ gesehen hast.
 Die Hilfe ist in der Sprache des Fensters (Einstellungen > Sprache). Eine Seite, die noch nicht
 übersetzt ist, erscheint auf Englisch.
 
-## Fragezeichen im Fenster
+## Fragezeichen im Fenster {#question-marks}
 
-Neben manchen Einstellungen steht ein **?**. Es öffnet die Hilfe genau an der Stelle, die diese
-Einstellung erklärt.
+Neben den Reitern der Einstellungen und des Songs und neben Abschnitten der Lichtfenster steht ein
+**?**. Zeigst du darauf, steht dort, welchen Teil der Hilfe es öffnet; ein Druck öffnet die Hilfe
+genau dort.
 
-## Hilfe in deiner Sprache
+## Hilfe in deiner Sprache {#languages}
 
 Die Hilfe steht in einfachen Textdateien, eine pro Seite, neben den Sprachdateien des Fensters.
 Wie man sie übersetzt, steht in `docs/translating.md` im Quellcode von ActCraft.

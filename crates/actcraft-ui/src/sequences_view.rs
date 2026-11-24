@@ -11,7 +11,7 @@ use crate::{ActCraftApp, tr};
 impl ActCraftApp {
     pub(crate) fn sequences_ui(&mut self, ui: &mut Ui, e: &mut Engine) {
         let t = self.tokens;
-        ui.label(RichText::new(tr("Sequences")).strong());
+        crate::help_view::section_title(ui, tr("Sequences"), crate::help_view::Topic::Sequences);
         ui.label(
             RichText::new(tr(
                 "Animations from looks: each step is a look the lights move to and hold. Set the lights, then Record step; a cue can start a sequence.",

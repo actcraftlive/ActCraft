@@ -1,6 +1,6 @@
 # Sheet music for the band
 
-## A song's sheet music
+## A song's sheet music {#score}
 
 The **Sheet music** tab shows a PDF (**Attach PDF…**) or a score (**Attach notation…**:
 MusicXML, or a MIDI file). A score shows as notes and, for guitar and bass, as tablature, with
@@ -11,7 +11,7 @@ and add notes.
 a part (drums by the General MIDI map, piano on two staves, guitar and bass with tab). MIDI made
 in a notation program works best; played-in MIDI comes out roughly.
 
-## A sheet for each musician
+## A sheet for each musician {#per-musician}
 
 1. Open **Musicians** in the Sheet music tab and add the band: Kim, Alex...
 2. Type a name under **New sheet** ("Bass") and press **Add sheet**.
@@ -20,7 +20,7 @@ in a notation program works best; played-in MIDI comes out roughly.
 
 A musician sees their own sheet, else a sheet for anyone.
 
-## Sheets in the browser
+## Sheets in the browser {#browser}
 
 Musicians can follow their sheet on a tablet or laptop:
 

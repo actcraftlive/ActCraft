@@ -3,7 +3,7 @@
 ActCraft ist Showsteuerung für Live-Musiker: Playbacks mit Klick, Songtexte und Noten, Setlisten,
 MIDI und das Licht, alles auf einer Uhr und in einer Showdatei.
 
-## Das Fenster
+## Das Fenster {#window}
 
 ![Das ActCraft-Fenster: links die Songs, in der Mitte der gewählte Song mit seinem Mixer](window.png)
 
@@ -14,7 +14,7 @@ MIDI und das Licht, alles auf einer Uhr und in einer Showdatei.
   Licht-Cues.
 - **Unten:** Pads (Knöpfe auf dem Bildschirm) und die Statuszeile.
 
-## Deine erste Show
+## Deine erste Show {#first-show}
 
 1. **Songs hinzufügen.** Audiodateien auf das Fenster ziehen oder in der Bibliothek
    **Songs hinzufügen…** drücken. Jede Datei wird ein Song.
@@ -26,7 +26,7 @@ MIDI und das Licht, alles auf einer Uhr und in einer Showdatei.
    auf deine Audiodateien; um alles auf einen anderen Rechner mitzunehmen: Datei > Show-Paket
    exportieren…
 
-## Wie es weitergeht
+## Wie es weitergeht {#next}
 
 - [Songs, Spuren und der Mixer](songs-and-mixer)
 - [Playlists und Setlisten](playlists-and-setlists)

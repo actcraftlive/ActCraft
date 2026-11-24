@@ -3,7 +3,7 @@
 ActCraft is show control for live musicians: backing tracks with click, lyrics and sheet music,
 setlists, MIDI and the lights, all on one clock and in one show file.
 
-## The window
+## The window {#window}
 
 ![The ActCraft window: songs on the left, the chosen song with its mixer in the middle](window.png)
 
@@ -13,7 +13,7 @@ setlists, MIDI and the lights, all on one clock and in one show file.
   and Light cues.
 - **Bottom:** pads (on-screen buttons) and the status line.
 
-## Your first show
+## Your first show {#first-show}
 
 1. **Add songs.** Drag audio files onto the window, or press **Add songs…** in the library.
    Each file becomes a song.
@@ -22,7 +22,7 @@ setlists, MIDI and the lights, all on one clock and in one show file.
 4. **Save.** File > Save Show (Ctrl+S) writes one `.actcraft` file. It points to your audio
    files; to take everything to another computer, use File > Export Show Package…
 
-## Where to go next
+## Where to go next {#next}
 
 - [Songs, tracks and the mixer](songs-and-mixer)
 - [Playlists and setlists](playlists-and-setlists)

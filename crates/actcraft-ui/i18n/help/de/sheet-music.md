@@ -1,6 +1,6 @@
 # Noten für die Band
 
-## Die Noten eines Songs
+## Die Noten eines Songs {#score}
 
 Der Reiter **Noten** zeigt ein PDF (**PDF anhängen…**) oder eine Partitur (**Partitur
 anhängen…**: MusicXML oder eine MIDI-Datei). Eine Partitur erscheint als Noten und bei Gitarre
@@ -11,7 +11,7 @@ In einem PDF kannst du zeichnen, markieren und Notizen setzen.
 eine Stimme (Schlagzeug nach General MIDI, Klavier auf zwei Systemen, Gitarre und Bass mit Tab).
 MIDI aus einem Notenprogramm wird am besten; eingespieltes MIDI wird eher grob.
 
-## Ein Notenblatt für jeden Musiker
+## Ein Notenblatt für jeden Musiker {#per-musician}
 
 1. Im Reiter Noten **Musiker** aufklappen und die Band anlegen: Kim, Alex …
 2. Unter **Neues Notenblatt** einen Namen eingeben („Bass“) und **Notenblatt hinzufügen** drücken.
@@ -21,7 +21,7 @@ MIDI aus einem Notenprogramm wird am besten; eingespieltes MIDI wird eher grob.
 
 Ein Musiker sieht sein eigenes Blatt, sonst ein Blatt für alle.
 
-## Notenblätter im Browser
+## Notenblätter im Browser {#browser}
 
 Musiker können ihrem Blatt auf einem Tablet oder Laptop folgen:
 
