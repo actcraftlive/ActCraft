@@ -163,6 +163,7 @@ pub fn handled_by_window(id: &str) -> bool {
             | "queue.add"
             | "queue.play_next"
             | "app.about"
+            | "app.help"
             | "app.commands"
             | "song.duplicates"
             | "show.export_package"
@@ -561,6 +562,7 @@ impl ActCraftApp {
             "app.about" => {
                 self.modal = Some(Modal::About);
             }
+            "app.help" => self.show_help(),
             "dmx.get" => self.dmx_monitor = Some(self.dmx_monitor.unwrap_or_default()),
             "fixture.list" => self.fixtures_open = true,
             "preset.list" => self.presets_open = true,

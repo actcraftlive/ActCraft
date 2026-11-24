@@ -22,6 +22,7 @@ mod cues_view;
 mod dmx_view;
 mod fixtures_view;
 pub mod flows;
+mod help_view;
 pub mod i18n;
 mod looks_view;
 mod lyrics_view;
@@ -361,6 +362,8 @@ pub struct ActCraftApp {
     set_note_edit: Option<(usize, usize, u64)>,
     /// The name typed for a new sequence.
     sequence_draft: String,
+    /// The help window, while it is open.
+    help: Option<help_view::HelpState>,
     /// The name typed for a new sheet or a new musician in the Sheet music tab.
     sheet_draft: (String, String),
     /// "Remove all marks" waits for a second click.
@@ -457,6 +460,7 @@ impl ActCraftApp {
                 .with_source(update_source()),
             set_note_edit: None,
             sequence_draft: String::new(),
+            help: None,
             sheet_draft: (String::new(), String::new()),
             confirm_clear_marks: false,
             sheet_top_page: 0,
@@ -505,6 +509,11 @@ impl ActCraftApp {
     /// Shows the About window (`--about`, for screenshots).
     pub fn show_about(&mut self) {
         self.modal = Some(flows::Modal::About);
+    }
+
+    /// Opens the help at a page, or a part of one (`page#part`; `--help-page`, for screenshots).
+    pub fn show_help_at(&mut self, target: &str) {
+        self.open_help(target);
     }
 
     /// Opens the DMX monitor (`--dmx`, for screenshots).
@@ -703,6 +712,7 @@ impl ActCraftApp {
         self.fixtures_window(&ctx, e);
         self.presets_window(&ctx, e);
         self.stage_view_window(&ctx, e);
+        self.help_window(&ctx);
         self.modal_ui(&ctx, e);
         self.drop_hint(&ctx);
         drop(guard);

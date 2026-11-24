@@ -1,0 +1,5 @@
+# The help pages in the order the contents list shows them: one page name a line, the file
+# i18n/help/<language>/<name>.md. English (en/) has every page; another language may leave one
+# out, and the English one shows. See docs/translating.md.
+getting-started
+using-the-help

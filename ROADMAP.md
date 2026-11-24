@@ -19,7 +19,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) and the update check (Help > About, only when asked) done; installers, CI artifacts and a first alpha release to do |
 | M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
 | M11 | Light sequences: animations for moving heads, steps on the click, started by cues | 🔶 sequences done; more from the owner's list to come |
-| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | ⬜ planned |
+| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | 🔶 help window done; pages, screenshots, ? buttons, translating to do |
 
 ## Next up
 
@@ -34,7 +34,7 @@ M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section
 
 Next, asked for by the owner on 2026-11-24 (details under M12):
 
-3. M12: help window and file layout
+3. ✅ M12: help window and file layout
 4. M12: the help pages in English and German
 5. M12: screenshots in each language (`cargo xtask help-shots`)
 6. M12: question-mark buttons that open the help at their section
@@ -349,14 +349,14 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   (`sequence.set`, `sequence.step_add` and the other `sequence.*` commands, `cue.set {starts,
   stops}`, `sequence.toggle` for pads)
 
-## M12 Help and how-tos ⬜ planned
+## M12 Help and how-tos 🔶
 
 Asked for by the owner on 2026-11-24: a help with screenshots, important information and how-tos;
 question-mark buttons beside settings that lead to their part of the help; the help part of the
 language files, so it can be translated, with each language's screenshots in its own folder.
 Each step is its own pull request, in this order:
 
-1. ⬜ Help window and file layout: Help > ActCraft Help (F1) shows pages written in Markdown in the
+1. ✅ Help window and file layout: Help > ActCraft Help (F1) shows pages written in Markdown in the
    language folder (`crates/actcraft-ui/i18n/help/<language>/*.md`), screenshots from
    `crates/actcraft-ui/i18n/help/img_<language>/`; a page or picture missing in a language shows
    the English one. A contents list, links between pages and to sections, back and forward,
