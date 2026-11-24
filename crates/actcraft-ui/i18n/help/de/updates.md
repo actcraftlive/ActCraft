@@ -1,5 +1,7 @@
 # Updates
 
+![Über ActCraft mit dem Knopf Nach Updates suchen](about.png)
+
 Hilfe > Über ActCraft > **Nach Updates suchen** fragt GitHub, ob es eine neuere Version gibt. Vor
 diesem Klick wird nichts gesendet.
 

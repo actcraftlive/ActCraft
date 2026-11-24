@@ -4,6 +4,8 @@ A fixture is one light at a DMX address. Its **type** says what each of its chan
 
 ## Patch a light
 
+![The Fixtures window with a moving head patched at 1.001](fixtures.png)
+
 1. Lighting > Fixtures.
 2. **Kind**: a simple kind (dimmer, RGB...), a type of your show, or one **from the library**.
 3. **Mode** (for a type with several), **Universe**, the address (or first free one) and how

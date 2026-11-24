@@ -15,6 +15,8 @@ An Enttec DMX USB Pro or similar interface: choose **USB interface** instead.
 
 ## Art-Net and sACN
 
+![Settings, Lighting tab: DMX outputs and DMX in](lighting-settings.png)
+
 **Add output** with Art-Net or sACN sends a universe to a node on the network. **Find Art-Net nodes**
 looks for Art-Net nodes.
 

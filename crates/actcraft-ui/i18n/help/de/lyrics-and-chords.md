@@ -7,6 +7,8 @@ Song > Songtext importieren… liest Text-, ChordPro-, LRC- und Word-Dateien (DO
 
 ## Akkorde
 
+![Der Reiter Songtext mit Akkorden über dem Text](lyrics.png)
+
 Akkorde stehen in eckigen Klammern direkt vor der Silbe: `[Am]Hello [F]darkness`. Sie erscheinen
 über dem Text. **Transponieren** und **Kapodaster** ändern sie für den ganzen Song; Akkorde lassen
 sich auch ausblenden.

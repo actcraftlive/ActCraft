@@ -33,7 +33,7 @@ impl ActCraftApp {
                 if r.clicked() {
                     run = Some(("sequence.toggle", json!({"sequence": si})));
                 }
-                let label = ui.label(tr("Runs"));
+                let label = ui.label(tr("Plays"));
                 let mut mode = seq.mode;
                 let mode_text = |m: actcraft_show::SequenceMode| match m {
                     actcraft_show::SequenceMode::Loop => tr("Over and over"),

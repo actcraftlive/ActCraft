@@ -3,6 +3,7 @@
 //! - `ci`: fmt, clippy (warnings are errors), tests, layers, wasm, licences, assets — in that
 //!   order, stopping at the first failure. Run it before every commit.
 //! - `layers`, `wasm`, `licences`, `assets`: one step on its own.
+//! - `help-shots`: the help's screenshots in every language (see `help_shots.rs`).
 //!
 //! `--skip-missing-targets` lets the wasm step pass with a loud note when the
 //! `wasm32-unknown-unknown` target isn't installed on this computer; CI never passes it.
@@ -15,13 +16,14 @@
     clippy::unreachable
 )]
 
+mod help_shots;
 mod layers;
 mod licences;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use craft_xtask::assets::{self, Policy};
+use craft_xtask::assets::{self, Policy, RowMode};
 use craft_xtask::runner::{self, RunOptions, Step, TestMode};
 
 /// Crates whose code must build for `wasm32-unknown-unknown` (everything below the platform layer).
@@ -40,6 +42,8 @@ pub const WASM_CRATES: &[&str] = &[
 const ASSETS: Policy<'static> = Policy {
     forbidden_ext: &["ttf", "otf", "ttc", "otc", "woff", "woff2"],
     skip_folders: &["target"],
+    // Rows may name a folder pattern: the help's pictures are one row for every `img_*` folder.
+    row_mode: RowMode::Patterns,
     ..Policy::new("ATTRIBUTION.md")
 };
 
@@ -50,6 +54,7 @@ fn main() {
     let result = match runner::root(Path::new(env!("CARGO_MANIFEST_DIR"))) {
         Ok(root) if task == "icon" => icon(&root, args.get(1).map(String::as_str)),
         Ok(root) if task == "package" => package(&root),
+        Ok(root) if task == "help-shots" => help_shots::run(&root),
         Ok(root) => run(task, &root, skip_missing),
         Err(e) => Err(e.to_string()),
     };

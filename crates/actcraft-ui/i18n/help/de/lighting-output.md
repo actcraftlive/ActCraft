@@ -15,6 +15,8 @@ Für ein Enttec DMX USB Pro oder ein ähnliches Interface stattdessen **USB-Inte
 
 ## Art-Net und sACN
 
+![Einstellungen, Reiter Licht: DMX-Ausgänge und DMX-Eingang](lighting-settings.png)
+
 **Ausgang hinzufügen** mit Art-Net oder sACN schickt ein Universum an einen Knoten im Netz.
 **Art-Net-Knoten suchen** sucht nach Art-Net-Knoten.
 

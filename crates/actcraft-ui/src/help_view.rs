@@ -413,9 +413,10 @@ fn draw_para(
                 continue;
             }
             let mut rich = RichText::new(text.as_str()).color(if quote { t.text_dim } else { t.text });
-            // Bold names what to press or choose: in the accent colour, so it stands out.
+            // Bold names what to press or choose: strong text. Not the accent colour: that is the
+            // colour of links, and bold words are not links.
             if fmt.bold {
-                rich = rich.strong().color(t.accent);
+                rich = rich.strong();
             }
             if fmt.italic || quote {
                 rich = rich.italics();

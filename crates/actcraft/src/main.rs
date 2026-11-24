@@ -863,7 +863,12 @@ fn main() {
     let mut engine = Engine::new(Box::new(NativeServices));
     let mut platform = PlatformInfo::default();
     let (prefs, _report) = craft_settings::SettingsStore::<Prefs>::open(craft_settings::Location::Auto);
-    platform.devices = actcraft_platform::output_devices().into_iter().map(|d| (d.id, d.name)).collect();
+    // `--no-devices` (for the help's screenshots, `cargo xtask help-shots`): no audio output, no
+    // device list and no remote control, so the pictures show nothing of this computer.
+    let no_devices = args.iter().any(|a| a == "--no-devices");
+    if !no_devices {
+        platform.devices = actcraft_platform::output_devices().into_iter().map(|d| (d.id, d.name)).collect();
+    }
     // The language chosen last time (`--lang CODE` overrides it, for screenshots).
     let language = args
         .iter()
@@ -876,10 +881,14 @@ fn main() {
 
     // The interface chosen last time, or the system default when it's gone.
     let saved = Some(prefs.get().audio.device.clone()).filter(|d| !d.is_empty());
-    let opened = match AudioOutput::open(saved.as_deref()) {
-        Ok(ok) => Ok((ok, saved)),
-        Err(_) if saved.is_some() => AudioOutput::open(None).map(|ok| (ok, None)),
-        Err(e) => Err(e),
+    let opened = if no_devices {
+        Err(String::new())
+    } else {
+        match AudioOutput::open(saved.as_deref()) {
+            Ok(ok) => Ok((ok, saved)),
+            Err(_) if saved.is_some() => AudioOutput::open(None).map(|ok| (ok, None)),
+            Err(e) => Err(e),
+        }
     };
     let mut status = None;
     let audio = match opened {
@@ -891,6 +900,12 @@ fn main() {
             status = Some(controller.status_reader());
             engine.attach_audio(controller);
             Some(out)
+        }
+        // A stand-in name, so the status line reads as on a working computer.
+        Err(_) if no_devices => {
+            platform.audio_device = Some(actcraft_ui::tr("Audio interface").to_owned());
+            platform.sample_rate = 48_000;
+            None
         }
         Err(e) => {
             engine.say_error_with("No audio output: {error}", vec![MessageArg::plain("error", e)]);
@@ -905,8 +920,9 @@ fn main() {
 
     let engine = Arc::new(Mutex::new(engine));
     let addr = SocketAddr::from(([127, 0, 0, 1], channel::DEFAULT_PORT));
-    match channel::serve(addr, Arc::clone(&engine), None) {
+    match if no_devices { Err(String::new()) } else { channel::serve(addr, Arc::clone(&engine), None) } {
         Ok(a) => platform.control_address = Some(a.to_string()),
+        Err(_) if no_devices => {}
         Err(e) => {
             if let Ok(mut en) = engine.lock() {
                 en.say_error_with("Remote control is off: {error}", vec![MessageArg::plain("error", e)]);
