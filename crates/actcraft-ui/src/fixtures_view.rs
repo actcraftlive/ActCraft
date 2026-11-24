@@ -439,7 +439,7 @@ impl ActCraftApp {
             import = ui
                 .button(tr("Import fixture type\u{2026}"))
                 .on_hover_text(tr(
-                    "An ActCraft fixture file or one from the Open Fixture Library (.json), or an .r20 file",
+                    "An ActCraft fixture file or one from the Open Fixture Library (.json), an .r20 file or a .lightkeyfxt fixture profile",
                 ))
                 .clicked();
             if imported.is_some() {
@@ -506,7 +506,10 @@ impl ActCraftApp {
                 ask: crate::flows::FileAsk::ImportFixtureType,
                 kind: crate::flows::FileKind::Open,
                 title: tr("Import fixture type"),
-                filters: vec![(tr("Fixture file (.json, .r20)"), actcraft_engine::fixture_library::EXTENSIONS)],
+                filters: vec![(
+                    tr("Fixture file (.json, .r20, .lightkeyfxt)"),
+                    actcraft_engine::fixture_library::EXTENSIONS,
+                )],
                 file_name: None,
                 directory: crate::flows::show_dir(e),
             });

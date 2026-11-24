@@ -31,6 +31,7 @@ pub mod dmx;
 pub mod effects;
 pub mod error_text;
 pub mod fixture_library;
+pub mod fixture_profile;
 pub mod fixtures;
 pub mod gamepad;
 pub mod hits;

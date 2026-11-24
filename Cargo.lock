@@ -167,6 +167,7 @@ dependencies = [
  "craft-docx",
  "craft-midi",
  "craft-pdf",
+ "craft-plist",
  "craft-wordmodel",
  "craft-zip",
  "epaint_default_fonts",
@@ -1268,6 +1269,14 @@ dependencies = [
  "hayro-interpret",
  "hayro-syntax",
  "krilla",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "craft-plist"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=8048f8ef92da80fb3ce5a056d59ca591ee66faf1#8048f8ef92da80fb3ce5a056d59ca591ee66faf1"
+dependencies = [
  "thiserror 2.0.21",
 ]
 

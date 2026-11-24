@@ -16,11 +16,11 @@ use crate::Engine;
 use crate::fixtures::Attribute;
 
 /// Largest fixture file read.
-const MAX_BYTES: usize = 2 << 20;
+pub(crate) const MAX_BYTES: usize = 2 << 20;
 /// Most channels of a file looked at.
 const MAX_CHANNELS_LOOKED_AT: usize = 1_024;
 /// Extensions of fixture files.
-pub const EXTENSIONS: &[&str] = &["json", "r20"];
+pub const EXTENSIONS: &[&str] = &["json", "r20", crate::fixture_profile::EXTENSION];
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -31,7 +31,7 @@ fn failed(msg: impl Into<String>) -> CommandError {
 }
 
 /// The attribute a colour of `ColorIntensity` is.
-fn colour(name: &str) -> Attribute {
+pub(crate) fn colour(name: &str) -> Attribute {
     match name.to_ascii_lowercase().as_str() {
         "red" => Attribute::Red,
         "green" => Attribute::Green,
@@ -128,13 +128,13 @@ pub fn read_ofl(doc: &Value) -> Result<FixtureType, CommandError> {
 }
 
 /// `fixture_type.import {path}`: brings a fixture type in from an Open Fixture Library file
-/// (`.json`) or an `.r20` file; one of the same name is replaced.
+/// (`.json`), an `.r20` file or a `.lightkeyfxt` fixture profile; one of the same name is replaced.
 pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     let path = p::str_max(prm, "path", 4096)?;
     let ext = crate::services::extension(path).unwrap_or_default();
     if !EXTENSIONS.contains(&ext.as_str()) {
         return Err(invalid(
-            "ActCraft reads fixture types from ActCraft and Open Fixture Library .json files and .r20 files",
+            "ActCraft reads fixture types from ActCraft and Open Fixture Library .json files, .r20 files and .lightkeyfxt files",
         ));
     }
     let bytes = e.services().read_file(path).map_err(failed)?;
@@ -143,6 +143,10 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
     }
     if ext == "r20" {
         let ty = read_r20(&String::from_utf8_lossy(&bytes))?;
+        return keep(e, ty);
+    }
+    if ext == crate::fixture_profile::EXTENSION {
+        let ty = crate::fixture_profile::read_profile(&bytes)?;
         return keep(e, ty);
     }
     let doc: Value = serde_json::from_slice(&bytes)
@@ -158,7 +162,6 @@ pub fn fixture_type_import(e: &mut Engine, prm: &Value) -> CommandResult {
 /// What an `.r20` attribute letter is (the letters the file format's own comments list), or by
 /// the channel's name for the ones they leave open (colour mixing).
 fn r20_attribute(letter: &str, name: &str) -> Attribute {
-    let n = name.to_ascii_lowercase();
     match letter {
         "E" => return Attribute::Pan,
         "F" => return Attribute::Tilt,
@@ -170,6 +173,12 @@ fn r20_attribute(letter: &str, name: &str) -> Attribute {
         "Q" => return Attribute::Zoom,
         _ => {}
     }
+    attribute_by_name(name)
+}
+
+/// What a channel does by the words in its name (colour mixing, dimmer, strobe...), or `Other`.
+pub(crate) fn attribute_by_name(name: &str) -> Attribute {
+    let n = name.to_ascii_lowercase();
     const NAMED: &[(&str, Attribute)] = &[
         ("red", Attribute::Red),
         ("green", Attribute::Green),
