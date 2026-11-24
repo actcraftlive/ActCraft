@@ -7,6 +7,8 @@ reads text, ChordPro, LRC and Word (DOCX) files.
 
 ## Chords
 
+![The Lyrics tab with chords above the words](lyrics.png)
+
 Chords go in square brackets right before the syllable: `[Am]Hello [F]darkness`. They show
 above the words. **Transpose** and **Capo** change them for the whole song; chords can also be
 hidden.

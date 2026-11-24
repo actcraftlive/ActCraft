@@ -4,6 +4,8 @@ Ein Gerät ist eine Lampe an einer DMX-Adresse. Ihr **Typ** sagt, was jeder ihre
 
 ## Eine Lampe patchen
 
+![Das Fenster Geräte mit einem Moving Head an 1.001](fixtures.png)
+
 1. Licht > Geräte.
 2. **Art**: eine einfache Art (Dimmer, RGB …), ein Typ deiner Show oder einer **aus der
    Bibliothek**.

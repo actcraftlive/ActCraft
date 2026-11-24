@@ -5,6 +5,8 @@ setlists, MIDI and the lights, all on one clock and in one show file.
 
 ## The window
 
+![The ActCraft window: songs on the left, the chosen song with its mixer in the middle](window.png)
+
 - **Top:** Play, Stop, Previous and Next, the song and its time, the click, and Settings.
 - **Left:** the library (every song of the show), the playlists and the queue.
 - **Middle:** the chosen song: its details, and the tabs Mixer, Lyrics, Sheet music, Spoken cues

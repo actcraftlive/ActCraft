@@ -1,5 +1,7 @@
 # Updates
 
+![About ActCraft with the Check for Updates button](about.png)
+
 Help > About ActCraft > **Check for Updates** asks GitHub whether there is a newer release.
 Nothing is sent before you press it.
 

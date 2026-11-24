@@ -5,6 +5,8 @@ MIDI und das Licht, alles auf einer Uhr und in einer Showdatei.
 
 ## Das Fenster
 
+![Das ActCraft-Fenster: links die Songs, in der Mitte der gewählte Song mit seinem Mixer](window.png)
+
 - **Oben:** Abspielen, Stopp, Zurück und Weiter, der Song und seine Zeit, der Klick und die
   Einstellungen.
 - **Links:** die Bibliothek (alle Songs der Show), die Playlists und die Warteschlange.
