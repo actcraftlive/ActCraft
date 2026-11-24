@@ -413,8 +413,9 @@ fn draw_para(
                 continue;
             }
             let mut rich = RichText::new(text.as_str()).color(if quote { t.text_dim } else { t.text });
+            // Bold names what to press or choose: in the accent colour, so it stands out.
             if fmt.bold {
-                rich = rich.strong();
+                rich = rich.strong().color(t.accent);
             }
             if fmt.italic || quote {
                 rich = rich.italics();
@@ -450,6 +451,41 @@ mod tests {
             ]
         );
         assert_eq!(title("Intro\n# Getting started\n", "x"), "Getting started");
+    }
+
+    /// Every link of every page, in every language, leads to a page there is and, for a part, to
+    /// a heading that page (in that language) has.
+    #[test]
+    fn every_link_leads_somewhere() {
+        let headings = |lang: &str, page: &str| -> Vec<String> {
+            let text = page_text(lang, page).unwrap_or_default();
+            craft_markdown::parse(text)
+                .blocks
+                .iter()
+                .filter_map(|b| match b {
+                    FBlock::Para(p) if matches!(p.kind, Kind::Heading(_) | Kind::Title) => Some(slug(&plain(p))),
+                    _ => None,
+                })
+                .collect()
+        };
+        for (lang, page, text) in HELP_PAGES {
+            for block in craft_markdown::parse(text).blocks {
+                let FBlock::Para(p) = block else { continue };
+                for inline in &p.inlines {
+                    let Inline::Text(_, fmt) = inline else { continue };
+                    let Some(link) = &fmt.link else { continue };
+                    if let Target::Page(to, anchor) = target(link, page) {
+                        assert!(page_text("en", &to).is_some(), "{lang}/{page} links to {to}, which is no page");
+                        if let Some(a) = anchor {
+                            assert!(
+                                headings(lang, &to).contains(&a),
+                                "{lang}/{page} links to {to}#{a}, which is no heading"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]
