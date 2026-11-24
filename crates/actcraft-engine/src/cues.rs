@@ -382,10 +382,94 @@ pub fn cue_jump(e: &mut Engine, prm: &Value) -> CommandResult {
     e.go_to(list, cue)
 }
 
+/// The attributes that make a fixture give light; Stop sets these to zero and leaves the rest
+/// (position, gobo, zoom) where they are, so a moving head goes dark without swinging round.
+const LIGHT: [Attribute; 9] = [
+    Attribute::Intensity,
+    Attribute::IntensityFine,
+    Attribute::Red,
+    Attribute::Green,
+    Attribute::Blue,
+    Attribute::White,
+    Attribute::Amber,
+    Attribute::Uv,
+    Attribute::Strobe,
+];
+
+/// `cue_list.stop {list?, fade?}`: the list back to "not started", so it no longer goes on by
+/// itself; the sequences and effects its cues started stop; the fixtures its cues' presets light
+/// go dark (at once, or over `fade` seconds) without moving.
+pub fn cue_list_stop(e: &mut Engine, prm: &Value) -> CommandResult {
+    let list = list_index(e, prm)?;
+    let fade = p::opt_f64_in(prm, "fade", 0.0, MAX_FADE_S)?.unwrap_or(0.0);
+    let Some(l) = e.show.cue_lists.get(list).cloned() else { return Err(invalid("no such cue list")) };
+    e.cue_at.remove(&list);
+    e.cue_went.remove(&list);
+    for name in l.cues.iter().flat_map(|c| &c.starts) {
+        e.stop_by_name(name);
+    }
+    // Every light-giving value the list's presets set, once each, to zero.
+    let mut values: Vec<actcraft_show::PresetValue> = Vec::new();
+    for preset in l.cues.iter().filter_map(|c| e.show.presets.iter().find(|p| p.name == c.preset)) {
+        for v in preset.values.iter().filter(|v| LIGHT.contains(&v.attribute)) {
+            if !values.iter().any(|d| d.fixture == v.fixture && d.attribute == v.attribute) {
+                values.push(actcraft_show::PresetValue { value: 0.0, ..*v });
+            }
+        }
+    }
+    e.fade_to(&Preset { values, ..Preset::default() }, fade);
+    Ok(Value::Null)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::TimeDelta;
+
+    /// A chase (a cue that goes on by itself) that starts a sequence stops with its list: no more
+    /// going on, the sequence stops, the light goes dark.
+    #[test]
+    fn stop_ends_a_running_cue_list_and_darkens_its_lights() {
+        let mut e = engine();
+        let _ = e.run("sequence.set", &json!({"name": "Sweep"}));
+        let _ = e.run("sequence.step_add", &json!({"sequence": 0, "preset": 0, "length": 1.0}));
+        let _ = e.run("cue_list.add", &json!({"name": "Chase"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 1.0}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 1.0}));
+        let _ = e.run("cue.set", &json!({"list": 0, "cue": 0, "starts": ["Sweep"]}));
+        assert!(e.run("cue.go", &json!({"list": 0})).is_ok());
+        assert_eq!(level(&e), 255);
+        assert_eq!(e.running_sequences.len(), 1);
+
+        assert!(e.run("cue_list.stop", &json!({"list": 0})).is_ok());
+        assert_eq!(e.cue_position(0), None, "back to not started");
+        assert!(e.running_sequences.is_empty(), "the sequence its cue started stops");
+        assert_eq!(level(&e), 0, "dark");
+        // Time passes: nothing goes on by itself any more.
+        e.step_follow(e.services().now() + TimeDelta::seconds(5));
+        assert_eq!(e.cue_position(0), None);
+        assert_eq!(level(&e), 0);
+        // Go starts it again from the first cue.
+        assert!(e.run("cue.go", &json!({"list": 0})).is_ok());
+        assert_eq!(e.cue_position(0), Some(0));
+    }
+
+    /// Stop darkens without moving: a moving head's position stays where the cue put it.
+    #[test]
+    fn stop_leaves_position_alone() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let _ = e.run("fixture.add", &json!({"channels": ["pan", "intensity"], "universe": 1}));
+        let _ = e.run("fixture.set", &json!({"fixture": 0, "values": {"pan": 0.5, "intensity": 1.0}}));
+        let _ = e.run("preset.store", &json!({"name": "Up"}));
+        let _ = e.run("cue_list.add", &json!({"name": "L"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+        let _ = e.run("cue.go", &Value::Null);
+        assert!(e.run("cue_list.stop", &Value::Null).is_ok(), "the first list without a list");
+        let u = e.dmx.universe(1).map(|u| (u[0], u[1]));
+        assert_eq!(u, Some((128, 0)), "pan kept, intensity off");
+        assert!(e.run("cue_list.stop", &json!({"list": 5})).is_err());
+        assert!(e.run("cue_list.stop", &json!({"fade": -1})).is_err());
+    }
 
     fn engine() -> Engine {
         let mut e = Engine::new(Box::new(crate::MemoryServices::default()));

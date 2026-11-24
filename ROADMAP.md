@@ -42,7 +42,7 @@ Next, asked for by the owner on 2026-11-24 (details under M12):
 
 Asked for by the owner on 2026-11-24 (details under M11):
 
-8. M11: Stop for cue lists
+8. M11: Stop for cue lists and All stop
 
 ## Quality and open questions
 
@@ -357,6 +357,9 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   It puts the list back to "not started" (no more going on by itself), stops the sequences and
   effects its cues started, and darkens the fixtures its presets light, without moving them
   (`cue_list.stop`)
+- ⬜ All stop (owner, 2026-11-24: "and a general ALL STOP button"): one button in the Presets
+  window, the Lighting menu and a command for pads, MIDI and foot switches that stops every cue
+  list, sequence and effect and darkens every fixture without moving it (`lighting.stop_all`)
 
 ## M12 Help and how-tos ✅
 
