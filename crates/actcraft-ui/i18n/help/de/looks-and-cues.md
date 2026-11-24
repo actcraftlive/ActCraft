@@ -47,6 +47,19 @@ Ein Ablauf ist eine Folge von Stimmungen über die Zeit:
    des Song-Klicks, so kann jeder Schlag oder Takt eine andere Stimmung sein.
 5. **Start**, oder ein Cue startet ihn (die Liste neben dem Cue).
 
+## Stöße: Nebel, Blitze {#hits}
+
+Ein Stoß schaltet ein Preset kurz an, etwa eine Nebelmaschine für eine halbe Sekunde, außerhalb
+der Cue-Listen. Ist seine Zeit um, gehen die Kanäle, die er gesetzt hat, zurück auf ihren Wert
+von vorher. Ein Cue, der übernimmt, lässt einen Stoß in Ruhe.
+
+1. Eine Gruppe nur mit der Nebelmaschine speichern (**Gruppe speichern**), die Nebelmaschine voll
+   aufdrehen und ein Preset **Aus** dieser Gruppe speichern (**Preset speichern**). Ein Preset aus
+   allen Geräten würde während des Stoßes jede Lampe setzen.
+2. Unter **Stöße**: einen Namen, das Preset und **An für** (0,5 s), dann **Stoß hinzufügen**.
+3. **Auslösen** löst ihn jetzt aus. Im Reiter **Licht-Cues** eines Songs den Stoß wählen und an
+   einer Stelle **Stoß hier hinzufügen**: Der Song löst ihn aus, wenn die Wiedergabe dort ist.
+
 ## Alles stoppen {#all-stop}
 
 Das rote **Alles stoppen** oben im Fenster Presets (auch Licht > Alles stoppen, ein Pad oder ein

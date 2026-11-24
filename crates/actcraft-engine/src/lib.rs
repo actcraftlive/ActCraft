@@ -33,6 +33,7 @@ pub mod error_text;
 pub mod fixture_library;
 pub mod fixtures;
 pub mod gamepad;
+pub mod hits;
 pub mod looks;
 pub mod macros;
 pub mod midi_file;
@@ -171,6 +172,8 @@ pub struct Engine {
     running_effects: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
     /// Sequences running, with when each started.
     running_sequences: Vec<(String, chrono::DateTime<chrono::FixedOffset>)>,
+    /// Hits that are on now, with when they end.
+    running_hits: Vec<crate::hits::RunningHit>,
     /// Since when fades and effects are held (lighting freeze).
     frozen_at: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// Messages for the person, newest last.
@@ -257,6 +260,7 @@ impl Engine {
             light_at: None,
             running_effects: Vec::new(),
             running_sequences: Vec::new(),
+            running_hits: Vec::new(),
             frozen_at: None,
             audio: None,
             loaded_song: None,
@@ -320,6 +324,10 @@ impl Engine {
         if !self.running_sequences.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();
             self.step_sequences(now);
+        }
+        if !self.running_hits.is_empty() && self.frozen_at.is_none() {
+            let now = self.services.now();
+            self.step_hits(now);
         }
         if !self.cue_went.is_empty() && self.frozen_at.is_none() {
             let now = self.services.now();

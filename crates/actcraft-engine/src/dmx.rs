@@ -228,6 +228,9 @@ impl Engine {
                 for (_, started) in &mut self.running_sequences {
                     *started += held;
                 }
+                for hit in &mut self.running_hits {
+                    hit.shift(held);
+                }
                 for went in self.cue_went.values_mut() {
                     *went += held;
                 }

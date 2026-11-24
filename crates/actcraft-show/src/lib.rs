@@ -94,6 +94,8 @@ pub mod limits {
     /// Sequences in a show and steps in one.
     pub const MAX_SEQUENCES: usize = 256;
     pub const MAX_SEQUENCE_STEPS: usize = 256;
+    /// Hits in a show.
+    pub const MAX_HITS: usize = 256;
     /// More attributes in one effect.
     pub const MAX_EFFECT_PARTS: usize = 8;
     /// Marks on one song's PDF.
@@ -216,6 +218,9 @@ pub struct Show {
     /// Sequences: steps of looks over time (animations for moving heads, chases).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sequences: Vec<Sequence>,
+    /// Hits: a preset put on for a moment (a burst of fog, a flash), outside the cue lists.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hits: Vec<Hit>,
     #[serde(default)]
     pub mixer: MixerSettings,
     #[serde(default)]
@@ -256,6 +261,7 @@ impl Default for Show {
             cue_lists: Vec::new(),
             effects: Vec::new(),
             sequences: Vec::new(),
+            hits: Vec::new(),
             mixer: MixerSettings::default(),
             transitions: TransitionSettings::default(),
             history: Vec::new(),
@@ -972,6 +978,23 @@ pub struct LightCue {
     pub list: String,
     /// The cue's place in that list, from 0.
     pub cue: usize,
+    /// A hit's name instead of a cue: the mark fires that hit (the list is then empty).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hit: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// A hit: a preset put on for a moment, such as a burst of fog or a flash, outside the cue lists.
+/// When its time is up, the channels it set go back to what they were.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Hit {
+    pub name: String,
+    /// The preset's name.
+    pub preset: String,
+    /// How long it stays on.
+    pub seconds: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }

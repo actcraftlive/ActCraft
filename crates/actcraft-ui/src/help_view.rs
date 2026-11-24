@@ -122,12 +122,13 @@ pub(crate) enum Topic {
     CueLists,
     Effects,
     Sequences,
+    Hits,
     BandLink,
 }
 
 impl Topic {
     #[cfg(test)]
-    pub(crate) const ALL: [Topic; 23] = [
+    pub(crate) const ALL: [Topic; 24] = [
         Topic::SongDetails,
         Topic::Mixer,
         Topic::SpokenCues,
@@ -150,6 +151,7 @@ impl Topic {
         Topic::CueLists,
         Topic::Effects,
         Topic::Sequences,
+        Topic::Hits,
         Topic::BandLink,
     ];
 
@@ -178,6 +180,7 @@ impl Topic {
             Topic::CueLists => "looks-and-cues#cue-lists",
             Topic::Effects => "looks-and-cues#effects",
             Topic::Sequences => "looks-and-cues#sequences",
+            Topic::Hits => "looks-and-cues#hits",
             Topic::BandLink => "band-link",
         }
     }

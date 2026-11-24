@@ -43,6 +43,19 @@ A sequence is a run of looks over time:
    click, so each beat or bar can be another look.
 5. **Start**, or let a cue start it (the list beside the cue).
 
+## Hits: fog, flashes {#hits}
+
+A hit puts a preset on for a moment, such as a fog machine for half a second, outside the cue
+lists. When its time is up, the channels it set go back to what they were. A cue taking over
+leaves a hit alone.
+
+1. Save a group with only the fog machine (**Save group**), set the fog machine to full, and store
+   a preset **From** that group (**Store preset**). A preset from all fixtures would set every
+   light during the hit.
+2. Under **Hits**: a name, the preset and **On for** (0.5 s), then **Add hit**.
+3. **Fire** sets it off now. In a song's **Light cues** tab, pick the hit and **Add hit here** at a
+   point: the song fires it when playback passes there.
+
 ## All stop {#all-stop}
 
 The red **All stop** at the top of the Presets window (also Lighting > All Stop, a pad or a foot

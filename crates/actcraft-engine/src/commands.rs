@@ -785,6 +785,24 @@ pub fn all() -> Vec<Command<Engine>> {
             crate::sequences::cue_set,
         ),
         cmd(
+            "hit.set",
+            "Make a hit",
+            "",
+            None,
+            "{name, preset: index, seconds?: 0.05-600 (0.5 without)} (a preset on for a moment, such as fog; the same name changes it) -> {hit: index}",
+            crate::hits::hit_set,
+        ),
+        cmd("hit.remove", "Remove a hit", "", None, "{hit: index}", crate::hits::hit_remove),
+        cmd("hit.list", "List hits", "", None, "none", crate::hits::hit_list),
+        cmd(
+            "hit.fire",
+            "Fire a hit",
+            "",
+            None,
+            "{hit: index} (its preset on for its time, then its channels go back)",
+            crate::hits::hit_fire,
+        ),
+        cmd(
             "sequence.set",
             "Make a sequence",
             "",
@@ -881,7 +899,7 @@ pub fn all() -> Vec<Command<Engine>> {
             "Fire a lighting cue at a song time",
             "",
             None,
-            "{song?: id (the current song without), time: seconds | bar: number (from 1) + beat?: number (from 1), list: index, cue: index} -> {light_cue: index}",
+            "{song?: id (the current song without), time: seconds | bar: number (from 1) + beat?: number (from 1), list: index, cue: index | hit: index (fires that hit instead)} -> {light_cue: index}",
             crate::cues::light_cue_add,
         ),
         cmd(

@@ -23,6 +23,7 @@ mod dmx_view;
 mod fixtures_view;
 pub mod flows;
 mod help_view;
+mod hits_view;
 pub mod i18n;
 mod looks_view;
 mod lyrics_view;
