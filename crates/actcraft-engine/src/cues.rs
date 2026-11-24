@@ -123,6 +123,20 @@ impl Engine {
             .and_then(|l| l.cues.get(cue))
             .cloned()
             .ok_or_else(|| invalid("no such cue"))?;
+        // One cue in control: this cue takes over from the cue before it, in this list or in any
+        // other. Every other list stops going on by itself (else a chase keeps firing its looks
+        // over this one), and what the cues before started stops, unless this cue starts it too.
+        let before: Vec<String> = self
+            .cue_at
+            .iter()
+            .filter_map(|(&l, &at)| self.show.cue_lists.get(l)?.cues.get(at))
+            .flat_map(|before| before.starts.clone())
+            .collect();
+        for name in before.iter().filter(|n| !c.starts.contains(n)) {
+            self.stop_by_name(name);
+        }
+        self.cue_at.retain(|&l, _| l == list);
+        self.cue_went.retain(|&l, _| l == list);
         // A cue may have no preset of its own and only start or stop sequences and effects.
         if !c.preset.is_empty() {
             let preset = self.show.presets.iter().find(|p| p.name == c.preset).cloned();
@@ -132,7 +146,11 @@ impl Engine {
         for name in &c.stops {
             self.stop_by_name(name);
         }
+        // What already runs (started by the cue before too) goes on without starting over.
         for name in &c.starts {
+            if self.is_running(name) {
+                continue;
+            }
             self.start_by_name(name);
         }
         self.cue_at.insert(list, cue);
@@ -576,6 +594,62 @@ mod tests {
         assert_eq!(e.cue_position(0), Some(1));
         assert!(e.run("song.light_cue_remove", &json!({"song": song, "light_cue": 0})).is_ok());
         assert_eq!(e.show.song(song).map(|s| s.light_cues.len()), Some(1));
+    }
+
+    /// The owner's case: a song's first light cue starts a chase (a list that goes on by itself)
+    /// with a sequence, the second one another list. The second takes over: the chase stops going
+    /// on and its sequence stops, so the two no longer fight over the lights.
+    #[test]
+    fn a_songs_next_light_cue_takes_over_from_the_one_before() {
+        let mut e = engine();
+        let _ = e.run("song.add", &Value::Null);
+        let _ = e.run("sequence.set", &json!({"name": "Sweep"}));
+        let _ = e.run("sequence.step_add", &json!({"sequence": 0, "preset": 0, "length": 1.0}));
+        let _ = e.run("cue_list.add", &json!({"name": "Verse"}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 1.0}));
+        let _ = e.run("cue.add", &json!({"list": 0, "preset": 0, "follow": 1.0}));
+        let _ = e.run("cue.set", &json!({"list": 0, "cue": 0, "starts": ["Sweep"]}));
+        let _ = e.run("cue_list.add", &json!({"name": "Chorus"}));
+        let _ = e.run("cue.add", &json!({"list": 1, "preset": 1}));
+        let _ = e.run("song.light_cue_add", &json!({"time": 2.0, "list": 0, "cue": 0}));
+        let _ = e.run("song.light_cue_add", &json!({"time": 10.0, "list": 1, "cue": 0}));
+        let at = |e: &mut Engine, t: f64| {
+            e.status.playing = true;
+            e.status.time = t;
+            e.run_due_light_cues();
+        };
+        at(&mut e, 1.9);
+        at(&mut e, 2.1);
+        assert_eq!((e.cue_position(0), e.running_sequences.len()), (Some(0), 1), "the verse chase runs");
+        at(&mut e, 9.9);
+        at(&mut e, 10.2);
+        assert_eq!(e.cue_position(1), Some(0), "the chorus cue went");
+        assert_eq!(e.cue_position(0), None, "the verse chase no longer goes on");
+        assert!(e.running_sequences.is_empty(), "the verse's sequence stopped");
+        assert_eq!(level(&e), 0, "the chorus look (Dark) is on");
+        // Time passes: the verse chase does not come back over the chorus.
+        e.step_follow(e.services().now() + TimeDelta::seconds(30));
+        assert_eq!((e.cue_position(0), level(&e)), (None, 0));
+    }
+
+    /// A chase whose cues all start the same sequence keeps it running from cue to cue instead of
+    /// starting it over (or stopping it) at every step.
+    #[test]
+    fn a_sequence_both_cues_start_goes_on_without_starting_over() {
+        let mut e = engine();
+        let _ = e.run("sequence.set", &json!({"name": "Sweep"}));
+        let _ = e.run("sequence.step_add", &json!({"sequence": 0, "preset": 0, "length": 1.0}));
+        let _ = e.run("cue_list.add", &json!({"name": "L"}));
+        for _ in 0..2 {
+            let _ = e.run("cue.add", &json!({"list": 0, "preset": 0}));
+        }
+        for cue in 0..2 {
+            let _ = e.run("cue.set", &json!({"list": 0, "cue": cue, "starts": ["Sweep"]}));
+        }
+        let _ = e.run("cue.go", &Value::Null);
+        let started = e.running_sequences.first().map(|(_, at)| *at);
+        let _ = e.run("cue.go", &Value::Null);
+        assert_eq!(e.running_sequences.first().map(|(_, at)| *at), started);
     }
 
     #[test]

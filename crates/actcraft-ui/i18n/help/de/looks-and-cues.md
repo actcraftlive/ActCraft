@@ -23,6 +23,11 @@ Eine Cue-Liste spielt Stimmungen nacheinander ab:
 
 Der Reiter **Licht-Cues** eines Songs löst Cues an Takten des Songs aus, auf seiner Lichtspur.
 
+Es hat immer nur ein Cue die Kontrolle. Ein Cue, der kommt, aus einer beliebigen Liste oder von
+der Lichtspur des Songs, übernimmt vom Cue davor: Die andere Liste läuft nicht mehr von selbst
+weiter, und Abläufe und Effekte, die der Cue davor gestartet hat, stoppen, außer der neue Cue
+startet sie auch.
+
 ## Effekte {#effects}
 
 Ein Effekt bewegt eine Gruppe von Lampen von selbst: ein Pulsieren, ein Kreis, ein Regenbogen.

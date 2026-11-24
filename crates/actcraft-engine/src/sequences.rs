@@ -138,6 +138,11 @@ impl Engine {
         false
     }
 
+    /// Whether a sequence or an effect of this name runs.
+    pub(crate) fn is_running(&self, name: &str) -> bool {
+        self.running_sequences.iter().any(|(n, _)| n == name) || self.running_effects.iter().any(|(n, _)| n == name)
+    }
+
     /// Stops a sequence or an effect by name; "*" stops every one.
     pub(crate) fn stop_by_name(&mut self, name: &str) {
         if name == "*" {
