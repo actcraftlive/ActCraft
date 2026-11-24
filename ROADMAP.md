@@ -19,6 +19,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) and the update check (Help > About, only when asked) done; installers, CI artifacts and a first alpha release to do |
 | M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
 | M11 | Light sequences: animations for moving heads, steps on the click, started by cues | 🔶 sequences done; more from the owner's list to come |
+| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | ⬜ planned |
 
 ## Next up
 
@@ -30,6 +31,14 @@ details are in the milestone sections further down.
 2. M9: unsigned installers (MSI, DMG, AppImage/DEB/RPM) and CI build artifacts (owner agreed; no release, no signing; a portable zip or tarball is `cargo xtask package`)
 
 M10 (band sheets, planned with the owner on 2026-11-23) is done; see its section.
+
+Next, asked for by the owner on 2026-11-24 (details under M12):
+
+3. M12: help window and file layout
+4. M12: the help pages in English and German
+5. M12: screenshots in each language (`cargo xtask help-shots`)
+6. M12: question-mark buttons that open the help at their section
+7. M12: translating the help (`docs/translating.md`)
 
 ## Quality and open questions
 
@@ -339,6 +348,30 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   (from the song's lighting lane, a pad, MIDI or a foot switch) runs a whole animation
   (`sequence.set`, `sequence.step_add` and the other `sequence.*` commands, `cue.set {starts,
   stops}`, `sequence.toggle` for pads)
+
+## M12 Help and how-tos ⬜ planned
+
+Asked for by the owner on 2026-11-24: a help with screenshots, important information and how-tos;
+question-mark buttons beside settings that lead to their part of the help; the help part of the
+language files, so it can be translated, with each language's screenshots in its own folder.
+Each step is its own pull request, in this order:
+
+1. ⬜ Help window and file layout: Help > ActCraft Help (F1) shows pages written in Markdown in the
+   language folder (`crates/actcraft-ui/i18n/help/<language>/*.md`), screenshots from
+   `crates/actcraft-ui/i18n/help/img_<language>/`; a page or picture missing in a language shows
+   the English one. A contents list, links between pages and to sections, back and forward,
+   all by keyboard and with names for screen readers. The Markdown is read with the shared
+   `craft-markdown` (house rule 16); the window draws it.
+2. ⬜ The pages, in English and German: getting started; songs, tracks and the mixer; playlists,
+   setlists and the printed setlist; lyrics and chords; sheet music, sheets per musician and the
+   browser view; MIDI, foot switches, pads and OSC; lighting: DMX output, the USB cable,
+   fixtures and the fixture library; presets, cues, effects and sequences; the band link;
+   updates; keyboard shortcuts.
+3. ⬜ Screenshots in each language, made from the program itself by `cargo xtask help-shots`
+   (`--screenshot` with a sample show), so they are made again after a change and for a new
+   language; recorded in ATTRIBUTION.md.
+4. ⬜ Question-mark buttons beside settings and in windows that open the help at their section.
+5. ⬜ `docs/translating.md` explains how to translate the help and its screenshots.
 
 ## Languages
 
