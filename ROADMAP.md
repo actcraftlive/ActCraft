@@ -43,7 +43,7 @@ Next, asked for by the owner on 2026-11-24 (details under M12):
 Asked for by the owner on 2026-11-24 (details under M11):
 
 8. ✅ M11: Stop for cue lists and All stop
-9. M11: one cue in control (a new cue takes over from the one before)
+9. ✅ M11: one cue in control (a new cue takes over from the one before)
 
 ## Quality and open questions
 
@@ -361,7 +361,7 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
 - ✅ All stop (owner, 2026-11-24: "and a general ALL STOP button"): one button in the Presets
   window, the Lighting menu and a command for pads, MIDI and foot switches that stops every cue
   list, sequence and effect and darkens every fixture without moving it (`lighting.stop_all`)
-- ⬜ One cue in control (owner, 2026-11-24: "light cues in a song overwrite each other from the
+- ✅ One cue in control (owner, 2026-11-24: "light cues in a song overwrite each other from the
   second one on: it doesn't stop the cue after its part, both fight for the lights"): a cue that
   goes takes over. Every other cue list stops going on by itself, and the sequences and effects
   the cues before it started stop, unless this cue starts them too (they then go on without

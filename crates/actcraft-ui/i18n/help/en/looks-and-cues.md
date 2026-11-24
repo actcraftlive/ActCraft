@@ -22,6 +22,10 @@ A cue list runs looks one after the other:
 
 A song's **Light cues** tab fires cues at bars of the song, on its lighting lane.
 
+One cue is in control at a time. A cue that goes, from any list or the song's lane, takes over
+from the one before: the other list stops going on by itself, and the sequences and effects the
+cue before started stop, unless the new cue starts them too.
+
 ## Effects {#effects}
 
 An effect moves a group of lights by itself: a pulse, a circle, a rainbow. Save a group first (**Save group**),
