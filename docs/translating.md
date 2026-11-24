@@ -45,3 +45,56 @@ sure a file that ships is complete.
 
 Every visible text goes through `tr("English text")` in `crates/actcraft-ui`. When you add one,
 add its row to every language file; the test above fails until you do.
+
+## Translating the help
+
+The help (Help > ActCraft Help, F1) has its own folder next to the language files:
+
+```text
+crates/actcraft-ui/i18n/help/
+  contents.txt        the pages in the order the contents list shows them
+  en/                 the English pages, one Markdown file per page
+  de/                 the German pages, same file names
+  img_en/             the English pictures
+  img_de/             the German pictures
+```
+
+The build embeds every page and picture; nothing else needs to change. A page or picture that a
+language doesn't have yet shows in English, so you can translate page by page.
+
+### Pages
+
+1. Make the folder `crates/actcraft-ui/i18n/help/<code>/`, with the same code as your language
+   file (`fr` for `fr.tsv`).
+2. Copy a page from `en/` and translate it. Keep the file name.
+3. Keep what the window and other pages rely on:
+   - **Heading ids.** A heading ends in an id such as `## The mixer {#mixer}`. Translate the
+     words and keep `{#mixer}` as it is: the **?** buttons and links find the part by it.
+   - **Link targets.** In `[the mixer](songs-and-mixer#mixer)` translate the words in brackets,
+     not the target in parentheses.
+   - **Picture names.** In `![words](window.png)` translate the words (screen readers read
+     them), not the file name.
+   - **Names of buttons and menus.** Write them as your language file translates them, so the
+     page says what the window shows.
+4. Run `cargo test -p actcraft-ui help`. The tests check that every link leads to a page and
+   heading there is, that every **?** button finds its part in your language, and that every
+   picture a page shows exists.
+
+The pages use plain Markdown: `#` headings, paragraphs, `**bold**` for what to press,
+`*italics*`, `` `code` ``, numbered and bulleted lists, `>` quotes, tables, and pictures on a
+line of their own.
+
+### Pictures
+
+The pictures are screenshots of ActCraft. They are not drawn or edited by hand; a command makes
+them in every help language:
+
+```sh
+cargo xtask help-shots
+```
+
+It builds an example show and opens the window once per picture and language, in that language,
+then saves the pictures to `img_<code>/`. Run it after you add a help folder, and again when the
+window changes. It shows nothing of your computer: it starts the window without audio devices
+or remote control and with settings of its own. Look at the pictures before committing them.
+Their row in `ATTRIBUTION.md` covers every `img_*` folder.

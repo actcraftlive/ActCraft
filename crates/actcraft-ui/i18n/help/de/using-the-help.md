@@ -16,4 +16,5 @@ genau dort.
 ## Hilfe in deiner Sprache {#languages}
 
 Die Hilfe steht in einfachen Textdateien, eine pro Seite, neben den Sprachdateien des Fensters.
-Wie man sie übersetzt, steht in `docs/translating.md` im Quellcode von ActCraft.
+Wie man sie übersetzt und ihre Bilder in einer neuen Sprache macht, steht in
+`docs/translating.md` im Quellcode von ActCraft.

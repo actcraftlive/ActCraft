@@ -19,7 +19,7 @@ Legend: ✅ done · 🔶 partly done · ⬜ not started
 | M9 | Installers: MSI and zip, DMG, AppImage/DEB/RPM/tarball | 🔶 unsigned zip and tarball (`cargo xtask package`) and the update check (Help > About, only when asked) done; installers, CI artifacts and a first alpha release to do |
 | M10 | Band sheets: sheets per musician, a browser view for musicians, MIDI to notes, setlist PDF | ✅ sheets per musician, setlist PDF, MIDI to notes, sheets in the browser |
 | M11 | Light sequences: animations for moving heads, steps on the click, started by cues | 🔶 sequences done; more from the owner's list to come |
-| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | 🔶 help window, pages, screenshots and ? buttons done; translating to do |
+| M12 | Help: a manual with how-tos and screenshots in the program, in every language, opened from the settings it explains | ✅ done |
 
 ## Next up
 
@@ -38,7 +38,7 @@ Next, asked for by the owner on 2026-11-24 (details under M12):
 4. ✅ M12: the help pages in English and German
 5. ✅ M12: screenshots in each language (`cargo xtask help-shots`)
 6. ✅ M12: question-mark buttons that open the help at their section
-7. M12: translating the help (`docs/translating.md`)
+7. ✅ M12: translating the help (`docs/translating.md`)
 
 ## Quality and open questions
 
@@ -349,7 +349,7 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   (`sequence.set`, `sequence.step_add` and the other `sequence.*` commands, `cue.set {starts,
   stops}`, `sequence.toggle` for pads)
 
-## M12 Help and how-tos 🔶
+## M12 Help and how-tos ✅
 
 Asked for by the owner on 2026-11-24: a help with screenshots, important information and how-tos;
 question-mark buttons beside settings that lead to their part of the help; the help part of the
@@ -371,7 +371,7 @@ Each step is its own pull request, in this order:
    (`--screenshot` with a sample show), so they are made again after a change and for a new
    language; recorded in ATTRIBUTION.md.
 4. ✅ Question-mark buttons beside settings and in windows that open the help at their section.
-5. ⬜ `docs/translating.md` explains how to translate the help and its screenshots.
+5. ✅ `docs/translating.md` explains how to translate the help and its screenshots.
 
 ## Languages
 
