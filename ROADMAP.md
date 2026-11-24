@@ -45,7 +45,7 @@ Asked for by the owner on 2026-11-24 (details under M11):
 8. ✅ M11: Stop for cue lists and All stop
 9. ✅ M11: one cue in control (a new cue takes over from the one before)
 10. ✅ M11: hits, short bursts outside the cue lists (fog for 0.5 s)
-11. M11: presets keep every channel of a fixture
+11. ✅ M11: presets keep every channel of a fixture
 
 ## Quality and open questions
 
@@ -374,7 +374,7 @@ Asked for by the owner on 2026-11-24 ("whole runs as a cue, so moving heads can 
   Hits belong to no cue list, so a cue taking over leaves them alone. Fired from the song's
   lighting lane at a bar, from the Presets window and by a command (`hit.*`, `song.light_cue_add
   {hit}`); pads and foot switches next
-- ⬜ Presets keep every channel (owner, 2026-11-24: "why are only 7 values of my 13-value DMX
+- ✅ Presets keep every channel (owner, 2026-11-24: "why are only 7 values of my 13-value DMX
   profile stored? Switching the light on is not in my preset"): channels without a named
   attribute (the LM70SR's dimmer/strobe, colour macro, speed, reset) were stored once per
   fixture, so only the first one was kept. Each such channel is now stored by its number, and

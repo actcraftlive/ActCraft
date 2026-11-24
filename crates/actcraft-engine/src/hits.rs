@@ -4,13 +4,13 @@
 
 use actcraft_command::params as p;
 use actcraft_command::{CommandError, CommandResult};
-use actcraft_show::Hit;
 use actcraft_show::limits::{MAX_FADE_S, MAX_HITS};
+use actcraft_show::{Hit, PresetValue};
 use chrono::{DateTime, FixedOffset, TimeDelta};
 use serde_json::{Value, json};
 
 use crate::Engine;
-use crate::fixtures::{Attribute, value_of};
+use crate::fixtures::slot_value_of;
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -29,7 +29,7 @@ pub struct RunningHit {
     name: String,
     until: DateTime<FixedOffset>,
     /// What its channels were before it fired: put back when it ends.
-    restore: Vec<(u64, Attribute, f64)>,
+    restore: Vec<PresetValue>,
 }
 
 impl RunningHit {
@@ -61,13 +61,13 @@ impl Engine {
                 .iter()
                 .filter_map(|v| {
                     let f = self.show.fixtures.iter().find(|f| f.id == v.fixture)?;
-                    Some((v.fixture, v.attribute, value_of(self, f, v.attribute)?))
+                    Some(PresetValue { value: slot_value_of(self, f, v.attribute, v.channel)?, ..*v })
                 })
                 .collect();
             self.running_hits.push(RunningHit { name: name.to_owned(), until, restore });
         }
         for v in &preset.values {
-            self.put(v.fixture, v.attribute, v.value);
+            self.put_slot(v.fixture, v.attribute, v.channel, v.value);
         }
         Ok(())
     }
@@ -78,8 +78,8 @@ impl Engine {
             std::mem::take(&mut self.running_hits).into_iter().partition(|h| now >= h.until);
         self.running_hits = on;
         for h in done {
-            for (fixture, attribute, value) in h.restore {
-                self.put(fixture, attribute, value);
+            for v in h.restore {
+                self.put_slot(v.fixture, v.attribute, v.channel, v.value);
             }
         }
     }

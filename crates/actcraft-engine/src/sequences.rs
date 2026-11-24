@@ -106,9 +106,9 @@ impl Engine {
                 let start = a
                     .values
                     .iter()
-                    .find(|w| w.fixture == v.fixture && w.attribute == v.attribute)
+                    .find(|w| w.fixture == v.fixture && w.attribute == v.attribute && w.channel == v.channel)
                     .map_or(v.value, |w| w.value);
-                self.put(v.fixture, v.attribute, start + (v.value - start) * t);
+                self.put_slot(v.fixture, v.attribute, v.channel, start + (v.value - start) * t);
             }
             if finished(&seq.steps, seq.mode, pos) {
                 done.push(name);

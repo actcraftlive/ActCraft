@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 pub use actcraft_show::{Group, Preset, PresetValue};
 
 use crate::Engine;
-use crate::fixtures::{attribute_key, targets, value_of};
+use crate::fixtures::{Attribute, attribute_key, slot_value_of, targets, value_of};
 
 fn invalid(msg: impl Into<String>) -> CommandError {
     CommandError::InvalidParams(msg.into())
@@ -93,13 +93,22 @@ pub fn preset_store(e: &mut Engine, prm: &Value) -> CommandResult {
     for i in picked {
         let Some(f) = e.show.fixtures.get(i) else { continue };
         let mut seen = Vec::new();
-        for a in f.channels.iter().copied().filter(|a| !a.is_fine()) {
+        for (c, a) in f.channels.iter().copied().enumerate().filter(|(_, a)| !a.is_fine()) {
+            // A channel without a named attribute (a dimmer/strobe mode, a colour macro, a speed):
+            // a fixture can have several, so each is kept by its number.
+            if a == Attribute::Other {
+                let channel = u16::try_from(c).ok();
+                if let Some(value) = slot_value_of(e, f, a, channel) {
+                    values.push(PresetValue { fixture: f.id, attribute: a, value, channel });
+                }
+                continue;
+            }
             if seen.contains(&a) {
                 continue;
             }
             seen.push(a);
             if let Some(value) = value_of(e, f, a) {
-                values.push(PresetValue { fixture: f.id, attribute: a, value });
+                values.push(PresetValue { fixture: f.id, attribute: a, value, channel: None });
             }
         }
     }
@@ -161,7 +170,12 @@ pub fn preset_list(e: &mut Engine, _prm: &Value) -> CommandResult {
                     .iter()
                     .filter_map(|v| {
                         let i = e.show.fixtures.iter().position(|f| f.id == v.fixture)?;
-                        Some(json!({"fixture": i, "attribute": attribute_key(v.attribute), "value": v.value}))
+                        let mut value =
+                            json!({"fixture": i, "attribute": attribute_key(v.attribute), "value": v.value});
+                        if let (Some(c), Some(o)) = (v.channel, value.as_object_mut()) {
+                            o.insert("channel".to_owned(), json!(c));
+                        }
+                        Some(value)
                     })
                     .collect();
                 json!({"name": p.name, "values": values})
@@ -173,12 +187,43 @@ pub fn preset_list(e: &mut Engine, _prm: &Value) -> CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures::Attribute;
 
     fn engine() -> Engine {
         let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
         let _ = e.run("fixture.add", &json!({"kind": "rgb_dimmer", "universe": 1, "count": 3}));
         e
+    }
+
+    /// The owner's case: the Betopper LM70SR (14 channels) has six channels without a named
+    /// attribute, among them channel 6, which switches the light on (dimmer / strobe / open). A
+    /// preset keeps every one of them, and recalling it sets them all again.
+    #[test]
+    fn a_preset_keeps_every_channel_of_a_moving_head() {
+        let mut e = Engine::new(Box::new(crate::MemoryServices::default()));
+        let kind = e.run("fixture_type.from_library", &json!({"name": "Betopper LM70SR"})).ok();
+        let kind = kind.and_then(|k| k.get("type").cloned()).unwrap_or(json!(0));
+        assert!(e.run("fixture.add", &json!({"type": kind, "mode": 0, "universe": 1, "address": 1})).is_ok());
+        // Every channel to a level of its own: 1, 2, ... 14.
+        let levels: Vec<u8> = (1..=14).collect();
+        assert!(e.run("dmx.set", &json!({"universe": 1, "channel": 1, "values": levels})).is_ok());
+        let stored = e.run("preset.store", &json!({"name": "On"})).ok();
+        let count = stored.as_ref().and_then(|s| s.get("values")).and_then(Value::as_u64);
+        // 14 channels less the two fine ones (pan and tilt keep 16 bits in one value each).
+        assert_eq!(count, Some(12), "{stored:?}");
+        assert!(e.run("dmx.clear", &Value::Null).is_ok());
+        assert!(e.run("preset.recall", &json!({"preset": 0})).is_ok());
+        let back = e.dmx.universe(1).map(|u| u[..14].to_vec());
+        assert_eq!(back, Some(levels), "every channel back, channel 6 (light on) too");
+    }
+
+    /// A preset stored before channel numbers were kept still loads and recalls.
+    #[test]
+    fn an_older_preset_without_channel_numbers_still_loads() {
+        let v: Result<PresetValue, _> = serde_json::from_value(json!({"fixture": 1, "attribute": "red", "value": 0.5}));
+        assert_eq!(v.ok().map(|v| v.channel), Some(None));
+        let back =
+            serde_json::to_value(PresetValue { fixture: 1, attribute: Attribute::Red, value: 0.5, channel: None });
+        assert_eq!(back.ok(), Some(json!({"fixture": 1, "attribute": "red", "value": 0.5})), "saved as before");
     }
 
     #[test]
