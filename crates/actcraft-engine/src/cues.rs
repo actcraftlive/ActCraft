@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 pub use actcraft_show::{Cue, CueList, LightCue};
 
 use crate::Engine;
-use crate::fixtures::{Attribute, levels_for, live_value_of};
+use crate::fixtures::{Attribute, slot_levels, slot_live_value_of};
 use crate::looks::Preset;
 
 fn invalid(msg: impl Into<String>) -> CommandError {
@@ -34,6 +34,7 @@ pub struct Fade {
 struct Part {
     fixture: u64,
     attribute: Attribute,
+    channel: Option<u16>,
     from: f64,
     to: f64,
 }
@@ -48,9 +49,14 @@ impl Fade {
 impl Engine {
     /// Sets one fixture attribute (by fixture id) to `value`; whether a level changed.
     pub(crate) fn put(&mut self, fixture: u64, attribute: Attribute, value: f64) -> bool {
+        self.put_slot(fixture, attribute, None, value)
+    }
+
+    /// Sets a preset value: an attribute, or one of the fixture's other channels by its number.
+    pub(crate) fn put_slot(&mut self, fixture: u64, attribute: Attribute, channel: Option<u16>, value: f64) -> bool {
         let Some(f) = self.show.fixtures.iter().find(|f| f.id == fixture).cloned() else { return false };
         let mut changed = false;
-        for (offset, level) in levels_for(&f, attribute, value) {
+        for (offset, level) in slot_levels(&f, attribute, channel, value) {
             changed |= self.dmx.set(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
         }
         changed
@@ -61,7 +67,7 @@ impl Engine {
         let mut changed = false;
         for v in &preset.values {
             let Some(f) = self.show.fixtures.iter().find(|f| f.id == v.fixture).cloned() else { continue };
-            for (offset, level) in levels_for(&f, v.attribute, v.value) {
+            for (offset, level) in slot_levels(&f, v.attribute, v.channel, v.value) {
                 changed |= self.dmx.set_edited(usize::from(f.universe), usize::from(f.address) + offset, &[level]);
             }
         }
@@ -74,7 +80,7 @@ impl Engine {
             self.fade = None;
             let mut changed = false;
             for v in &preset.values {
-                changed |= self.put(v.fixture, v.attribute, v.value);
+                changed |= self.put_slot(v.fixture, v.attribute, v.channel, v.value);
             }
             return changed;
         }
@@ -83,8 +89,8 @@ impl Engine {
             .iter()
             .filter_map(|v| {
                 let f = self.show.fixtures.iter().find(|f| f.id == v.fixture)?;
-                let from = live_value_of(self, f, v.attribute)?;
-                Some(Part { fixture: v.fixture, attribute: v.attribute, from, to: v.value })
+                let from = slot_live_value_of(self, f, v.attribute, v.channel)?;
+                Some(Part { fixture: v.fixture, attribute: v.attribute, channel: v.channel, from, to: v.value })
             })
             .collect();
         self.fade = Some(Fade { started: self.services().now(), seconds, parts });
@@ -97,7 +103,7 @@ impl Engine {
         let elapsed = (now - fade.started).num_milliseconds() as f64 / 1000.0;
         let t = (elapsed / fade.seconds).clamp(0.0, 1.0);
         for part in &fade.parts {
-            self.put(part.fixture, part.attribute, part.from + (part.to - part.from) * t);
+            self.put_slot(part.fixture, part.attribute, part.channel, part.from + (part.to - part.from) * t);
         }
         if t >= 1.0 {
             self.fade = None;
@@ -444,7 +450,7 @@ pub fn cue_list_stop(e: &mut Engine, prm: &Value) -> CommandResult {
     let mut values: Vec<actcraft_show::PresetValue> = Vec::new();
     for preset in l.cues.iter().filter_map(|c| e.show.presets.iter().find(|p| p.name == c.preset)) {
         for v in preset.values.iter().filter(|v| LIGHT.contains(&v.attribute)) {
-            if !values.iter().any(|d| d.fixture == v.fixture && d.attribute == v.attribute) {
+            if !values.iter().any(|d| d.fixture == v.fixture && d.attribute == v.attribute && d.channel == v.channel) {
                 values.push(actcraft_show::PresetValue { value: 0.0, ..*v });
             }
         }
@@ -466,7 +472,9 @@ pub fn lighting_stop_all(e: &mut Engine, prm: &Value) -> CommandResult {
         .show
         .fixtures
         .iter()
-        .flat_map(|f| LIGHT.map(|attribute| actcraft_show::PresetValue { fixture: f.id, attribute, value: 0.0 }))
+        .flat_map(|f| {
+            LIGHT.map(|attribute| actcraft_show::PresetValue { fixture: f.id, attribute, value: 0.0, channel: None })
+        })
         .collect();
     e.fade_to(&Preset { values, ..Preset::default() }, fade);
     Ok(Value::Null)

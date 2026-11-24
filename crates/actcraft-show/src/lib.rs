@@ -1086,6 +1086,11 @@ pub struct PresetValue {
     pub attribute: Attribute,
     /// 0-1.
     pub value: f64,
+    /// For [`Attribute::Other`]: which of the fixture's channels (from 0), since a fixture can
+    /// have several such channels (a dimmer/strobe mode, a colour macro, a speed). `None` for a
+    /// named attribute, and in presets stored before this was kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<u16>,
 }
 
 /// A kind of fixture brought into the show (from a fixture library file), with its modes.

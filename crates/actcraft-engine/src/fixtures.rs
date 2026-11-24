@@ -298,15 +298,44 @@ pub fn levels_for(f: &Fixture, attribute: Attribute, value: f64) -> Vec<(usize, 
     }
 }
 
+/// Like [`levels_for`], for a preset's value: `channel` names which of the fixture's
+/// [`Attribute::Other`] channels it is (a fixture can have several); `None` goes by the attribute.
+pub fn slot_levels(f: &Fixture, attribute: Attribute, channel: Option<u16>, value: f64) -> Vec<(usize, u8)> {
+    match one_channel(f, attribute, channel) {
+        Some(c) => vec![(c, (value.clamp(0.0, 1.0) * 255.0).round() as u8)],
+        None => levels_for(f, attribute, value),
+    }
+}
+
+/// The one channel a value with a channel number sets, when the fixture has that channel and it
+/// is the value's attribute.
+fn one_channel(f: &Fixture, attribute: Attribute, channel: Option<u16>) -> Option<usize> {
+    let c = usize::from(channel?);
+    (f.channels.get(c) == Some(&attribute)).then_some(c)
+}
+
 /// An attribute's value now (0-1), from the levels being edited (blind's copy while blind is on);
 /// `None` when the fixture lacks it.
 pub fn value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
     value_in(e.dmx.edited(usize::from(f.universe))?, f, attribute)
 }
 
-/// An attribute's value at the lights now (0-1, before blackout and master).
-pub(crate) fn live_value_of(e: &Engine, f: &Fixture, attribute: Attribute) -> Option<f64> {
-    value_in(e.dmx.universe(usize::from(f.universe))?, f, attribute)
+/// Like [`value_of`], for a preset's value with its channel number (see [`slot_levels`]).
+pub fn slot_value_of(e: &Engine, f: &Fixture, attribute: Attribute, channel: Option<u16>) -> Option<f64> {
+    slot_value_in(e.dmx.edited(usize::from(f.universe))?, f, attribute, channel)
+}
+
+/// A preset value's level at the lights now (0-1, before blackout and master), with its channel
+/// number (see [`slot_levels`]).
+pub(crate) fn slot_live_value_of(e: &Engine, f: &Fixture, attribute: Attribute, channel: Option<u16>) -> Option<f64> {
+    slot_value_in(e.dmx.universe(usize::from(f.universe))?, f, attribute, channel)
+}
+
+fn slot_value_in(levels: &[u8; CHANNELS], f: &Fixture, attribute: Attribute, channel: Option<u16>) -> Option<f64> {
+    match one_channel(f, attribute, channel) {
+        Some(c) => levels.get(usize::from(f.address).saturating_sub(1) + c).map(|l| f64::from(*l) / 255.0),
+        None => value_in(levels, f, attribute),
+    }
 }
 
 fn value_in(levels: &[u8; CHANNELS], f: &Fixture, attribute: Attribute) -> Option<f64> {
